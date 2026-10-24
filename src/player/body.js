@@ -468,7 +468,9 @@ export class Body {
     const it = pl.interact;
     const t = G.time;
     // right hand
+    const catT = G.cat && (pl.carrying === G.cat || G.cat.petting) ? G.cat.handTargets() : null;
     if (this.override.R) out.R = this.override.R;
+    else if (catT && catT.R) { out.R = catT.R; if (catT.L) out.L = catT.L; }
     else if (inv.hand) {
       const hp = pl.holdPivot.getWorldPosition(V());
       const item = inv.hand;
@@ -501,6 +503,7 @@ export class Body {
       if (p.distanceTo(cam.position) < 1.3) out.R = { p: p.clone().add(camOff(0, -0.02, 0.06)), F: camDir(0, 0, -1), N: camDir(-0.5, -0.8, 0), pose: pl.reachEvt.kind === 'press' ? 'point' : 'grip', w: k };
     }
     if (this.override.L) out.L = this.override.L;
+    else if (catT && catT.L) out.L = catT.L;
     // coughing: left hand to the mouth
     if (this.coughT >= 0 && !out.L) {
       const k = Math.sin(Math.PI * clamp(this.coughT / 1.4));

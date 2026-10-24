@@ -357,19 +357,20 @@ export function radiator(b, x, z, ry, w = 0.9) {
 export function bed(b, x, z, ry, o = {}) {
   b.beginFrame(x, 0, z, ry);
   const w = 1.4, L = 2.0;
-  // frame: headboard at local -z
-  b.box(0, 0.18, 0, w, 0.12, L, M.woodDark);
-  for (const sx of [-1, 1]) for (const sz of [-1, 1]) b.box(sx * (w / 2 - 0.04), 0.06, sz * (L / 2 - 0.04), 0.06, 0.12, 0.06, M.woodDark, { collide: false });
-  b.box(0, 0.55, -L / 2 - 0.03, w + 0.06, 1.1, 0.05, M.woodDark);
-  b.box(0, 0.32, L / 2 + 0.02, w + 0.04, 0.3, 0.04, M.woodDark);
+  // frame on tall legs: a cat fits underneath
+  b.box(0, 0.27, 0, w, 0.12, L, M.woodDark, { collide: false });
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) b.box(sx * (w / 2 - 0.04), 0.105, sz * (L / 2 - 0.04), 0.06, 0.21, 0.06, M.woodDark, { collide: false });
+  b.box(0, 0.6, -L / 2 - 0.03, w + 0.06, 1.2, 0.05, M.woodDark);
+  b.box(0, 0.38, L / 2 + 0.02, w + 0.04, 0.34, 0.04, M.woodDark);
   // mattress
-  b.geo(roundedBox(w - 0.06, 0.22, L - 0.06, 0.05), M.bedsheet, { x: 0, y: 0.35, z: 0 });
+  b.geo(roundedBox(w - 0.06, 0.22, L - 0.06, 0.05), M.bedsheet, { x: 0, y: 0.44, z: 0 });
   // pillows
-  b.geo(roundedBox(0.58, 0.12, 0.38, 0.05), M.bedsheet, { x: -0.33, y: 0.52, z: -L / 2 + 0.28, rx: 0.15 });
-  b.geo(roundedBox(0.58, 0.12, 0.38, 0.05), M.bedsheet, { x: 0.33, y: 0.52, z: -L / 2 + 0.3, rx: 0.12, ry: -0.05 });
-  b.collider(0, 0.25, 0, w, 0.5, L);
+  b.geo(roundedBox(0.58, 0.12, 0.38, 0.05), M.bedsheet, { x: -0.33, y: 0.61, z: -L / 2 + 0.28, rx: 0.15 });
+  b.geo(roundedBox(0.58, 0.12, 0.38, 0.05), M.bedsheet, { x: 0.33, y: 0.61, z: -L / 2 + 0.3, rx: 0.12, ry: -0.05 });
+  b.collider(0, 0.39, 0, w, 0.36, L);
+  b.collider(0, 0.1, 0, w, 0.2, L * 0.8);
   b.endFrame();
-  return { pillow: wpos(b, -0.2, 0.62, -L / 2 + 0.3), mattressY: 0.46, center: wpos(b, 0, 0.46, 0) };
+  return { pillow: wpos(b, -0.2, 0.71, -L / 2 + 0.3), mattressY: 0.55, center: wpos(b, 0, 0.55, 0) };
 }
 
 export function nightstand(b, x, z, ry) {

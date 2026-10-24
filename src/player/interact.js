@@ -64,6 +64,11 @@ export class Interaction {
     if (!this.drag && !this.idrag) this.cast();
     const ctx = this.context();
     const h = this.hovered;
+    // carrying the cat: she owns the hands
+    if (this.p.carrying) {
+      G.hud.setPrompt([{ key: 'E', label: 'Pet (hold)' }, { key: 'LMB', label: 'Put her down' }]);
+      return;
+    }
 
     // ---- dragging
     if (this.drag) {

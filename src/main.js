@@ -14,6 +14,9 @@ import { Player } from './player/player.js';
 import { Body } from './player/body.js';
 import { HUD } from './ui/hud.js';
 import { Sky } from './world/sky.js';
+import { NavGrid } from './world/nav.js';
+import { Cat } from './creatures/cat.js';
+import { FX } from './gfx/fx.js';
 import { nextFrame, Tasks } from './core/util.js';
 
 const params = new URLSearchParams(location.search);
@@ -64,6 +67,15 @@ async function boot() {
     G.sky.addWindowLight(new THREE.Vector3(f.x, 1.6, f.z + 0.25), new THREE.Vector3(0, -0.55, 1), 1);
   }
   G.sky.apply(G.sky.preset(+(params.get('day') || 1), +(params.get('t') || 0.12)), true);
+  G.fx = new FX();
+  G.nav = new NavGrid(-8.6, -0.4, 20.6, 10.0, 0.1);
+  G.nav.bake(G.physics.statics);
+  const D = G.apartment.doors;
+  G.nav.addDoor(D.bedroom, new THREE.Vector3(3.46, 0, 2.6), new THREE.Vector3(3.46, 0, 3.35));
+  G.nav.addDoor(D.bath, new THREE.Vector3(3.46, 0, 3.95), new THREE.Vector3(3.46, 0, 4.65));
+  G.nav.addDoor(D.closet, new THREE.Vector3(3.46, 0, 6.6), new THREE.Vector3(3.46, 0, 7.25));
+  G.nav.addDoor(D.front, new THREE.Vector3(7.25, 0, 7.75), new THREE.Vector3(8.05, 0, 7.75));
+  G.cat = new Cat(G.nav);
 
   progress(1, 'PLAY ▶');
   document.getElementById('boot').hidden = true;
@@ -90,8 +102,10 @@ function tick(dt) {
     G.world.update(dt);
     G.apartment.update(dt);
     G.player.lateUpdate(dt);
+    G.cat.update(dt);
   }
   G.sky.update(dt, G.camera);
+  G.fx.update(dt);
   G.particles.update(dt);
   G.hud.update(dt);
   G.audio.update(dt);
