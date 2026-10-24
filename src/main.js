@@ -4,7 +4,7 @@ import { Engine } from './core/engine.js';
 import { Input } from './core/input.js';
 import { Settings } from './core/settings.js';
 import { Physics } from './core/physics.js';
-import { initMaterials, M } from './gfx/materials.js';
+import { initMaterials, matteAll, M } from './gfx/materials.js';
 import { setMaxAnisotropy } from './gfx/textures.js';
 import { Particles, Decals } from './gfx/particles.js';
 import { World } from './world/world.js';
@@ -17,6 +17,7 @@ import { Sky } from './world/sky.js';
 import { NavGrid } from './world/nav.js';
 import { Cat } from './creatures/cat.js';
 import { Desk } from './world/desk.js';
+import { Building } from './world/building.js';
 import { FX } from './gfx/fx.js';
 import { nextFrame, Tasks } from './core/util.js';
 
@@ -54,6 +55,7 @@ async function boot() {
   G.particles = new Particles();
   G.decals = new Decals();
   G.apartment = new Apartment().build();
+  G.building = new Building().build();
   hookItemEvents();
   await nextFrame();
   progress(0.6, 'WAKING UP...');
@@ -76,10 +78,15 @@ async function boot() {
   G.nav.addDoor(D.bath, new THREE.Vector3(3.46, 0, 3.95), new THREE.Vector3(3.46, 0, 4.65));
   G.nav.addDoor(D.closet, new THREE.Vector3(3.46, 0, 6.6), new THREE.Vector3(3.46, 0, 7.25));
   G.nav.addDoor(D.front, new THREE.Vector3(7.25, 0, 7.75), new THREE.Vector3(8.05, 0, 7.75));
+  const BD = G.building.doors;
+  G.nav.addDoor(BD['4A'], new THREE.Vector3(-3.55, 0, 7.76), new THREE.Vector3(-2.8, 0, 7.76));
+  G.nav.addDoor(BD['4C'], new THREE.Vector3(12.35, 0, 7.76), new THREE.Vector3(13.1, 0, 7.76));
+  G.nav.addDoor(BD.trash, new THREE.Vector3(-6.46, 0, 8.4), new THREE.Vector3(-6.46, 0, 9.15));
   G.cat = new Cat(G.nav);
   G.desk = new Desk(G.apartment);
   if (!G.director) G.director = { hour: 9, minutes: 540, clockMinutes() { return this.minutes; }, nightness: 0, update(dt) { this.minutes += dt * 2; this.hour = this.minutes / 60; } };
 
+  matteAll(G.scene);
   progress(1, 'PLAY ▶');
   document.getElementById('boot').hidden = true;
   G.state = 'play';
@@ -104,6 +111,7 @@ function tick(dt) {
     G.physics.update(dt);
     G.world.update(dt);
     G.apartment.update(dt);
+    G.building.update(dt);
     G.player.lateUpdate(dt);
     G.cat.update(dt);
     G.desk.update(dt);

@@ -328,6 +328,7 @@ export function patchWorld(mat, { snap = true, warp = true, breath = true } = {}
   return addPatch(mat, key, (shader) => {
     shader.uniforms.uTime = G.uniforms.uTime;
     shader.uniforms.uWarp = G.uniforms.uWarp;
+    shader.uniforms.uBend = G.uniforms.uBend;
     shader.uniforms.uBreath = G.uniforms.uBreath;
     shader.uniforms.uSnapRes = G.uniforms.uSnapRes;
     shader.uniforms.uSnapOn = G.uniforms.uSnapOn;
@@ -336,7 +337,7 @@ export function patchWorld(mat, { snap = true, warp = true, breath = true } = {}
     if (warp) defs += '#define WORLD_WARP\n';
     if (useBreath) defs += '#define WORLD_BREATH\n';
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', `#include <common>\n${defs}uniform float uTime; uniform float uWarp; uniform float uBreath; uniform vec2 uSnapRes; uniform float uSnapOn;`)
+      .replace('#include <common>', `#include <common>\n${defs}uniform float uTime; uniform float uWarp; uniform vec4 uBend; uniform float uBreath; uniform vec2 uSnapRes; uniform float uSnapOn;`)
       .replace('#include <project_vertex>', PROJECT_PATCH);
   });
 }
@@ -367,6 +368,22 @@ const PROJECT_PATCH = /* glsl */`
       rel.xz = mat2(ca, -sa, sa, ca) * rel.xz;
       rel.y += uWarp * 0.035 * sin(d * 0.8 - uTime * 0.5) * d;
       rel.xz *= 1.0 + uWarp * 0.04 * sin(uTime * 0.23 + wpos.y);
+      wpos.xyz = cameraPosition + rel;
+    }
+    // liminal bending: space ahead stretches away, the floor curves, the corridor rolls
+    if (abs(uBend.x) + abs(uBend.y) + abs(uBend.z) > 0.001) {
+      vec3 rel = wpos.xyz - cameraPosition;
+      float d = length(rel.xz);
+      float k = smoothstep(0.7, 7.0, d);
+      rel.xz *= 1.0 + uBend.x * k;
+      rel.y += uBend.y * k * d * 0.12;
+      vec2 dir = rel.xz / max(d, 1e-3);
+      vec2 perp = vec2(-dir.y, dir.x);
+      float lat = dot(rel.xz, perp);
+      float a = uBend.z * k * d * 0.04;
+      float ca = cos(a), sa = sin(a);
+      float y2 = rel.y * ca - lat * sa, l2 = rel.y * sa + lat * ca;
+      rel.xz += perp * (l2 - lat); rel.y = y2;
       wpos.xyz = cameraPosition + rel;
     }
   #endif

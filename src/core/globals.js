@@ -43,6 +43,7 @@ export const G = {
   uniforms: {
     uTime: { value: 0 },
     uWarp: { value: 0 },        // reality warp strength 0..1
+    uBend: { value: new THREE.Vector4(0, 0, 0, 0) }, // liminal bending: (stretch, curve, twist, -) camera-relative
     uBreath: { value: 0 },      // breathing walls 0..1
     uSnapRes: { value: new THREE.Vector2(320, 180) },
     uSnapOn: { value: 1 },

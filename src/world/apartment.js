@@ -375,6 +375,7 @@ export class Apartment {
     }
     this.root.add(g);
     const streamMat = new THREE.MeshStandardMaterial({ color: 0xbcd8e8, transparent: true, opacity: 0.55, roughness: 0.05, envMapIntensity: 2, emissive: 0x223344 });
+    streamMat.userData.keepGloss = true;
     const stream = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.009, bath ? 0.12 : 0.22, 6, 4, true), streamMat);
     const sp = bath ? pos.clone().add(V(0, 0.07, -0.08)) : pos.clone().add(V(0, 0.08, 0));
     stream.position.copy(sp); stream.visible = false;

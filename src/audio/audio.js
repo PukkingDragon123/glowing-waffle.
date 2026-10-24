@@ -148,7 +148,8 @@ export class AudioEngine {
   play(name, o = {}) {
     if (!this.ctx || this.muted) return null;
     let bufs = this.get(name);
-    if (!bufs && name.startsWith('imp_') === false && GEN['imp_' + name]) bufs = this.get('imp_' + name);
+    if (!bufs && name.startsWith('imp_')) bufs = this.get(name.slice(4));
+    if (!bufs && GEN['imp_' + name]) bufs = this.get('imp_' + name);
     if (!bufs) return null;
     const buf = o.variant !== undefined ? bufs[o.variant % bufs.length] : bufs[Math.floor(Math.random() * bufs.length)];
     const src = this.ctx.createBufferSource();

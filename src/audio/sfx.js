@@ -569,6 +569,21 @@ function scream() {
     return sat(s * 2, 2) * Math.min(1, t / 0.05) * Math.pow(1 - p, 0.6);
   }), 0.01, 0.3), 0.95);
 }
+function pain() {
+  // a short pained gasp/grunt: low voiced "uh" with breath noise
+  return V(3, () => {
+    const dur = rnd(0.35, 0.6);
+    const F = [new Biquad('bp', rnd(500, 650), 5), new Biquad('bp', rnd(1000, 1250), 6)];
+    let ph = 0;
+    return normalize(fadeEdges(render(dur, (i, t) => {
+      const p = t / dur;
+      const f0 = 150 + 60 * Math.sin(Math.PI * p) + rnd(-4, 4);
+      ph += f0 / SR; if (ph > 1) ph -= 1;
+      const src = sat((ph < 0.4 ? 1 : -0.6) + white() * 0.5, 2);
+      return (F[0].p(src) + F[1].p(src) * 0.6) * Math.min(1, t / 0.02) * Math.pow(1 - p, 1.2);
+    }), 0.005, 0.08), 0.8);
+  });
+}
 function tvBabble() {
   // muffled murmuring voices + music bed, as heard through a wall / old TV
   const dur = 6;
@@ -630,7 +645,7 @@ export const GEN = {
   knocks: () => [knocks(3)], knock1: () => [knocks(1)], bodyFall: () => [bodyFall()], tear: () => [tear()], drip: drip, breaker: () => [breaker()], powerDown: () => [powerDown()],
   hum60: () => [hum60()], fluoro: () => [fluoro()], scream: () => [scream()], tvBabble: () => [tvBabble()], alienNear: () => [alienNear()], shipHum: () => [shipHum()], tapeHiss: () => [tapeHiss()],
   elevatorDing: () => [elevatorDing()], vending: () => [vending()], canDrop: () => [canDrop()], coin: () => [coin()], pickup, place, pocket: () => [rustle(0.2, 1600)], pageTurn: () => [pageTurn()],
-  radioTune: () => [radioTune()], alarmBeep: () => [alarmBeep()], sting2: () => [stinger()],
+  pain, radioTune: () => [radioTune()], alarmBeep: () => [alarmBeep()], sting2: () => [stinger()],
 };
 // sounds that loop when started with loop()
 export const LOOPS = new Set(['water', 'sizzle', 'brew', 'fridgeHum', 'dialTone', 'crtWhine', 'pcHum', 'lineStatic', 'purr', 'catEat', 'catLap', 'droneLow', 'droneVoid', 'droneLab', 'wind', 'cityDay', 'static', 'hum60', 'fluoro', 'tvBabble', 'alienNear', 'shipHum', 'tapeHiss', 'vending', 'breath', 'breathHeavy']);

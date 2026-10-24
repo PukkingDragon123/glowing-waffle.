@@ -6,11 +6,30 @@ import * as T from './textures.js';
 
 export const M = {};
 
+// Everything in this world is old, dusty and handled: no fresh lacquer, no
+// showroom gloss. Pull authored roughness toward matte (mirrors/glass excepted).
+const GLOSSY = new Set(['mirror', 'glass', 'glassDirt', 'mirrorBack']);
+function matte(name, r, metal) { return GLOSSY.has(name) ? r : r + (1 - r) * (metal > 0.5 ? 0.3 : 0.5); }
+
+// one pass over everything built so far (inline materials included)
+export function matteAll(root) {
+  const seen = new Set();
+  root.traverse((o) => {
+    const ms = o.material ? (Array.isArray(o.material) ? o.material : [o.material]) : [];
+    for (const m of ms) {
+      if (seen.has(m) || !m.isMeshStandardMaterial || m.isMeshPhysicalMaterial || m.userData.matte || m.userData.keepGloss || GLOSSY.has(m.name)) continue;
+      seen.add(m); m.userData.matte = true;
+      if (!M[m.name] || M[m.name] !== m) m.roughness = matte(m.name, m.roughness, m.metalness);
+      m.envMapIntensity *= 0.5;
+    }
+  });
+}
+
 export function std(name, bundle = null, o = {}) {
   const m = new THREE.MeshStandardMaterial({
     name,
     color: o.color ?? 0xffffff,
-    roughness: o.roughness ?? 0.85,
+    roughness: matte(name, o.roughness ?? 0.85, o.metalness ?? 0),
     metalness: o.metalness ?? 0,
     envMapIntensity: o.env ?? 0.6,
     side: o.side ?? THREE.FrontSide,
@@ -31,6 +50,7 @@ export function std(name, bundle = null, o = {}) {
   if (o.ws) m.userData.ws = o.ws;
   if (o.emissiveMap) m.emissiveMap = o.emissiveMap;
   if (o.patch !== false) patchWorld(m, { snap: o.snap ?? true, warp: o.warp ?? true, breath: o.breath ?? true });
+  m.userData.matte = true;
   M[name] = m;
   return m;
 }
