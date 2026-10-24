@@ -51,8 +51,8 @@ export function initMaterials() {
   std('woodFloor', T.woodFloor({ seed: 3 }), { roughness: 0.6, normal: 1, env: 0.9 });
   std('woodFloorOld', T.woodFloor({ seed: 31, base: [96, 66, 44] }), { roughness: 0.75, normal: 1.2 });
   std('kitchenFloor', T.checker({ seed: 6 }), { roughness: 0.45, env: 1 });
-  std('bathTiles', T.tiles({ seed: 5, base: [206, 210, 204], n: 8, worldSize: 0.8 }), { roughness: 0.3, env: 1.2 });
-  std('bathFloor', T.tiles({ seed: 51, base: [170, 176, 182], grout: [70, 70, 68], n: 16, worldSize: 1 }), { roughness: 0.35, env: 1 });
+  std('bathTiles', T.tiles({ seed: 5, base: [206, 210, 204], grout: [150, 150, 142], n: 8, worldSize: 0.8 }), { roughness: 0.3, env: 1.2 });
+  std('bathFloor', T.tiles({ seed: 51, base: [170, 176, 182], grout: [110, 110, 106], n: 16, worldSize: 1 }), { roughness: 0.35, env: 1 });
   std('hallCarpet', T.carpet({ seed: 7, base: [96, 34, 36] }), { roughness: 1 });
   std('hallFloor', T.woodFloor({ seed: 33, base: [84, 54, 36], worldSize: 2.2 }), { roughness: 0.32, normal: 0.8, env: 1.4 });
   std('concrete', T.concrete({ seed: 15 }), { roughness: 0.95 });
@@ -65,12 +65,12 @@ export function initMaterials() {
   std('wallKitchen', T.plaster({ seed: 21, base: [206, 196, 160], dirt: 0.3 }), { roughness: 0.85 });
   std('wallHall', T.wallpaper({ seed: 4, base: [170, 164, 140], accent: [150, 142, 118] }), { roughness: 0.6, env: 0.8 });
   std('wallEmpty', T.plaster({ seed: 44, base: [176, 170, 150], dirt: 0.55 }), { roughness: 0.95 });
-  std('ceiling', T.ceiling({ seed: 4 }), { roughness: 0.95 });
-  std('ceilingHall', T.ceiling({ seed: 41 }), { roughness: 0.95 });
+  std('ceiling', T.ceiling({ seed: 4 }), { roughness: 0.95, normal: 0.25 });
+  std('ceilingHall', T.ceiling({ seed: 41 }), { roughness: 0.95, normal: 0.25 });
   std('brick', T.brick({ seed: 16 }), { roughness: 0.95 });
 
   // trims & woods
-  std('trim', T.plaster({ seed: 9, base: [214, 208, 192], dirt: 0.1, worldSize: 0.5 }), { roughness: 0.5 });
+  std('trim', T.plaster({ seed: 9, base: [214, 208, 192], dirt: 0.08, worldSize: 2 }), { roughness: 0.45, normal: 0.08, env: 0.8 });
   std('trimWood', T.woodDark({ seed: 10, base: [110, 72, 44] }), { roughness: 0.5 });
   std('woodDark', T.woodDark({ seed: 11, base: [80, 50, 32] }), { roughness: 0.55 });
   std('woodLight', T.woodDark({ seed: 12, base: [160, 120, 80] }), { roughness: 0.6 });

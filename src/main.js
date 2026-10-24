@@ -1,53 +1,110 @@
 import * as THREE from 'three';
-import { G } from './core/globals.js';
+import { G, emit, on } from './core/globals.js';
 import { Engine } from './core/engine.js';
 import { Input } from './core/input.js';
 import { Settings } from './core/settings.js';
 import { Physics } from './core/physics.js';
 import { initMaterials, M } from './gfx/materials.js';
 import { setMaxAnisotropy } from './gfx/textures.js';
-import { Builder } from './world/builder.js';
-import { nextFrame } from './core/util.js';
+import { Particles, Decals } from './gfx/particles.js';
+import { World } from './world/world.js';
+import { Apartment } from './world/apartment.js';
+import { hookItemEvents } from './world/items.js';
+import { Player } from './player/player.js';
+import { HUD } from './ui/hud.js';
+import { Sky } from './world/sky.js';
+import { nextFrame, Tasks } from './core/util.js';
 
 const params = new URLSearchParams(location.search);
+G.debug.enabled = params.has('debug');
+
+function progress(p, msg) {
+  const f = document.getElementById('boot-fill'); if (f) f.style.width = Math.round(p * 100) + '%';
+  const m = document.getElementById('boot-msg'); if (m && msg) m.textContent = msg;
+}
+
+const audioStub = { play() {}, loop() { return { stop() {}, set() {} }; }, setListener() {}, update() {} };
 
 async function boot() {
   const canvas = document.getElementById('game');
+  progress(0.02, 'TRACKING...');
   G.settings = new Settings();
   G.engine = new Engine(canvas);
+  G.engine.setLowHeight(G.settings.v.resolution);
   G.scene = G.engine.scene;
   G.camera = G.engine.camera;
+  G.scene.add(G.camera);
   G.input = new Input(canvas);
   G.physics = new Physics();
+  G.tasks = new Tasks();
+  G.audio = audioStub;
+  G.hud = new HUD();
   setMaxAnisotropy(G.engine.renderer.capabilities.getMaxAnisotropy());
+  await nextFrame();
+  progress(0.1, 'DEVELOPING TEXTURES...');
   initMaterials();
   await nextFrame();
+  progress(0.3, 'BUILDING APARTMENT 4B...');
+  G.world = new World();
+  G.particles = new Particles();
+  G.decals = new Decals();
+  G.apartment = new Apartment().build();
+  hookItemEvents();
+  await nextFrame();
+  progress(0.6, 'WAKING UP...');
+  G.player = new Player();
+  G.player.ctrl.teleport(6.0, 0.05, 4.5, 0.6, -0.05);
 
-  // --- temporary test room ---
-  const b = new Builder(G.scene);
-  const r = { x0: 0, z0: 0, x1: 6, z1: 5, h: 2.7 };
-  b.room(r, { wall: M.wallLiving, floor: M.woodFloor, ceil: M.ceiling, base: M.trim, crown: M.trim, open: { n: [{ a: 2, b: 3.2, y0: 0.85, y1: 2.2, kind: 'open' }], e: [{ a: 1, b: 1.9, y0: 0, y1: 2.1, kind: 'open' }] } });
-  b.box(3, 0.4, 2.5, 1.2, 0.8, 0.6, M.woodTable);
-  b.build('test');
-  const light = new THREE.PointLight(0xffd8a0, 6, 12, 1.6);
-  light.position.set(3, 2.4, 2.5);
-  light.castShadow = true;
-  G.scene.add(light);
-  G.scene.add(new THREE.HemisphereLight(0x8090a0, 0x302820, 0.4));
-  G.camera.position.set(1, 1.6, 4.4);
-  G.camera.lookAt(4, 1.2, 1);
+  G.sky = new Sky();
+  G.engine.background = G.sky;
+  for (const w of Object.values(G.apartment.windows)) {
+    const f = w.frame.group.position;
+    G.sky.addWindowLight(new THREE.Vector3(f.x, 1.6, f.z + 0.25), new THREE.Vector3(0, -0.55, 1), 1);
+  }
+  G.sky.apply(G.sky.preset(+(params.get('day') || 1), +(params.get('t') || 0.12)), true);
+
+  progress(1, 'PLAY ▶');
   document.getElementById('boot').hidden = true;
+  G.state = 'play';
 
   let last = performance.now();
-  function loop(now) {
-    const dt = Math.min(0.1, (now - last) / 1000); last = now;
-    G.time += dt;
-    G.uniforms.uTime.value = G.time;
-    G.engine.render(G.scene, G.camera, G.time);
-    requestAnimationFrame(loop);
+  function frame(now) {
+    const dt = Math.min(0.05, (now - last) / 1000); last = now;
+    tick(dt);
+    requestAnimationFrame(frame);
   }
-  requestAnimationFrame(loop);
-  window.BENGRIM = { G, THREE };
+  requestAnimationFrame(frame);
+  canvas.addEventListener('click', () => { if (G.state === 'play') G.input.lock(); });
+  window.BENGRIM = makeDebugApi();
 }
 
-boot().catch((e) => { console.error(e); document.getElementById('boot-msg').textContent = 'ERROR: ' + e.message; });
+function tick(dt) {
+  G.dt = dt; G.time += dt; G.frame++;
+  G.uniforms.uTime.value = G.time;
+  G.tasks.update(dt);
+  if (G.state === 'play') {
+    G.player.update(dt);
+    G.physics.update(dt);
+    G.world.update(dt);
+    G.apartment.update(dt);
+    G.player.lateUpdate(dt);
+  }
+  G.sky.update(dt, G.camera);
+  G.particles.update(dt);
+  G.hud.update(dt);
+  G.audio.update(dt);
+  G.engine.render(G.scene, G.camera, G.time);
+  G.input.endFrame();
+}
+
+function makeDebugApi() {
+  return {
+    G, THREE,
+    tp(x, z, yaw = 0, pitch = 0) { G.player.ctrl.teleport(x, 0.05, z, yaw, pitch); },
+    look(yaw, pitch) { G.player.ctrl.yaw = yaw; G.player.ctrl.pitch = pitch; },
+    async step(n = 10, dt = 1 / 30) { for (let i = 0; i < n; i++) tick(dt); },
+    key(code, frames = 1) { G.input.pressedSet.add(code); G.input.down.add(code); tick(1 / 30); G.input.down.delete(code); },
+  };
+}
+
+boot().catch((e) => { console.error(e); const m = document.getElementById('boot-msg'); if (m) m.textContent = 'ERROR: ' + e.message; });

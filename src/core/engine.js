@@ -157,13 +157,14 @@ function makeRT(w, h, opts = {}) {
 export class Engine {
   constructor(canvas) {
     this.canvas = canvas;
-    const r = this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: false, powerPreference: 'high-performance', stencil: false, preserveDrawingBuffer: false });
+    const r = this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: false, powerPreference: 'high-performance', stencil: false, preserveDrawingBuffer: new URLSearchParams(location.search).has('capture') });
     r.setPixelRatio(1);
     r.shadowMap.enabled = true;
     r.shadowMap.type = THREE.PCFShadowMap;
     r.outputColorSpace = THREE.SRGBColorSpace;
     r.toneMapping = THREE.NoToneMapping;
     r.info.autoReset = true;
+    r.autoClear = false;
 
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(72, 16 / 9, 0.03, 900);
@@ -171,6 +172,7 @@ export class Engine {
     this.camera.layers.enable(1); // first-person only
     this.lowH = 360;
     this.forcedLowH = 0; // e.g. computer focus raises resolution
+    this.background = null; // object with render(renderer, camera): the outside
 
     this.fx = {
       bloom: 0.55, threshold: 0.9, exposure: 1.0, saturation: 0.86, contrast: 1.06,
@@ -247,7 +249,9 @@ export class Engine {
     const r = this.renderer;
     const fx = this.fx;
     r.setRenderTarget(this.rtScene);
+    r.setClearColor(0x000000, 1);
     r.clear(true, true, false);
+    if (this.background) { this.background.render(r, camera); r.clearDepth(); }
     r.render(scene, camera);
 
     // bloom
@@ -291,6 +295,7 @@ export class Engine {
     r.toneMapping = THREE.ACESFilmicToneMapping;
     r.setRenderTarget(target);
     r.clear();
+    if (this.background && scene === this.scene) { this.background.render(r, camera); r.clearDepth(); }
     r.render(scene, camera);
     r.setRenderTarget(null);
     r.toneMapping = prevTM;

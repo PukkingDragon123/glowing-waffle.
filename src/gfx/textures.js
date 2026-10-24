@@ -196,7 +196,7 @@ export function plaster({ seed = 2, base = [196, 190, 176], size = 128, worldSiz
       o[0] = base[0] * k; o[1] = base[1] * k; o[2] = base[2] * k;
       o[4] = n;
     }, { height: true });
-    return bundle(p, { normal: 0.8, rough: () => 0.9, worldSize });
+    return bundle(p, { normal: 0.25, rough: () => 0.9, worldSize });
   });
 }
 
@@ -207,7 +207,7 @@ export function ceiling({ seed = 4, size = 128, worldSize = 2 } = {}) {
       const n = tf(u * 32, v * 32, 32, 32, 2, seed);
       const st = tf(u * 2, v * 2, 2, 2, 5, seed + 3);
       let k = 0.92 + n * 0.08;
-      let r = 214 * k, g = 208 * k, b = 196 * k;
+      let r = 222 * k, g = 218 * k, b = 208 * k;
       if (st > 0.62) { const s = smoothstep(0.62, 0.75, st); r -= 40 * s; g -= 50 * s; b -= 70 * s; }
       if (Math.abs(st - 0.62) < 0.006) { r -= 50; g -= 55; b -= 60; }
       o[0] = r; o[1] = g; o[2] = b; o[4] = n;
@@ -227,8 +227,8 @@ export function tiles({ seed = 5, base = [200, 204, 196], grout = [92, 90, 84], 
       let r = base[0] * tone, g = base[1] * tone, b = base[2] * tone, hh = 0.85;
       // glossy highlight band inside tile
       if (lx === 1 || ly === 1) { r *= 1.06; g *= 1.06; b *= 1.06; }
-      if (lx === 0 || ly === 0) { const gd = 0.75 + nz * 0.5; r = grout[0] * gd; g = grout[1] * gd; b = grout[2] * gd; hh = 0.2; }
-      if (crack && hash2(tx * 3 + 1, ty * 5 + seed) > 0.9) {
+      if (lx === 0 || ly === 0) { const gd = 0.8 + nz * 0.3; r = lerp(r, grout[0], 0.75) * gd; g = lerp(g, grout[1], 0.75) * gd; b = lerp(b, grout[2], 0.75) * gd; hh = 0.3; }
+      if (crack && hash2(tx * 3 + 1, ty * 5 + seed) > 0.975) {
         const cx = Math.abs((lx - ly) + Math.floor((hash2(tx, ty) - 0.5) * 6));
         if (cx < 1 && lx > 1 && ly > 1) { r *= 0.55; g *= 0.55; b *= 0.55; hh = 0.4; }
       }
@@ -485,9 +485,9 @@ export function glassDirt({ seed = 20, size = 256, density = 1 } = {}) {
         const dust = tf(u * 12, v * 12, 12, 12, 4, seed);
         const big = tf(u * 2, v * 2, 2, 2, 4, seed + 1);
         const streak = tf(u * 40, v * 2, 40, 2, 2, seed + 2);
-        let a = smoothstep(0.45, 0.95, dust) * 0.5 + smoothstep(0.5, 0.9, big) * 0.35;
-        a += smoothstep(0.6, 0.95, streak) * 0.25 * v;
-        a += v > 0.82 ? (v - 0.82) * 1.4 : 0; // dirt collects at the bottom
+        let a = smoothstep(0.55, 0.95, dust) * 0.22 + smoothstep(0.6, 0.95, big) * 0.14;
+        a += smoothstep(0.7, 0.98, streak) * 0.12 * v;
+        a += v > 0.86 ? (v - 0.86) * 1.1 : 0; // dirt collects at the bottom
         a *= density;
         const i = (y * size + x) * 4;
         d[i] = 120 + dust * 40; d[i + 1] = 112 + dust * 36; d[i + 2] = 96 + dust * 30; d[i + 3] = clamp(a, 0, 0.92) * 255;
@@ -499,7 +499,7 @@ export function glassDirt({ seed = 20, size = 256, density = 1 } = {}) {
     for (let i = 0; i < 14; i++) {
       const x = rng.range(0, size), y = rng.range(0, size), r = rng.range(8, 30);
       const g = ctx.createRadialGradient(x, y, 0, x, y, r);
-      g.addColorStop(0, 'rgba(130,120,100,0.25)'); g.addColorStop(1, 'rgba(130,120,100,0)');
+      g.addColorStop(0, 'rgba(130,120,100,0.12)'); g.addColorStop(1, 'rgba(130,120,100,0)');
       ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
     }
     const t = toTexture(c, { nearest: false });
