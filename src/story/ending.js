@@ -56,8 +56,9 @@ export class Ending {
     const lamp = this.lamp = new THREE.SpotLight(0xeaf4ff, 0, 8, 0.6, 0.6, 1.4);
     lamp.position.set(0, 3.3, 0.1); lamp.target.position.set(0, 0.9, 0.1); lamp.castShadow = true; lamp.shadow.mapSize.set(512, 512);
     g.add(lamp, lamp.target);
-    add(new THREE.CylinderGeometry(0.35, 0.5, 0.2, 16), new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 2 }), 0, 3.45, 0.1);
+    add(new THREE.CylinderGeometry(0.35, 0.5, 0.2, 16), new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xfff4e8, emissiveIntensity: 1.1 }), 0, 3.45, 0.1);
     this.green = new THREE.PointLight(0x80ff60, 0, 9, 1.6); this.green.position.set(0, 1.5, -1); g.add(this.green);
+    this.floorFill = new THREE.PointLight(0xc8d8e0, 0, 4, 1.5); this.floorFill.position.set(0.5, 0.5, -0.6); g.add(this.floorFill);
     // what comes out
     this.thing = makeThing(); this.thing.visible = false; g.add(this.thing);
     this.cord = new THREE.Mesh(new THREE.BufferGeometry(), flesh); g.add(this.cord);
@@ -74,7 +75,7 @@ export class Ending {
     G.uniforms.uBend.value.set(0, 0, 0, 0); G.uniforms.uWarp.value = 0; G.uniforms.uBreath.value = 0;
     G.fx.clear('alien'); G.fx.clear('stalker');
     G.fx.setGrade({ saturation: 0.55, contrast: 1.15, tint: new THREE.Vector3(0.95, 1.0, 0.92) });
-    this.lamp.intensity = 14; this.green.intensity = 2.2;
+    this.lamp.intensity = 5.5; this.green.intensity = 1.6; this.floorFill.intensity = 0.9;
     // you, lying on the slab, the belly enormous under the shirt
     c.enabled = false; c.lookEnabled = false;
     c.teleport(O.x, O.y + 1.0, O.z + 0.9, 0, 0);
@@ -103,9 +104,10 @@ export class Ending {
       b.root.rotation.set(-Math.PI / 2 + up * 0.9, Math.PI, 0);
       rx(B.spine1, up * 0.3); rx(B.neck, -0.3 - up * 0.2);
     } else {
-      // crumpled on the floor on its side, facing the camera's gaze
-      b.root.position.set(O.x + 0.9, O.y + 0.18, O.z + 0.35);
-      b.root.rotation.set(0, -Math.PI / 2 + 0.2, Math.PI / 2 - 0.1, 'YXZ');
+      // on its side on the floor, head by the camera, body stretched toward the door
+      const X = V(0, -1, 0), Y = V(0, 0, 1), Z = V(-1, 0, 0);
+      b.root.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(X, Y, Z));
+      b.root.position.set(O.x + 0.02, O.y + 0.16, O.z - 0.42);
       rx(B.spine1, 0.25); rx(B.spine2, 0.2);
       for (const S of ['L', 'R']) { rx(B['thigh.' + S], 0.9); rx(B['shin.' + S], -1.2); }
     }
@@ -133,9 +135,9 @@ export class Ending {
     } else if (this.phase === 'fall') {
       // off the slab, onto the wet floor
       const k = smoothstep(5.4, 6.2, t);
-      const floorEye = V(O.x - 0.25, O.y + 0.13, O.z + 0.4);
+      const floorEye = V(O.x - 0.04, O.y + 0.11, O.z + 1.36);
       cam.position.copy(eye).add(V(0, 0.55, -0.5)).lerp(floorEye, k);
-      const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.08, -Math.PI / 2 - 0.15, -1.45, 'YXZ'));
+      const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.2, 0.08, -1.25, 'YXZ'));
       cam.quaternion.slerp(q, k);
       if (t > 6.2) { this.phase = 'dying'; this.dieT = t; }
     } else if (this.phase === 'dying') {
@@ -154,14 +156,14 @@ export class Ending {
       // the belly splits
       body.setMutation({ split: smoothstep(0.4, 3, bt) });
       if (bt > 0.4 && !this.b1) { this.b1 = true; sfx('tear', { vol: 1 }); }
-      if (bt > 1.8 && !this.b2) { this.b2 = true; sfx('tear', { vol: 0.9, rate: 0.8 }); sfx('chewWet', { vol: 0.8, rate: 0.6 }); G.decals && G.decals.blood(V(O.x + 0.85, O.y + 0.001, O.z + 0.1), 0.9); }
+      if (bt > 1.8 && !this.b2) { this.b2 = true; sfx('tear', { vol: 0.9, rate: 0.8 }); sfx('chewWet', { vol: 0.8, rate: 0.6 }); G.decals && G.decals.blood(V(O.x + 0.15, O.y + 0.001, O.z + 0.55), 0.9); }
       const belly = body.byName.spine1.getWorldPosition(V());
       const th = this.thing;
       if (bt > 2.4) {
         th.visible = true;
         // it pulls itself out and crawls toward the light under the door
         const k = smoothstep(2.4, 4.0, bt);
-        const start = belly.clone().add(V(-0.12, -0.05, 0)), out = V(O.x + 0.35, O.y + 0.04, O.z + 0.15);
+        const start = belly.clone().add(V(0.05, 0, 0)), out = V(O.x + 0.22, O.y + 0.04, O.z + 0.3);
         const crawl = clamp((bt - 4.0) / 9, 0, 1);
         const door = V(O.x, O.y + 0.04, O.z - 5.0);
         const p = crawl > 0 ? out.clone().lerp(door, crawl) : start.clone().lerp(out, k);

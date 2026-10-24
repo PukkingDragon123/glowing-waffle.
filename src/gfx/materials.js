@@ -128,6 +128,9 @@ export function initMaterials() {
   // doors
   std('doorWood', T.doorPanel({ seed: 17, base: [118, 80, 50] }), { roughness: 0.6, ws: 1 });
   std('doorPaint', T.doorPanel({ seed: 171, base: [196, 190, 176], painted: true }), { roughness: 0.45, ws: 1 });
+  // plain painted / stained stock for doors whose panels are real geometry
+  std('doorPaintFlat', T.enamel({ seed: 173, base: [200, 194, 180], dirt: 0.35 }), { roughness: 0.62, normal: 0.4 });
+  std('doorHallFlat', T.enamel({ seed: 174, base: [104, 42, 36], dirt: 0.4 }), { roughness: 0.6, normal: 0.4 });
   std('doorHall', T.doorPanel({ seed: 172, base: [96, 40, 34], painted: true }), { roughness: 0.4, env: 0.8, ws: 1 });
 
   // glass

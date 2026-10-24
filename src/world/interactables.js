@@ -3,6 +3,8 @@
 // the mouse (hold LMB) or toggled with E. Each has a kinematic physics body
 // so props and the player collide with them.
 import * as THREE from 'three';
+import { panelDoorGeo } from '../gfx/shapes.js';
+import { M } from '../gfx/materials.js';
 import { G, emit } from '../core/globals.js';
 import { GROUP } from '../core/physics.js';
 import { clamp, damp, lerp } from '../core/util.js';
@@ -61,15 +63,12 @@ export class Door extends Interactable {
     pivot.add(panel);
     if (o.buildPanel) o.buildPanel(panel, this);
     else {
-      const g = boxGeo(this.w - 0.004, this.h - 0.004, this.t, 1);
-      // map whole door texture on front/back faces
-      const uv = g.attributes.uv;
-      for (let i = 0; i < uv.count; i++) {
-        const n = Math.floor(i / 4);
-        if (n === 4 || n === 5) uv.setXY(i, i % 4 === 0 || i % 4 === 3 ? (n === 4 ? 0 : 1) : (n === 4 ? 1 : 0), i % 4 < 2 ? 0 : 1);
-      }
-      const m = new THREE.Mesh(g, o.mat);
-      m.position.set(this.w / 2, this.h / 2, 0);
+      // real raised panels: six-panel interior doors, two-panel entry doors, flush steel
+      const style = o.style || (o.mat === M.steel ? 'flush' : o.mat === M.doorHall ? 'two' : 'six');
+      const mat = o.mat === M.doorPaint ? M.doorPaintFlat : o.mat === M.doorHall ? M.doorHallFlat : o.mat;
+      const g = panelDoorGeo(this.w - 0.004, this.h - 0.004, this.t, style);
+      const m = new THREE.Mesh(g, mat || M.doorPaintFlat);
+      m.position.set(0.002, 0.002, 0);
       m.castShadow = true; m.receiveShadow = true;
       panel.add(m);
       if (o.knob !== false) {

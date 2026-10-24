@@ -18,6 +18,7 @@ import { NavGrid } from './world/nav.js';
 import { Cat } from './creatures/cat.js';
 import { Desk } from './world/desk.js';
 import { Building } from './world/building.js';
+import { hangCloth } from './world/cloth.js';
 import { AudioEngine } from './audio/audio.js';
 import { Director } from './story/director.js';
 import { Ending } from './story/ending.js';
@@ -90,6 +91,7 @@ async function boot() {
   G.nav.addDoor(BD.trash, new THREE.Vector3(-6.46, 0, 8.4), new THREE.Vector3(-6.46, 0, 9.15));
   G.cat = new Cat(G.nav);
   G.desk = new Desk(G.apartment);
+  G.cloth = hangCloth();
 
   G.mirror = new Mirror(G.apartment.mirrorSpot);
   G.alien = new Alien();
@@ -166,7 +168,9 @@ function tick(dt) {
     G.desk.update(dt);
     G.director.update(dt);
     G.mirror.update(dt);
+    for (const c of G.cloth) c.step(dt);
   } else if (st === 'menu') {
+    for (const c of G.cloth) c.step(dt);
     G.physics.update(dt);
     G.world.update(dt);
     G.apartment.update(dt);

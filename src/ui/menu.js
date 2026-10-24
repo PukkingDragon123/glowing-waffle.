@@ -60,6 +60,8 @@ export class Menu {
   close() {
     this.plane.visible = false;
     G.body.showInMenu = false;
+    G.body.override.R = G.body.override.L = null;
+    G.engine.renderer.domElement.style.cursor = '';
     G.sky.cinematic = false;
     if (this.amb) { this.amb.stop(1); this.amb = null; }
     if (this.siren) { this.siren.stop(1); this.siren = null; }
@@ -121,7 +123,7 @@ export class Menu {
       this.items.forEach((it, i) => { if (Math.abs(v - it.y) < 0.075 && Math.abs(hit.uv.x - 0.5) < 0.36) hov = i; });
     }
     if (hov !== this.hover) { this.hover = hov; this.draw(); if (hov >= 0) sfx('click', { vol: 0.08, rate: 2 }); }
-    document.body.style.cursor = hov >= 0 ? 'pointer' : 'default';
+    G.engine.renderer.domElement.style.cursor = hov >= 0 ? 'pointer' : 'default';
     // the hand follows the mouse across the glass and touches on click
     this.touch = damp(this.touch, this.pressT > 0 ? 1 : 0, 14, dt);
     this.pressT = Math.max(0, (this.pressT || 0) - dt);

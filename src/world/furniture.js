@@ -1,6 +1,7 @@
 // Furniture builders. Each works in a local frame whose origin is the centre of
 // the footprint on the floor with the front facing local +z.
 import * as THREE from 'three';
+import { turnedLeg, bentRail } from '../gfx/shapes.js';
 import { G } from '../core/globals.js';
 import { M } from '../gfx/materials.js';
 import { Door, Drawer, Button } from './interactables.js';
@@ -294,28 +295,56 @@ export function couch(b, x, z, ry, o = {}) {
   b.beginFrame(x, 0, z, ry);
   const w = o.w ?? 2.0, d = 0.9;
   const fab = o.mat || M.couchFabric;
-  b.box(0, 0.22, 0.02, w - 0.3, 0.26, d - 0.1, fab);                // base
-  b.geo(roundedBox(w - 0.32, 0.16, d - 0.28, 0.05), fab, { x: 0, y: 0.43, z: 0.1 }); // seat cushions
-  b.geo(roundedBox(0.04, 0.14, d - 0.3, 0.02), M.black, { x: 0, y: 0.43, z: 0.1 });
-  b.geo(roundedBox(w - 0.3, 0.5, 0.22, 0.06), fab, { x: 0, y: 0.62, z: -d / 2 + 0.13, rx: -0.12 });
-  for (const s of [-1, 1]) b.geo(roundedBox(0.17, 0.62, d, 0.05), fab, { x: s * (w / 2 - 0.085), y: 0.31, z: 0 });
-  for (const sx of [-1, 1]) for (const sz of [-1, 1]) b.box(sx * (w / 2 - 0.08), 0.04, sz * (d / 2 - 0.08), 0.05, 0.08, 0.05, M.woodDark, { collide: false });
+  const inner = w - 0.36;
+  // frame and skirt
+  b.geo(roundedBox(w - 0.3, 0.24, d - 0.12, 0.04), fab, { x: 0, y: 0.21, z: 0.03 });
+  // three seat cushions with gaps between them, slightly crowned
+  const cw = inner / 3;
+  for (let i = 0; i < 3; i++) {
+    const cx = -inner / 2 + cw * (i + 0.5);
+    b.geo(roundedBox(cw - 0.012, 0.15, d - 0.3, 0.06), fab, { x: cx, y: 0.405, z: 0.1, rz: (i - 1) * 0.01 });
+  }
+  // three back cushions leaning back, plumper at the top
+  for (let i = 0; i < 3; i++) {
+    const cx = -inner / 2 + cw * (i + 0.5);
+    b.geo(roundedBox(cw - 0.014, 0.44, 0.2, 0.08), fab, { x: cx, y: 0.66, z: -d / 2 + 0.2, rx: -0.16, ry: (i - 1) * -0.02 });
+  }
+  b.geo(roundedBox(w - 0.3, 0.42, 0.12, 0.04), fab, { x: 0, y: 0.6, z: -d / 2 + 0.07 });
+  // rolled arms: a panel topped with a cylinder roll
+  for (const sx of [-1, 1]) {
+    b.geo(roundedBox(0.15, 0.48, d - 0.04, 0.05), fab, { x: sx * (w / 2 - 0.09), y: 0.3, z: 0 });
+    b.geo(cylGeo(0.095, d - 0.02, 14), fab, { x: sx * (w / 2 - 0.1), y: 0.55, z: 0, rx: Math.PI / 2 });
+  }
+  // short turned legs
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) b.geo(turnedLeg(0.1, 0.022), M.woodDark, { x: sx * (w / 2 - 0.1), y: 0, z: sz * (d / 2 - 0.1) });
   b.collider(0, 0.27, 0, w, 0.54, d);
   b.collider(0, 0.6, -d / 2 + 0.12, w, 0.6, 0.24);
   // throw pillow
-  b.geo(roundedBox(0.38, 0.34, 0.12, 0.05), M.quilt, { x: -w / 2 + 0.38, y: 0.62, z: -0.16, rx: -0.3, ry: 0.25 });
+  b.geo(roundedBox(0.38, 0.34, 0.12, 0.06), M.quilt, { x: -w / 2 + 0.38, y: 0.62, z: -0.16, rx: -0.3, ry: 0.25 });
   b.endFrame();
   return { seat: wpos(b, 0, 0.5, 0.1) };
 }
 
 export function table(b, x, z, ry, w, d, h, mat = M.woodTable, o = {}) {
   b.beginFrame(x, 0, z, ry);
-  b.box(0, h - 0.02, 0, w, 0.04, d, mat);
+  // top with a softened edge and a slight overhang lip
+  b.geo(roundedBox(w, 0.032, d, 0.012), mat, { x: 0, y: h - 0.016, z: 0 });
+  b.geo(roundedBox(w - 0.03, 0.012, d - 0.03, 0.004), mat, { x: 0, y: h - 0.036, z: 0 });
+  b.collider(0, h - 0.02, 0, w, 0.04, d);
   const leg = o.leg ?? 0.05;
-  for (const sx of [-1, 1]) for (const sz of [-1, 1]) b.box(sx * (w / 2 - 0.06), (h - 0.04) / 2, sz * (d / 2 - 0.06), leg, h - 0.04, leg, mat, { collide: true });
+  const lh = h - 0.04;
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+    const lx = sx * (w / 2 - 0.06), lz = sz * (d / 2 - 0.06);
+    // square block under the apron, turned below it
+    b.box(lx, lh - 0.06, lz, leg * 0.9, 0.12, leg * 0.9, mat, { collide: false });
+    b.geo(turnedLeg(lh - 0.12, leg * 0.42), mat, { x: lx, y: 0, z: lz });
+    b.collider(lx, lh / 2, lz, leg, lh, leg);
+  }
   if (o.apron !== false) {
-    b.box(0, h - 0.09, d / 2 - 0.06, w - 0.14, 0.08, 0.02, mat, { collide: false });
-    b.box(0, h - 0.09, -d / 2 + 0.06, w - 0.14, 0.08, 0.02, mat, { collide: false });
+    b.geo(roundedBox(w - 0.14, 0.075, 0.02, 0.006), mat, { x: 0, y: h - 0.085, z: d / 2 - 0.06 });
+    b.geo(roundedBox(w - 0.14, 0.075, 0.02, 0.006), mat, { x: 0, y: h - 0.085, z: -d / 2 + 0.06 });
+    b.geo(roundedBox(0.02, 0.075, d - 0.14, 0.006), mat, { x: w / 2 - 0.06, y: h - 0.085, z: 0 });
+    b.geo(roundedBox(0.02, 0.075, d - 0.14, 0.006), mat, { x: -w / 2 + 0.06, y: h - 0.085, z: 0 });
   }
   b.endFrame();
   return { top: h };
@@ -432,10 +461,20 @@ export function desk(b, x, z, ry) {
 }
 
 export function chairStatic(b, x, z, ry, mat = M.woodTable) {
+  // a turned-leg kitchen chair with a bent top rail and spindles
   b.beginFrame(x, 0, z, ry);
-  b.box(0, 0.45, 0, 0.44, 0.04, 0.42, mat);
-  for (const sx of [-1, 1]) for (const sz of [-1, 1]) b.box(sx * 0.19, 0.22, sz * 0.18, 0.035, 0.44, 0.035, mat, { collide: false });
-  b.box(0, 0.72, -0.19, 0.42, 0.42, 0.03, mat);
+  b.geo(roundedBox(0.44, 0.035, 0.41, 0.014), mat, { x: 0, y: 0.448, z: 0.01 });
+  b.geo(roundedBox(0.4, 0.012, 0.36, 0.005), mat, { x: 0, y: 0.47, z: 0.02 });     // saddle
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+    b.geo(turnedLeg(0.43, 0.019), mat, { x: sx * 0.185, y: 0, z: sz * 0.165, rz: sx * 0.05, rx: -sz * 0.04 });
+  }
+  // stretchers
+  for (const sx of [-1, 1]) b.geo(cylGeo(0.009, 0.33, 6), mat, { x: sx * 0.19, y: 0.15, z: 0, rx: Math.PI / 2 });
+  b.geo(cylGeo(0.009, 0.38, 6), mat, { x: 0, y: 0.17, z: 0, rz: Math.PI / 2 });
+  // back: two posts, a bent top rail, four spindles
+  for (const sx of [-1, 1]) b.geo(turnedLeg(0.46, 0.016), mat, { x: sx * 0.185, y: 0.46, z: -0.175, rx: -0.12 });
+  b.geo(bentRail(0.42, 0.04, 0.03, 0.016, 0.055), mat, { x: 0, y: 0.9, z: -0.23 });
+  for (let i = 0; i < 4; i++) b.geo(cylGeo(0.0075, 0.4, 6), mat, { x: -0.1 + i * 0.067, y: 0.67, z: -0.2, rx: -0.12 });
   b.collider(0, 0.24, 0, 0.44, 0.48, 0.42);
   b.endFrame();
 }

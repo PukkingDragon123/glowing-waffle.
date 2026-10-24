@@ -1,4 +1,5 @@
 :root {
+  --bg: #000;
   --ink: #f4f1ea;
   --shadow: #000;
   --osd: #e8f0ff;
@@ -12,7 +13,7 @@
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
-html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+html, body { margin: 0; height: 100%; background: var(--bg); overflow: hidden; }
 body { color: var(--ink); font-family: var(--sub-font); user-select: none; -webkit-user-select: none; }
 #game { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; outline: none; cursor: none; background: #000; image-rendering: pixelated; }
 
