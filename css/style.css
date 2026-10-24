@@ -1,0 +1,76 @@
+:root {
+  --ink: #f4f1ea;
+  --shadow: #000;
+  --osd: #e8f0ff;
+  --blood: #9b0d0d;
+  --panel: rgba(8, 8, 10, 0.86);
+  --line: rgba(255, 255, 255, 0.18);
+  --accent: #c8c0a8;
+  --osd-font: 'VT323', 'Lucida Console', 'Courier New', monospace;
+  --sub-font: 'Noto Sans', 'Arial Black', 'Helvetica Neue', Arial, sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+body { color: var(--ink); font-family: var(--sub-font); user-select: none; -webkit-user-select: none; }
+#game { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; outline: none; cursor: none; background: #000; image-rendering: pixelated; }
+
+#hud { position: fixed; inset: 0; pointer-events: none; z-index: 5; }
+#osd { position: absolute; top: max(18px, env(safe-area-inset-top, 0px)); left: max(26px, env(safe-area-inset-left, 0px)); right: max(26px, env(safe-area-inset-right, 0px)); display: flex; justify-content: space-between; font-family: var(--osd-font); font-size: clamp(18px, 2.6vw, 30px); color: var(--osd); text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.7); letter-spacing: 1px; opacity: 0.85; }
+#osd .r { text-align: right; }
+#crosshair { position: absolute; left: 50%; top: 50%; width: 4px; height: 4px; margin: -2px 0 0 -2px; border-radius: 50%; background: rgba(255, 255, 255, 0.55); box-shadow: 0 0 2px #000; transition: transform 0.12s, background 0.12s; }
+#crosshair.hot { transform: scale(2.2); background: rgba(255, 255, 255, 0.9); }
+#crosshair.hidden { opacity: 0; }
+#prompt { position: absolute; left: 50%; top: calc(50% + 26px); transform: translateX(-50%); font-size: clamp(12px, 1.25vw, 16px); font-weight: 700; letter-spacing: 0.5px; color: var(--ink); text-shadow: 0 0 3px #000, 1px 1px 0 #000, -1px -1px 0 #000; white-space: nowrap; text-align: center; opacity: 0; transition: opacity 0.15s; }
+#prompt.on { opacity: 0.92; }
+#prompt .key { display: inline-block; min-width: 1.5em; padding: 0 0.35em; margin-right: 0.35em; border: 1px solid rgba(255, 255, 255, 0.6); border-radius: 3px; font-size: 0.85em; background: rgba(0, 0, 0, 0.35); }
+#prompt .row { display: block; margin-top: 3px; }
+#subs { position: absolute; left: 50%; bottom: max(9vh, calc(env(safe-area-inset-bottom, 0px) + 40px)); transform: translateX(-50%); width: min(92vw, 1100px); text-align: center; }
+#subs .line { display: block; font-size: clamp(16px, 2.1vw, 30px); font-weight: 900; color: #fff; line-height: 1.35; margin-top: 0.2em; text-shadow: 0 0 2px #000, 2px 2px 0 #000, -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 0 2px 0 #000, 0 -2px 0 #000, 2px 0 0 #000, -2px 0 0 #000; opacity: 0; transition: opacity 0.25s; }
+#subs .line.on { opacity: 1; }
+#subs .who { display: block; font-size: 0.68em; letter-spacing: 1px; margin-bottom: 0.1em; }
+#subs .line.inner { font-style: italic; font-weight: 700; color: #e9e2d0; }
+#subs .line.voice { color: #d9f0ff; }
+#subs .line.strange { color: #ffd0d0; letter-spacing: 2px; }
+#choices { position: absolute; left: 50%; bottom: 26vh; transform: translateX(-50%); display: flex; flex-direction: column; gap: 6px; align-items: center; pointer-events: none; }
+#choices .c { font-size: clamp(14px, 1.6vw, 22px); font-weight: 700; padding: 4px 16px; color: #ddd; text-shadow: 1px 1px 0 #000, -1px -1px 0 #000; border-left: 3px solid transparent; }
+#choices .c.sel { color: #fff; border-left-color: #fff; background: linear-gradient(90deg, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0)); }
+#inv { position: absolute; right: max(26px, env(safe-area-inset-right, 0px)); bottom: max(24px, env(safe-area-inset-bottom, 0px)); display: flex; gap: 8px; opacity: 0; transition: opacity 0.4s; }
+#inv.on { opacity: 0.9; }
+#inv .slot { width: clamp(96px, 10vw, 150px); height: 46px; border: 1px solid var(--line); background: rgba(0, 0, 0, 0.45); display: flex; align-items: center; padding: 0 10px; gap: 8px; font-size: 13px; font-weight: 700; color: #ddd; text-shadow: 1px 1px 0 #000; }
+#inv .slot .k { font-family: var(--osd-font); font-size: 20px; opacity: 0.6; }
+#inv .slot .n { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+#inv .slot.hand { border-color: rgba(255, 255, 255, 0.55); }
+#note { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); max-width: min(560px, 86vw); padding: 28px 32px; background: #efe6c8; color: #2a2418; font-family: 'Comic Sans MS', 'Bradley Hand', 'Segoe Print', cursive; font-size: clamp(16px, 1.8vw, 22px); line-height: 1.5; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8); white-space: pre-wrap; display: none; transform-origin: center; }
+#note.on { display: block; }
+#note .hint { display: block; margin-top: 16px; font-family: var(--sub-font); font-size: 12px; opacity: 0.6; }
+#title-card { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; font-family: var(--osd-font); color: #fff; opacity: 0; transition: opacity 1.2s; text-shadow: 0 0 8px rgba(255, 255, 255, 0.35); }
+#title-card.on { opacity: 1; }
+#title-card .big { font-size: clamp(48px, 9vw, 120px); letter-spacing: 8px; }
+#title-card .small { font-size: clamp(18px, 2.4vw, 32px); letter-spacing: 4px; opacity: 0.8; }
+
+#pause { position: fixed; inset: 0; z-index: 20; background: rgba(0, 0, 0, 0.72); display: flex; align-items: center; justify-content: center; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+#pause .pause-inner { display: flex; flex-direction: column; gap: 10px; min-width: min(360px, 90vw); font-family: var(--osd-font); }
+#pause .pause-title { font-size: 54px; letter-spacing: 10px; color: #fff; margin-bottom: 14px; }
+#pause button { font-family: var(--osd-font); font-size: 28px; letter-spacing: 3px; text-align: left; background: transparent; color: #cfcfcf; border: 0; border-left: 3px solid transparent; padding: 4px 14px; cursor: pointer; }
+#pause button:hover, #pause button:focus-visible { color: #fff; border-left-color: #fff; outline: none; background: linear-gradient(90deg, rgba(255, 255, 255, 0.08), transparent); }
+#pause-panel { margin-top: 12px; font-size: 22px; color: #ddd; }
+#pause-panel .row { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 16px; padding: 3px 0; }
+#pause-panel .row .val { display: flex; align-items: center; gap: 8px; }
+#pause-panel .row button { font-size: 24px; padding: 0 10px; }
+#pause-panel .ctl { display: grid; grid-template-columns: 9em 1fr; gap: 2px 18px; font-size: 20px; }
+#pause-panel .ctl b { color: #fff; font-weight: 400; }
+
+#boot { position: fixed; inset: 0; z-index: 30; background: #000; display: flex; align-items: center; justify-content: center; font-family: var(--osd-font); color: #d8d8d8; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+#boot .boot-inner { width: min(520px, 90vw); display: flex; flex-direction: column; gap: 18px; align-items: stretch; }
+#boot .boot-title { font-size: clamp(56px, 12vw, 110px); letter-spacing: 12px; color: #f0f0f0; text-align: center; text-shadow: 3px 0 0 rgba(255, 0, 0, 0.5), -3px 0 0 rgba(0, 160, 255, 0.5); animation: jit 3s infinite steps(1); }
+@keyframes jit { 0%, 92%, 100% { transform: none; } 93% { transform: translateX(4px) skewX(6deg); } 95% { transform: translateX(-3px); } }
+#boot .boot-bar { height: 10px; border: 1px solid #666; }
+#boot #boot-fill { height: 100%; width: 0; background: #ddd; transition: width 0.2s; }
+#boot #boot-msg { font-size: 24px; letter-spacing: 2px; min-height: 1.2em; }
+#boot #boot-start { font-family: var(--osd-font); font-size: 34px; letter-spacing: 6px; background: transparent; color: #fff; border: 1px solid #aaa; padding: 10px 24px; cursor: pointer; align-self: center; animation: blink 1.4s infinite; }
+#boot #boot-start:hover, #boot #boot-start:focus-visible { background: #fff; color: #000; outline: none; }
+@keyframes blink { 50% { opacity: 0.45; } }
+#boot .boot-warn { font-family: var(--sub-font); font-weight: 700; font-size: 12px; line-height: 1.6; color: #8a8a8a; text-align: center; }
+@media (prefers-reduced-motion: reduce) { #boot .boot-title, #boot #boot-start { animation: none; } }

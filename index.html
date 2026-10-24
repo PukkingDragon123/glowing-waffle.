@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>bengrim</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=VT323&family=Noto+Sans:wght@700;900&display=swap">
+<link rel="stylesheet" href="css/style.css">
+<script type="importmap">
+{ "imports": {
+  "three": "./vendor/three.module.min.js",
+  "three/addons/": "./vendor/addons/",
+  "cannon-es": "./vendor/cannon-es.js"
+} }
+</script>
+</head>
+<body>
+<canvas id="game" tabindex="0"></canvas>
+<div id="hud">
+  <div id="osd"></div>
+  <div id="crosshair"></div>
+  <div id="prompt"></div>
+  <div id="subs"></div>
+  <div id="choices"></div>
+  <div id="inv"><div class="slot" data-i="0"><span class="k">1</span><span class="n"></span></div><div class="slot" data-i="1"><span class="k">2</span><span class="n"></span></div></div>
+  <div id="note"></div>
+  <div id="title-card"></div>
+</div>
+<div id="pause" hidden>
+  <div class="pause-inner">
+    <div class="pause-title">PAUSE</div>
+    <button data-act="resume" id="p-resume">RESUME</button>
+    <button data-act="settings" id="p-settings">SETTINGS</button>
+    <button data-act="controls" id="p-controls">CONTROLS</button>
+    <button data-act="menu" id="p-menu">QUIT TO MENU</button>
+    <div id="pause-panel"></div>
+  </div>
+</div>
+<div id="boot">
+  <div class="boot-inner">
+    <div class="boot-title">bengrim</div>
+    <div class="boot-bar"><div id="boot-fill"></div></div>
+    <div id="boot-msg">TRACKING...</div>
+    <button id="boot-start" hidden>INSERT TAPE</button>
+    <div class="boot-warn">Psychological horror. Contains body horror, blood, flashing lights and loud sounds.<br>Best with headphones. Click to capture the mouse.</div>
+  </div>
+</div>
+<script type="module" src="src/main.js"></script>
+</body>
+</html>
