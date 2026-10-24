@@ -495,6 +495,17 @@ export class Sky {
   }
 
   // ---------------------------------------------------------- crash cinematic helpers
+  // collapse a tower: k = remaining height fraction
+  setTower(i, k, burn = 1) {
+    const b = this.wtc[i]; if (!b) return;
+    const m = new THREE.Matrix4().compose(new THREE.Vector3(b.x, b.y, b.z), new THREE.Quaternion(), new THREE.Vector3(b.w, Math.max(1, b.h * k), b.d));
+    this.city.setMatrixAt(b.index, m); this.city.instanceMatrix.needsUpdate = true;
+    const g = this.city.geometry;
+    g.attributes.iData.array[b.index * 4 + 2] = burn; g.attributes.iData.needsUpdate = true;
+    g.attributes.iSize.array[b.index * 3 + 1] = Math.max(1, b.h * k); g.attributes.iSize.needsUpdate = true;
+    if (i === 0) this.antenna.visible = k > 0.95;
+  }
+  resetTowers() { for (let i = 0; i < this.wtc.length; i++) this.setTower(i, 1, 0.3); }
   blast(pos, n = 8, size = 120, spread = 60) {
     for (let i = 0; i < n; i++) {
       const b = this.blasts.find((x) => x.t < 0) || this.blasts[i % this.blasts.length];

@@ -101,7 +101,7 @@ export class Cat {
     const f = c.flatForward(V());
     if (d < 2.5 && f.dot(toCat) > 0.9) target += wrong * 0.2;
     target += this.startle;
-    if (G.alien && G.alien.active && G.alien.pos.distanceTo(this.pos) < 6) target += 0.8;
+    if (G.alien && G.alien.near) target += 0.8;
     target = clamp(target, 0, 1);
     this.fear = damp(this.fear, target, target > this.fear ? 4 : 0.35, dt);
     this.startle = Math.max(0, this.startle - dt * 0.8);
@@ -327,9 +327,53 @@ export class Cat {
     M.update(dt, { speed: this.held || this.jump ? 0 : this.speed, scared: fear > 0.5, struggle: this.struggle > 0.3, fast: !!this.jump });
     G.physics.setMoverTarget(this.mover, V(this.pos.x, this.pos.y + this.h + 0.15, this.pos.z), new THREE.Quaternion(), false);
     this.mover.body.collisionFilterMask = this.held ? 0 : GROUP.PROP | GROUP.PLAYER;
+    this.faceSmear(dt);
     // purr loop follows the cat
     if (this.purr) this.purr.set({ pos: this.headPos() });
     if (this.eatLoop) this.eatLoop.set({ pos: this.headPos() });
+  }
+
+  // Mochi's face won't resolve. Since the light, the picture smears and wraps
+  // around itself wherever her face should be.
+  faceSmear(dt) {
+    const fx = G.engine.fx.faceSpot;
+    const day = G.story.day;
+    const on = this.present && G.state === 'play' && (day >= 2 || (G.director && G.director.flags.blinded));
+    if (!on) { fx.w = 0; return; }
+    const cam = G.camera;
+    const head = this.model.by.head.localToWorld(V(0, -0.012, -0.03));
+    const toH = head.clone().sub(cam.position);
+    const dist = toH.length();
+    const fwd = V(0, 0, -1).applyQuaternion(cam.quaternion);
+    let w = 0;
+    if (toH.dot(fwd) > 0.05 && dist < 14) {
+      const ndc = head.clone().project(cam);
+      const hit = G.physics.raycast(cam.position, head, GROUP.STATIC);
+      const blocked = hit && hit.distance < dist - 0.15;
+      if (!blocked && Math.abs(ndc.x) < 1.3 && Math.abs(ndc.y) < 1.3) {
+        w = [0, 0.82, 0.88, 0.92, 0.96, 1, 1, 1][day] ?? 1;
+        const R = (0.085 / (2 * dist * Math.tan((cam.fov * Math.PI) / 360))) * 1.45;
+        // staring makes it worse
+        const center = Math.hypot(ndc.x, ndc.y) < 0.35;
+        this.stareT = center ? (this.stareT || 0) + dt : Math.max(0, (this.stareT || 0) - dt);
+        const grow = 1 + Math.min(0.6, this.stareT * 0.08);
+        fx.set(ndc.x * 0.5 + 0.5, ndc.y * 0.5 + 0.5, Math.min(0.6, R * grow), w);
+        if (center && dist < 3.2) this.noticeFace(day);
+        return;
+      }
+    }
+    fx.w = 0;
+  }
+  noticeFace(day) {
+    const k = 'face' + day;
+    if (this.noticed === k || G.director?.cutscene) return;
+    this.noticed = k;
+    const L = [null, ['Mochi...? Why can\'t I see your face?', "It's my eyes. It's just the light. It'll pass."],
+      ['Her face is still... smeared. Like a chewed-up tape.'], ["I keep blinking. Her face won't come back."],
+      ["I don't remember what she looks like. I've had her six years."], ['Is that even Mochi under there?'],
+      ["Good. I don't want to see her face. I don't want to see her look at me."], ['...']][day] || [];
+    L.forEach((t, i) => setTimeout(() => G.hud.inner(t), 600 + i * 3800));
+    G.audio && G.audio.play('tinnitus', { vol: 0.2 });
   }
 
   trackHead(dt) {

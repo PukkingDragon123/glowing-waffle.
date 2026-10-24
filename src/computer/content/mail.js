@@ -36,3 +36,20 @@ export const MAIL = {
     { from: 'FACILITY', subject: 'SUBJECT STATUS', time: '--:--', body: 'SUBJECT STATUS: COMPLETE' },
   ],
 };
+
+// Every morning the same four messages are waiting, as if for the first time.
+// They drift. The day's extras arrive beneath them.
+export function mailFor(day) {
+  const base = MAIL[1].map((m) => ({ ...m }));
+  const [hr, mom, mgmt, spam] = base;
+  if (day === 3) hr.body += '\n\nP.S. You asked me yesterday whether today was yesterday. It is not. - D';
+  if (day === 4) hr.body = 'Hi Alex,\n\nWelcome back. Welcome back. Welcome back to the Blueberry Pie support team!\n\nWe are so glad you are feeling better.\nWe are so glad you are feeling better.\n\nDenise';
+  if (day >= 5) hr.body = 'Hi Alex,\n\n' + 'We are so glad you are feeling better. '.repeat(day * 3) + '\n\nYou are not feeling better.';
+  if (day >= 2) mom.time = '6:15 AM';
+  if (day === 3) mom.body += '\n\n(Honey, I sent this yesterday. Why does it say today?)';
+  if (day >= 4) { mom.subject = 'are you ok??'; mom.body = 'Honey I saw the news about the lights over the harbor. Your building is right there. Are you ok?\n\nYou did not pick up last night.\nYou did not pick up last night.\nYou have not picked up since July 1st.'; }
+  if (day >= 5) mgmt.body = mgmt.body.replace('Residents of 4A', 'Residents of 4A and 4B');
+  if (day >= 6) mgmt.body = 'Dear resident,\n\nThere is only one floor.\n\nThank you,\nManagement';
+  if (day >= 4) spam.body += '\nTo be born, reply with BORN.';
+  return [...base, ...(day > 1 ? MAIL[day] || [] : [])];
+}

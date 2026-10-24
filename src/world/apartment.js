@@ -55,6 +55,7 @@ export class Apartment {
     G.world.addOccluders(this.statics);
     this.zones();
     this.spawnItems();
+    this.captureInitial();
     return this;
   }
 
@@ -578,6 +579,35 @@ export class Apartment {
     it('beans', 1.95, 0.56, 6.48, {});
     it('catCan', 2.2, 0.53, 6.5, {});
     it('crackers', 2.5, 1.12, 6.5, {});
+  }
+
+  // the loop: every morning the apartment is exactly as it was on July 1st.
+  // (Only what is written on you, and in the cat, carries over.)
+  captureInitial() {
+    this.init = {
+      doors: Object.fromEntries(Object.entries(this.doors).map(([k, d]) => [k, d.angle])),
+      switches: Object.fromEntries(Object.entries(this.switches).map(([k, sw]) => [k, sw.on])),
+      lights: Object.fromEntries(Object.entries(this.lights).map(([k, l]) => [k, l.on])),
+    };
+  }
+  resetDay() {
+    const keep = new Set(G.building ? G.building.food4C : []);
+    const inv = G.player && G.player.inv;
+    if (inv) { inv.hand = null; inv.slots = [null, null]; G.hud.showInventory && G.hud.showInventory(inv); }
+    for (const i of [...G.world.items]) if (!keep.has(i)) i.destroy();
+    this.items = [];
+    this.spawnItems();
+    for (const [k, a] of Object.entries(this.init.doors)) this.doors[k].setAngle(a);
+    for (const [k, v] of Object.entries(this.init.switches)) this.switches[k].set(v, true);
+    for (const [k, v] of Object.entries(this.init.lights)) this.lights[k].set(v);
+    for (const w of Object.values(this.windows)) { w.pos = 0; w.vel = 0; w.target = null; w.sash.position.copy(w.base); }
+    for (const sk of [this.sink, this.bathSink]) if (sk.running) sk.o.onUse();
+    if (this.coffee.stop) this.coffee.stop();
+    this.coffee.mug = null;
+    this.bowl.fill(0); this.waterBowl.fill(0.8);
+    this.trash.setFull(true); this.trash.count = 0;
+    this.stove.knobs.forEach((kb, i) => { if (this.stove.burners[[2, 0, 1, 3][i]].on) kb.o.onUse(); });
+    G.world.power = true;
   }
 
   setCalendar(day) {

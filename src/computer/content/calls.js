@@ -15,7 +15,7 @@ export const TOOLS = [
 
 const generic = { lineTest: 'LINE TEST: carrier OK, noise -52dB (clean).', resetPassword: 'Password reset. Temporary password: berry419', reprovision: 'Modem profile reprovisioned: AT&F&C1&D2', flushDns: 'DNS cache cleared for account.', accessNumber: 'New access number assigned: 555-0177', sendCd: 'Install CD v4.0 queued for mailing (5-7 business days).', credit: 'Credit of $19.95 applied.', escalate: 'Ticket escalated to Tier 2. ETA 48 hours.' };
 
-export const CALLS = {
+const BASE = {
   1: [
     {
       id: 'doris1', name: 'Doris Kaminski', number: '(201) 555-0147', account: 'BP-77129', plan: 'Unlimited 56K', modem: 'US Robotics Sportster 56K', os: 'Glass 95', voice: 'oldwoman', target: 150,
@@ -83,71 +83,7 @@ export const CALLS = {
       tools: { flushDns: { result: 'DNS cache cleared for account BP-11872.', go: 'dns' } },
     },
   ],
-  2: [
-    {
-      id: 'patricia', name: 'Patricia Velez', number: '(201) 555-0171', account: 'BP-55210', plan: 'Family 56K', modem: 'Zoom 56K', os: 'Glass 98', voice: 'woman', target: 150,
-      nodes: {
-        start: { say: ['Hi. I can get my e-mail but I cannot send anything. It gives me a long error, zero x eight zero zero C C C zero E.'], kb: '0x800ccc0e', opts: [
-          { t: 'What is your outgoing mail server set to?', go: 'smtp', score: 1 },
-          { t: 'Let me reset your password.', go: 'pw', score: -1 },
-        ] },
-        pw: { say: ['But I can read my mail. Doesn\'t that mean the password is fine?'], opts: [{ t: 'You are right. What is your outgoing server set to?', go: 'smtp' }] },
-        smtp: { say: ['It says... smtp dot aol dot com. My husband set it up.'], opts: [
-          { t: 'Change it to mail dot blueberrypie dot net, port twenty five.', go: 'fixed', score: 2 },
-          { t: 'Leave it, I will escalate this.', go: 'esc', score: -1 },
-        ] },
-        esc: { say: ['Forty eight hours? I need to send my resume today.'], opts: [{ t: 'Actually, set the outgoing server to mail dot blueberrypie dot net.', go: 'fixed' }] },
-        fixed: { say: ['Mail dot blueberrypie dot net... sending... it went! Thank you so much.'], end: 'good' },
-      },
-      tools: {},
-    },
-    {
-      id: 'ronald', name: 'Ronald Pike', number: '(201) 555-0108', account: 'BP-20981', plan: 'Unlimited 56K', modem: 'US Robotics 56K', os: 'Glass 95', voice: 'oldman', target: 170,
-      nodes: {
-        start: { say: ['They sold me a fifty six K modem and it only ever connects at twenty six four. Twenty six four!', 'I want what I am paying for.'], kb: 'slow', opts: [
-          { t: 'Let me test your line quality.', go: 'waitline', score: 1 },
-          { t: 'Nobody actually gets fifty six K, sir.', go: 'rude', score: -2 },
-        ] },
-        rude: { say: ['Then why does it say it on the box?'], opts: [{ t: 'Fair point. Let me test your line.', go: 'waitline' }] },
-        waitline: { wait: 'lineTest', say: [], hint: 'Run a Line Test.' },
-        noisy: { say: ['Noise? The phone company was here in June.'], opts: [
-          { t: 'Your modem needs the V.90 update. I will mail you the new CD.', go: 'waitcd', score: 1 },
-        ] },
-        waitcd: { wait: 'sendCd', say: [], hint: 'Send Install CD.' },
-        done: { say: ['Five to seven days. Well. All right. At least someone answered the phone today.'], end: 'good' },
-      },
-      tools: { lineTest: { result: 'LINE TEST: carrier OK, noise -36dB (NOISY). 56K not possible on this line.', go: 'noisy' }, sendCd: { result: 'Install CD v4.0 with V.90 firmware queued for mailing.', go: 'done' } },
-    },
-    {
-      id: 'amy', name: 'Amy Lindqvist', number: '(201) 555-0119', account: 'BP-41190', plan: 'Unlimited 56K', modem: 'Boca Research 56K', os: 'Glass 98', voice: 'woman', target: 150,
-      nodes: {
-        start: { say: ['Hello. My computer says the modem is not responding. Error six three zero.'], kb: '630', opts: [
-          { t: 'Is the modem plugged in and powered on?', go: 'power', score: 1 },
-          { t: 'Please dial star seven zero first.', go: 'cw', score: -1 },
-        ] },
-        cw: { say: ['It does not even try to dial. It says the modem is not responding.'], opts: [{ t: 'Is it powered on?', go: 'power' }] },
-        power: { say: ['The lights are on. It is warm. It is... humming.'], opts: [{ t: 'I am going to push new settings to your modem.', go: 'waitre', score: 1 }] },
-        waitre: { wait: 'reprovision', say: [], hint: 'Reprovision Modem.' },
-        fixed: { say: ['Restarting now... It works.', 'Thank you, Alex.', 'Get some rest. You are eating for two now.'], end: 'strange', strangeLine: 2 },
-      },
-      tools: { reprovision: { result: 'Modem profile reprovisioned: AT&F&C1&D2. Customer must restart.', go: 'fixed' } },
-      after: [],
-    },
-  ],
   3: [
-    {
-      id: 'martin', name: 'Martin Hale', number: '(201) 555-0131', account: 'BP-60018', plan: 'Unlimited 56K', modem: 'Hayes 56K', os: 'Glass 98', voice: 'man', target: 140,
-      nodes: {
-        start: { say: ['I keep getting a busy signal when I dial in. Every time.'], kb: 'busy', opts: [
-          { t: 'Our local number is overloaded. I will give you another one.', go: 'waitnum', score: 1 },
-          { t: 'Try again later tonight.', go: 'later', score: -1 },
-        ] },
-        later: { say: ['Later? Have you looked outside? Nobody is going out tonight.'], opts: [{ t: 'Let me give you a different access number.', go: 'waitnum' }] },
-        waitnum: { wait: 'accessNumber', say: [], hint: 'Change Access Number.' },
-        fixed: { say: ['Five five five zero one seven seven. Okay. It is ringing... connected.', 'Hey. Can I ask you something. Have you looked at the sky today?', 'There are two of them now. Two moons. Everyone on the news is pretending there is one.'], end: 'strange' },
-      },
-      tools: { accessNumber: { result: 'New access number assigned: 555-0177', go: 'fixed' } },
-    },
     {
       id: 'unknown3', name: 'UNKNOWN CALLER', number: '(201) 555-0419', account: 'BP-00419', plan: '???', modem: '???', os: '???', voice: 'wrong', target: 90, strange: true, noTimer: true,
       nodes: {
@@ -165,32 +101,8 @@ export const CALLS = {
       tools: {},
       after: ['Do not open the window.', 'Not yet.'],
     },
-    {
-      id: 'doris2', name: 'Doris Kaminski', number: '(201) 555-0147', account: 'BP-77129', plan: 'Unlimited 56K', modem: 'US Robotics Sportster 56K', os: 'Glass 95', voice: 'oldwoman', target: 120, strange: true,
-      nodes: {
-        start: { say: ['Hello, dear. It is Doris again. The internet is working fine.', 'I am calling because my grandson is not answering his phone.'], opts: [
-          { t: 'I am sorry, I can only help with your account.', go: 'sky' },
-          { t: 'When did you last talk to him?', go: 'sky' },
-        ] },
-        sky: { say: ['The sky is so bright here. Is it bright where you are?', 'There is a light over the river that eats the other lights. One by one. The windows go dark when it looks at them.', 'Turn your lights off tonight, dear. That is how it finds you.'], end: 'strange' },
-      },
-      tools: {},
-    },
   ],
   4: [
-    {
-      id: 'linda', name: 'Linda Ferro', number: '(201) 555-0154', account: 'BP-33761', plan: 'Family 56K', modem: 'Zoom 56K', os: 'Glass 98', voice: 'woman', target: 140,
-      nodes: {
-        start: { say: ['Hi, sorry, the baby is fussy. I cannot log in. Error six nine one.'], kb: '691', opts: [
-          { t: 'I can reset your password for you.', go: 'waitpw', score: 1 },
-          { t: 'Your phone line is too noisy.', go: 'noise', score: -1 },
-        ] },
-        noise: { say: ['That noise is the baby. Can you just help me log in?'], opts: [{ t: 'Of course, let me reset your password.', go: 'waitpw' }] },
-        waitpw: { wait: 'resetPassword', say: [], hint: 'Reset Password.' },
-        fixed: { say: ['Berry four one nine. Okay, I am in.', 'Shh, shh. She never cries like this. It is like she can hear something through the phone.', 'Is there a baby there with you?'], end: 'strange' },
-      },
-      tools: { resetPassword: { result: 'Password reset. Temporary password: berry419', go: 'fixed' } },
-    },
     {
       id: 'noid4', name: 'NO CALLER ID', number: '', account: '', plan: '', modem: '', os: '', voice: 'whisper', target: 60, strange: true, noTimer: true, hangupLock: 14,
       nodes: {
@@ -257,6 +169,70 @@ export const CALLS = {
       tools: {},
     },
   ],
+};
+
+// ---------------------------------------------------------------------------
+// The loop. Every morning is July 1st again and the same three customers call
+// with the same problems. They drift a little more each day.
+const clone = (o) => JSON.parse(JSON.stringify(o));
+function drift(call, day) {
+  const c = clone(call);
+  c.id = call.id + '_d' + day;
+  const N = c.nodes;
+  const add = (node, lines, front = false) => { if (!N[node]) return; N[node].say = front ? [...lines, ...N[node].say] : [...N[node].say, ...lines]; };
+  if (call.id === 'doris1') {
+    if (day === 2) add('fixed', ['Have we spoken before? Your voice is so familiar.']);
+    if (day === 3) {
+      N.start.say = ['Hello? Is this the internet company?', 'My computer makes the screaming noise again. You fixed it yesterday, dear. Or I dreamed it.'];
+      N.cw.say = ['Call waiting. Yes. You asked me that yesterday. And the day before that.'];
+      N.fixed.say = ['Star seven zero comma. It is connecting.', 'The sky is so bright here. Is it bright where you are?', 'There is a light over the river that eats the other lights. The windows go dark when it looks at them.', 'Turn your lights off tonight, dear. That is how it finds you.'];
+      N.fixed.end = 'strange'; c.strange = true;
+    }
+    if (day === 4) {
+      N.start.say = ['Hello? Is this the internet company?', 'Hello? Is this the internet company?', 'Hello? Is this the internet company?'];
+      N.fixed.say = ['Star seven zero comma. Yes. Thank you, dear.', 'Same time tomorrow.'];
+    }
+    if (day === 5) {
+      c.voice = 'wrong'; c.strange = true; c.noTimer = true;
+      c.nodes = { start: { say: ['Hello, dear. You can stop now.', 'It never connects. Nothing here connects to anything.', 'I have been calling you every morning for a very long time.'], end: 'strange' } };
+      c.tools = {};
+    }
+  }
+  if (call.id === 'kevin1') {
+    if (day === 2) N.newpw.say = ['Okay, berry four one nine. Got it.', 'Weird. Felt like I already did this.', 'It worked. Thanks.'];
+    if (day === 3) add('start', ['Wait. Did I already call today?'], false);
+    if (day >= 4) {
+      N.caps.say = ['No. I mean... you are going to say berry four one nine. Right?', 'Say it. You always say it.'];
+      N.newpw.say = ['Berry four one nine.', 'Berry four one nine.', 'Same as every day, man.'];
+      N.newpw.end = 'strange'; c.strange = true;
+    }
+  }
+  if (call.id === 'gerald1') {
+    if (day === 2) N.dns.say = ['Let me try... there it is. The weather page. Ninety one degrees again.', 'Was it not ninety one yesterday, too?', 'Say, is your company ready for the year two thousand?'];
+    if (day === 3) {
+      N.dns.say = ['There it is. Ninety one degrees.', 'It has said ninety one for three days. The date at the top says July first.', 'And there are two moons. Everyone on the news is pretending there is one.'];
+      N.dns.opts = [{ t: 'I am sure it is just a glitch.', go: 'y2k' }, { t: 'I see them too.', go: 'y2k' }];
+      N.y2k.end = 'strange'; c.strange = true;
+    }
+    if (day === 4) add('start', ['You are going to tell me to clear something on your end. Go ahead. Clear it.']);
+    if (day === 5) {
+      c.voice = 'wrong'; c.strange = true; c.noTimer = true;
+      c.nodes = { start: { say: ['Good morning.', 'Good morning.', 'Is it still the first? It is always the first.', 'I counted the windows across the river. Every morning there is one less light.'], end: 'strange' } };
+      c.tools = {};
+    }
+  }
+  return c;
+}
+const [DORIS, KEVIN, GERALD] = BASE[1];
+const X = (d, id) => BASE[d].find((c) => c.id === id);
+export const CALLS = {
+  1: [DORIS, KEVIN, GERALD],
+  2: [drift(DORIS, 2), drift(KEVIN, 2), drift(GERALD, 2)],
+  3: [drift(DORIS, 3), X(3, 'unknown3'), drift(KEVIN, 3), drift(GERALD, 3)],
+  4: [drift(DORIS, 4), drift(KEVIN, 4), X(4, 'noid4'), drift(GERALD, 4), X(4, 'qa4')],
+  5: [drift(DORIS, 5), X(5, 'mom5'), drift(GERALD, 5), X(5, 'you5')],
+  6: BASE[6],
+  7: BASE[7],
 };
 
 export function toolResult(call, tool) {

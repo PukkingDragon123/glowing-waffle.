@@ -37,12 +37,12 @@ function tree() {
 
 function journal(day) {
   const e = ['July 1. Weird dream about the sky on fire. Woke up on the floor. Mochi licked my face.'];
-  if (day >= 2) e.push('July 2. Took out the trash. 4A is empty?? I heard their TV last night.');
-  if (day >= 3) e.push('July 3. So hungry. Something moved in my stomach. Not gas. MOVED.');
-  if (day >= 4) e.push('July 4. Coughed blood into the sink. My reflection was late.');
-  if (day >= 5) e.push('July 5. Mochi hisses at me. I don\'t blame her.');
-  if (day >= 6) e.push('July 6. I looked at Mochi and I saw meat. I hate myself.');
-  if (day >= 7) e.push('July 7. I don\'t remember writing any of this.');
+  if (day >= 2) e.push('July 1. Again? Same emails. Same three calls. Doris, Kevin, Gerald. Same error codes. I KNOW I wrote the first entry yesterday.');
+  if (day >= 3) e.push('July 1. The calendar never changes. Something moved in my stomach. Not gas. MOVED.');
+  if (day >= 4) e.push('July 1. Coughed blood into the sink. My reflection was late. The elevator only goes to four.');
+  if (day >= 5) e.push('July 1. Mochi hisses at me. I do not blame her. The hallway does not end anymore.');
+  if (day >= 6) e.push('July 1. I looked at Mochi and I saw meat. I hate myself.');
+  if (day >= 7) e.push("July 1. I don't remember writing any of this. I don't remember any day that wasn't July 1.");
   return e.join('\n\n');
 }
 

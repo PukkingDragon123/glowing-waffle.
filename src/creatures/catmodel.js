@@ -29,9 +29,9 @@ function boneTable() {
     add('fwr.' + S, 'felb.' + S, [s * 0.046, 0.04, -0.105]);
     add('fpaw.' + S, 'fwr.' + S, [s * 0.046, 0.012, -0.118]);
     add('hhip.' + S, 'hips', [s * 0.047, 0.2, 0.115]);
-    add('hkn.' + S, 'hhip.' + S, [s * 0.052, 0.13, 0.075]);
-    add('hhock.' + S, 'hkn.' + S, [s * 0.052, 0.058, 0.14]);
-    add('hpaw.' + S, 'hhock.' + S, [s * 0.052, 0.012, 0.125]);
+    add('hkn.' + S, 'hhip.' + S, [s * 0.052, 0.138, 0.068]);
+    add('hhock.' + S, 'hkn.' + S, [s * 0.05, 0.078, 0.152]);
+    add('hpaw.' + S, 'hhock.' + S, [s * 0.05, 0.012, 0.136]);
   }
   return T;
 }
@@ -82,13 +82,13 @@ vec3 coat(vec3 p, float h, float rnd) {
   float band;
   if (p.z > 0.17) band = fract(p.z * 19.0 + n * 0.35);
   else if (p.y < 0.14) band = fract(p.y * 30.0 + n * 0.45);
-  else band = fract(p.z * 23.0 + sin(p.y * 35.0 + p.x * 20.0) * 0.3 + n * 0.7);
+  else band = fract(p.z * 27.0 + sin(p.y * 35.0 + p.x * 20.0) * 0.35 + n * 1.1 + cn(p * 31.0) * 0.4);
   if (p.y > 0.24 && p.z < -0.17) band = fract(abs(p.x) * 55.0 + p.z * 25.0 + n * 0.8);
-  float stripes = smoothstep(0.42, 0.56, band) * (1.0 - smoothstep(0.88, 0.98, band));
-  stripes *= smoothstep(0.2, 0.5, cn(p * 9.0 + 4.0) + 0.3);
+  float stripes = smoothstep(0.55, 0.64, band) * (1.0 - smoothstep(0.84, 0.95, band));
+  stripes *= smoothstep(0.25, 0.6, cn(p * 11.0 + 4.0) + 0.25) * (0.75 + 0.25 * cn(p * 70.0));
   float spine = smoothstep(0.035, 0.0, abs(p.x)) * step(0.215, p.y) * step(p.z, 0.17);
   float tail = step(0.43, p.z);                                   // black tail tip
-  float dk = clamp(stripes * 0.9 + spine * 0.7 + tail, 0.0, 1.0);
+  float dk = clamp(stripes * 0.78 + spine * 0.6 + tail, 0.0, 1.0);
   vec3 root = vec3(0.3, 0.25, 0.2), lite = vec3(0.72, 0.5, 0.29), tip = vec3(0.09, 0.06, 0.04);
   // per-hair variation of where the light band sits
   float b0 = 0.2 + rnd * 0.2, b1 = 0.5 + rnd * 0.25;
@@ -339,17 +339,22 @@ export class CatModel {
     const Z = { fur: 0, short: 1, none: 2, tail: 3 };
     const P = [];
     // torso
-    P.push(ell([0, 0.2, -0.085], [0.06, 0.077, 0.088], { bone: B('chest'), zone: Z.fur, k: 0.045 }));
-    P.push(ell([0, 0.19, 0.015], [0.058, 0.07, 0.098], { bone: B('spine1'), zone: Z.fur, k: 0.05 }));
-    P.push(ell([0, 0.155, 0.05], [0.042, 0.03, 0.06], { bone: B('spine1'), zone: Z.fur, k: 0.04 })); // belly pouch
-    P.push(ell([0, 0.21, -0.03], [0.054, 0.06, 0.06], { bone: B('spine2'), zone: Z.fur, k: 0.05 }));
-    P.push(ell([0, 0.2, 0.105], [0.062, 0.072, 0.074], { bone: B('hips'), zone: Z.fur, k: 0.045 }));
+    P.push(ell([0, 0.193, -0.085], [0.056, 0.084, 0.086], { bone: B('chest'), zone: Z.fur, k: 0.045 }));      // ribcage, deep
+    P.push(ell([0, 0.14, -0.112], [0.032, 0.03, 0.04], { bone: B('chest'), zone: Z.fur, k: 0.035 }));       // sternum / keel
+    for (const sx of [-1, 1]) P.push(ell([sx * 0.03, 0.247, -0.098], [0.02, 0.026, 0.042], { bone: B('chest'), zone: Z.fur, k: 0.025 })); // shoulder blades
+    P.push(ell([0, 0.2, 0.01], [0.052, 0.058, 0.096], { bone: B('spine1'), zone: Z.fur, k: 0.05 }));        // waist, tucked
+    P.push(ell([0, 0.158, 0.075], [0.04, 0.03, 0.055], { bone: B('spine1'), zone: Z.fur, k: 0.04 }));       // primordial pouch
+    P.push(ell([0, 0.212, -0.03], [0.05, 0.056, 0.06], { bone: B('spine2'), zone: Z.fur, k: 0.05 }));
+    P.push(ell([0, 0.205, 0.108], [0.058, 0.066, 0.07], { bone: B('hips'), zone: Z.fur, k: 0.045 }));       // pelvis
+    P.push(ell([0, 0.222, 0.14], [0.05, 0.04, 0.045], { bone: B('hips'), zone: Z.fur, k: 0.035 }));         // rump
     // neck + head
-    P.push(cap([0, 0.235, -0.135], [0, 0.275, -0.185], 0.038, 0.034, { bone: B('neck'), zone: Z.fur, k: 0.03 }));
-    P.push(sph([0, 0.301, -0.2], 0.047, { bone: B('head'), zone: Z.fur, k: 0.02 }));
-    P.push(ell([0, 0.287, -0.207], [0.062, 0.04, 0.042], { bone: B('head'), zone: Z.fur, k: 0.022 })); // cheeks
+    P.push(cap([0, 0.235, -0.135], [0, 0.275, -0.185], 0.044, 0.039, { bone: B('neck'), zone: Z.fur, k: 0.035 }));
+    P.push(ell([0, 0.304, -0.199], [0.047, 0.042, 0.048], { bone: B('head'), zone: Z.fur, k: 0.02 }));   // cranium
+    P.push(ell([0, 0.313, -0.222], [0.034, 0.011, 0.016], { bone: B('head'), zone: Z.fur, k: 0.012 }));  // brow ridge
+    P.push(ell([0, 0.286, -0.209], [0.06, 0.035, 0.04], { bone: B('head'), zone: Z.fur, k: 0.02 }));   // zygomatic cheeks
+    P.push(cap([0, 0.304, -0.232], [0, 0.291, -0.249], 0.012, 0.007, { bone: B('head'), zone: Z.short, k: 0.008 })); // nose bridge
     for (const s of [-1, 1]) P.push(ell([s * 0.009, 0.279, -0.24], [0.012, 0.01, 0.011], { bone: B('head'), zone: Z.short, k: 0.008 })); // whisker pads
-    P.push(ell([0, 0.281, -0.238], [0.021, 0.017, 0.019], { bone: B('head'), zone: Z.short, k: 0.012 })); // muzzle
+    P.push(ell([0, 0.28, -0.239], [0.019, 0.015, 0.017], { bone: B('head'), zone: Z.short, k: 0.012 })); // muzzle
     P.push(ell([0, 0.27, -0.226], [0.016, 0.01, 0.018], { bone: B('jaw'), zone: Z.short, k: 0.01 })); // chin
     P.push(sph([0, 0.287, -0.252], 0.0065, { bone: B('head'), zone: Z.none, k: 0.006 })); // nose
     for (const [S, s] of [['L', -1], ['R', 1]]) {
@@ -357,16 +362,18 @@ export class CatModel {
       // front legs
       const sh = r['fsh.' + S], el = r['felb.' + S], wr = r['fwr.' + S], pw = r['fpaw.' + S];
       P.push(ell([sh.x, sh.y - 0.01, sh.z + 0.005], [0.024, 0.045, 0.03], { bone: B('fsh.' + S), zone: Z.fur, k: 0.025 }));
-      P.push(cap(a(sh), a(el), 0.025, 0.019, { bone: B('fsh.' + S), zone: Z.fur, k: 0.015 }));
-      P.push(cap(a(el), a(wr), 0.018, 0.014, { bone: B('felb.' + S), zone: Z.fur, k: 0.01 }));
+      P.push(cap(a(sh), a(el), 0.027, 0.02, { bone: B('fsh.' + S), zone: Z.fur, k: 0.015 }));
+      P.push(sph([el.x, el.y, el.z + 0.012], 0.014, { bone: B('fsh.' + S), zone: Z.fur, k: 0.008 }));  // elbow
+      P.push(cap(a(el), a(wr), 0.0175, 0.013, { bone: B('felb.' + S), zone: Z.fur, k: 0.01 }));
       P.push(cap(a(wr), a(pw), 0.012, 0.012, { bone: B('fwr.' + S), zone: Z.short, k: 0.008 }));
       P.push(ell([pw.x, pw.y + 0.002, pw.z - 0.006], [0.015, 0.011, 0.019], { bone: B('fpaw.' + S), zone: Z.short, k: 0.008 }));
       // hind legs
       const hh = r['hhip.' + S], kn = r['hkn.' + S], hk = r['hhock.' + S], hp = r['hpaw.' + S];
-      P.push(ell([hh.x, hh.y - 0.03, hh.z - 0.005], [0.03, 0.06, 0.04], { bone: B('hhip.' + S), zone: Z.fur, k: 0.03 }));
-      P.push(cap(a(hh), a(kn), 0.03, 0.02, { bone: B('hhip.' + S), zone: Z.fur, k: 0.02 }));
-      P.push(cap(a(kn), a(hk), 0.019, 0.013, { bone: B('hkn.' + S), zone: Z.fur, k: 0.01 }));
-      P.push(cap(a(hk), a(hp), 0.011, 0.011, { bone: B('hhock.' + S), zone: Z.short, k: 0.006 }));
+      P.push(ell([hh.x * 1.02, hh.y - 0.035, hh.z - 0.008], [0.032, 0.066, 0.054], { bone: B('hhip.' + S), zone: Z.fur, k: 0.03, rot: [0.35, 0, 0] })); // haunch
+      P.push(cap(a(hh), a(kn), 0.033, 0.023, { bone: B('hhip.' + S), zone: Z.fur, k: 0.022 }));
+      P.push(cap(a(kn), a(hk), 0.017, 0.011, { bone: B('hkn.' + S), zone: Z.fur, k: 0.01 }));
+      P.push(sph([hk.x, hk.y, hk.z + 0.006], 0.0115, { bone: B('hkn.' + S), zone: Z.short, k: 0.006 }));      // heel (hock)
+      P.push(cap(a(hk), a(hp), 0.0095, 0.0105, { bone: B('hhock.' + S), zone: Z.short, k: 0.006 }));
       P.push(ell([hp.x, hp.y + 0.002, hp.z - 0.008], [0.015, 0.011, 0.02], { bone: B('hpaw.' + S), zone: Z.short, k: 0.008 }));
     }
     // tail
@@ -420,7 +427,7 @@ export class CatModel {
       for (let i = 0; i < uv.count; i++) uv.setXY(i, 0.5 + pos.getX(i) / 0.0118 * 0.5, 0.5 + pos.getY(i) / 0.0118 * 0.5);
       const eye = new THREE.Mesh(g, eyeMat);
       const headPos = this.rest.head;
-      eye.position.set(s * 0.021, 0.303 - headPos.y, -0.239 - headPos.z);
+      eye.position.set(s * 0.021, 0.302 - headPos.y, -0.2355 - headPos.z);
       eye.rotation.y = s * 0.25;
       this.by.head.add(eye);
       this.eyes.push(eye);
@@ -624,7 +631,7 @@ export class CatModel {
       if (pp < duty) off = lerp(0.5, -0.5, pp / duty);
       else { const q = (pp - duty) / (1 - duty); off = lerp(-0.5, 0.5, smoothstep(0, 1, q)); lift = Math.sin(Math.PI * q) * (gait === 'gallop' ? 0.05 : 0.03); }
       const front = fh === 'f';
-      const base = front ? V(s * (0.046 + P.legSpread * 0.03), 0.012, -0.118) : V(s * (0.052 + P.legSpread * 0.03), 0.012, 0.125);
+      const base = front ? V(s * (0.046 + P.legSpread * 0.03), 0.012, -0.118) : V(s * (0.05 + P.legSpread * 0.03), 0.012, 0.136);
       const paw = base.clone();
       paw.z -= off * stride; paw.y += lift * moving;
       // pose adjustments

@@ -98,6 +98,13 @@ export class HUD {
     right.split('\n').forEach((t, i) => { if (i) r.appendChild(document.createElement('br')); r.appendChild(document.createTextNode(t)); });
     this.osd.append(l, r);
   }
+  // Chilla's Art-style task list, top left. items: [{text, done}]
+  objective(items) {
+    const el = document.getElementById('obj'); if (!el) return;
+    el.innerHTML = '';
+    for (const it of items || []) { const d = document.createElement('span'); d.className = 'o' + (it.done ? ' done' : ''); d.textContent = it.text; el.appendChild(d); }
+    el.classList.toggle('on', !!(items && items.length));
+  }
   setVisible(v) { document.getElementById('hud').style.display = v ? '' : 'none'; this.hidden = !v; }
   crosshair(v) { this.cross.classList.toggle('hidden', !v); }
 

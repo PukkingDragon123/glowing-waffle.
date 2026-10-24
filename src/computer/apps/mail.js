@@ -3,7 +3,7 @@ import { G, emit } from '../../core/globals.js';
 import { C } from '../ui.js';
 import { icon } from '../icons.js';
 import { drawText, textWidth, wrap, LINE_H } from '../font.js';
-import { MAIL } from '../content/mail.js';
+import { MAIL, mailFor } from '../content/mail.js';
 import { IMAGES } from './images.js';
 
 const sfx = (n, o) => G.audio && G.audio.play(n, o);
@@ -24,13 +24,14 @@ export class MailApp {
     const day = G.story.day;
     if (!this.os.connected) { if (!quiet) this.os.msg({ title: 'Mail', text: 'Unable to connect to the server. Your computer is not connected to the Internet.', icon: 'error', buttons: ['OK'] }); return; }
     let got = 0;
-    for (let d = 1; d <= day; d++) {
-      for (const m of MAIL[d] || []) if (!this.msgs.includes(m)) { this.msgs.unshift(m); got++; }
-    }
-    if (day >= 7) for (let i = 0; i < 30; i++) this.msgs.unshift(MAIL[7][0]);
+    if (this.mailDay !== day) { this.mailDay = day; this.today = mailFor(day); }
+    for (const m of this.today) if (!this.msgs.includes(m)) { this.msgs.unshift(m); got++; }
+    if (day >= 7 && got) for (let i = 0; i < 30; i++) this.msgs.unshift(MAIL[7][0]);
     if (got) { sfx('notify', { vol: 0.5, bus: 'ui', pos: G.desk && G.desk.speakerPos }); emit('mailReceived', got); }
   }
   update() {
+    // a new morning: the inbox is as it was the first time
+    if (this.day !== G.story.day) { this.day = G.story.day; this.msgs = []; this.read = new Set(); this.sel.sel = 0; this.lastCheck = -1; }
     if (this.os.connected && this.lastCheck !== G.story.day) { this.lastCheck = G.story.day; this.sendRecv(true); }
   }
   draw(ui, x, y, w, h) {

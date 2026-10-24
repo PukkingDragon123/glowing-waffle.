@@ -521,7 +521,7 @@ export class Body {
     const pl = G.player;
     const c = pl.ctrl;
     const cam = G.camera;
-    const vis = this.visible && G.state !== 'menu';
+    const vis = this.visible && (G.state !== 'menu' || this.showInMenu);
     this.root.visible = vis;
     if (!vis) return;
     // ---- root placement

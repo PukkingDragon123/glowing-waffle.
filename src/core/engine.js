@@ -79,6 +79,7 @@ uniform float vhs; uniform float grain; uniform float chroma; uniform float scan
 uniform float wave; uniform float doubleV; uniform float white; uniform float black; uniform float red;
 uniform float glitch; uniform float tracking; uniform float curvature; uniform float noiseBurst;
 uniform float blur; uniform float tunnel; uniform vec3 whiteColor; uniform float shake;
+uniform vec4 faceSpot;
 varying vec2 vUv;
 float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
 float n1(float x) { float i = floor(x); float f = fract(x); return mix(hash(vec2(i, 0.0)), hash(vec2(i + 1.0, 0.0)), f * f * (3.0 - 2.0 * f)); }
@@ -108,6 +109,35 @@ void main() {
   vec3 col = samp(uv);
   if (blur > 0.0) {
     col = (col * 2.0 + samp(uv + vec2(px.x, 0.0) * blur * 2.0) + samp(uv - vec2(px.x, 0.0) * blur * 2.0) + samp(uv + vec2(0.0, px.y) * blur * 2.0) + samp(uv - vec2(0.0, px.y) * blur * 2.0)) / 6.0;
+  }
+  // a face you cannot see: the picture smears and wraps around itself there
+  if (faceSpot.w > 0.001) {
+    float asp = outRes.x / outRes.y;
+    vec2 d = (uv - faceSpot.xy) * vec2(asp, 1.0);
+    float r = length(d), R = faceSpot.z;
+    float edgeN = (hash(vec2(floor(time * 18.0), floor(uv.y * lowRes.y * 0.5))) - 0.5) * R * 0.25;
+    float m = smoothstep(R, R * 0.4, r + edgeN) * faceSpot.w;
+    if (m > 0.002) {
+      float ang = m * 3.2 + sin(time * 2.3) * 0.5 * m;
+      float ca = cos(ang), sa = sin(ang);
+      vec2 dd = mat2(ca, -sa, sa, ca) * d * (1.0 - 0.35 * m);
+      vec2 suv = faceSpot.xy + dd / vec2(asp, 1.0);
+      vec3 acc = vec3(0.0);
+      for (int i = 0; i < 14; i++) {
+        float fi = float(i);
+        vec2 o = vec2(cos(fi * 2.39996 + time * 0.7), sin(fi * 2.39996 + time * 0.7)) * R * 0.42 * sqrt((fi + 0.5) / 14.0);
+        acc += samp(suv + o / vec2(asp, 1.0));
+      }
+      acc /= 14.0;
+      // horizontal tape smear pulled out of the blob
+      vec3 sm = (samp(suv + vec2(px.x * 6.0, 0.0)) + samp(suv + vec2(px.x * 12.0, 0.0)) + samp(suv - vec2(px.x * 9.0, 0.0))) / 3.0;
+      acc = mix(acc, sm, 0.3);
+      float lum = dot(acc, vec3(0.299, 0.587, 0.114));
+      acc = mix(acc, vec3(lum) * vec3(0.96, 0.93, 0.9), 0.4);
+      vec2 blk = floor(uv * lowRes / 2.0);
+      acc += (hash(blk + floor(time * 17.0)) - 0.5) * 0.07 * m;
+      col = mix(col, acc, m);
+    }
   }
   vec3 yiq = rgb2yiq(col);
   vec2 iq = vec2(0.0);
@@ -180,7 +210,7 @@ export class Engine {
       ghost: 0, flesh: 0, dither: 0.9,
       vhs: 0.7, grain: 0.6, chroma: 0.8, scan: 0.6, vignette: 0.75, wave: 0, doubleV: 0,
       white: 0, black: 0, red: 0, glitch: 0, tracking: 0.25, curvature: 0.06, noiseBurst: 0,
-      blur: 0, tunnel: 0, whiteColor: new THREE.Vector3(1, 1, 1), shake: 0,
+      blur: 0, tunnel: 0, whiteColor: new THREE.Vector3(1, 1, 1), shake: 0, faceSpot: new THREE.Vector4(0, 0, 0, 0),
     };
 
     this.quadScene = new THREE.Scene();
@@ -200,7 +230,7 @@ export class Engine {
     });
     const fu = {
       tLDR: { value: null }, lowRes: { value: new THREE.Vector2() }, outRes: { value: new THREE.Vector2() }, time: { value: 0 },
-      whiteColor: { value: new THREE.Vector3(1, 1, 1) },
+      whiteColor: { value: new THREE.Vector3(1, 1, 1) }, faceSpot: { value: new THREE.Vector4(0, 0, 0, 0) },
     };
     for (const k of ['vhs', 'grain', 'chroma', 'scan', 'vignette', 'wave', 'doubleV', 'white', 'black', 'red', 'glitch', 'tracking', 'curvature', 'noiseBurst', 'blur', 'tunnel', 'shake']) fu[k] = { value: 0 };
     this.mFinal = mk(FINAL_FS, fu);
@@ -282,6 +312,7 @@ export class Engine {
     f.tLDR.value = out.texture; f.lowRes.value.set(this.lowW, this.lowHc); f.outRes.value.set(this.outW, this.outH); f.time.value = time;
     for (const k of ['vhs', 'grain', 'chroma', 'scan', 'vignette', 'wave', 'doubleV', 'white', 'black', 'red', 'glitch', 'tracking', 'curvature', 'noiseBurst', 'blur', 'tunnel', 'shake']) f[k].value = fx[k];
     f.whiteColor.value.copy(fx.whiteColor);
+    f.faceSpot.value.copy(fx.faceSpot);
     this.pass(this.mFinal, null);
   }
 

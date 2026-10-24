@@ -18,6 +18,13 @@ import { NavGrid } from './world/nav.js';
 import { Cat } from './creatures/cat.js';
 import { Desk } from './world/desk.js';
 import { Building } from './world/building.js';
+import { AudioEngine } from './audio/audio.js';
+import { Director } from './story/director.js';
+import { Ending } from './story/ending.js';
+import { Alien } from './creatures/alien.js';
+import { Mirror } from './gfx/mirror.js';
+import { Menu } from './ui/menu.js';
+import { Pause } from './ui/pause.js';
 import { FX } from './gfx/fx.js';
 import { nextFrame, Tasks } from './core/util.js';
 
@@ -29,7 +36,6 @@ function progress(p, msg) {
   const m = document.getElementById('boot-msg'); if (m && msg) m.textContent = msg;
 }
 
-const audioStub = { play() {}, loop() { return { stop() {}, set() {} }; }, setListener() {}, update() {} };
 
 async function boot() {
   const canvas = document.getElementById('game');
@@ -43,7 +49,7 @@ async function boot() {
   G.input = new Input(canvas);
   G.physics = new Physics();
   G.tasks = new Tasks();
-  G.audio = audioStub;
+  G.audio = new AudioEngine();
   G.hud = new HUD();
   setMaxAnisotropy(G.engine.renderer.capabilities.getMaxAnisotropy());
   await nextFrame();
@@ -84,12 +90,20 @@ async function boot() {
   G.nav.addDoor(BD.trash, new THREE.Vector3(-6.46, 0, 8.4), new THREE.Vector3(-6.46, 0, 9.15));
   G.cat = new Cat(G.nav);
   G.desk = new Desk(G.apartment);
-  if (!G.director) G.director = { hour: 9, minutes: 540, clockMinutes() { return this.minutes; }, nightness: 0, update(dt) { this.minutes += dt * 2; this.hour = this.minutes / 60; } };
 
+  G.mirror = new Mirror(G.apartment.mirrorSpot);
+  G.alien = new Alien();
+  G.ending = new Ending();
+  G.director = new Director();
+  G.menu = new Menu();
+  G.pause = new Pause();
+  hookSounds();
   matteAll(G.scene);
-  progress(1, 'PLAY ▶');
-  document.getElementById('boot').hidden = true;
-  G.state = 'play';
+  // compile everything once behind the boot screen
+  progress(0.9, 'REWINDING...');
+  G.state = 'boot';
+  G.engine.renderer.compile(G.scene, G.camera);
+  progress(1, '');
 
   let last = performance.now();
   function frame(now) {
@@ -99,14 +113,49 @@ async function boot() {
   }
   requestAnimationFrame(frame);
   canvas.addEventListener('click', () => { if (G.state === 'play') G.input.lock(); });
+  on('unlock', () => {
+    if (G.state !== 'play') return;
+    if (G.desk.seated) { G.desk.stand(); return; }
+    G.pause.show();
+  });
   window.BENGRIM = makeDebugApi();
+  // INSERT TAPE: audio needs a gesture
+  const btn = document.getElementById('boot-start');
+  const msg = document.getElementById('boot-msg');
+  if (msg) msg.textContent = '';
+  btn.hidden = false;
+  const go = async () => {
+    btn.hidden = true;
+    if (msg) msg.textContent = 'PLAY ▶';
+    try { await G.audio.init((p) => progress(p, 'PLAY ▶')); } catch (e) { console.warn('audio', e); }
+    document.getElementById('boot').hidden = true;
+    if (params.has('day')) {
+      // debug: jump straight into a day
+      G.state = 'play'; G.hud.crosshair(true);
+      G.director.startDay(+params.get('day'));
+    } else G.menu.open({ intro: !params.has('nointro') });
+  };
+  btn.addEventListener('click', go, { once: true });
+  if (params.has('autostart')) go();
+}
+
+// footsteps by floor surface, impacts by material
+function hookSounds() {
+  on('footstep', (e) => {
+    const z = G.world.zoneAt(e.pos);
+    const surf = z ? z.surface : 'concrete';
+    G.audio.play('step_' + surf, { pos: e.pos, vol: (e.land ? 0.8 : 0.35) * (e.crouch ? 0.4 : e.run ? 1.3 : 1), occlude: false, rate: 0.95 + Math.random() * 0.1 });
+  });
+  on('impact', (e) => { if (e.sound) G.audio.play('imp_' + e.sound, { pos: e.pos, vol: Math.min(1, e.vol) }); });
 }
 
 function tick(dt) {
   G.dt = dt; G.time += dt; G.frame++;
   G.uniforms.uTime.value = G.time;
   G.tasks.update(dt);
-  if (G.state === 'play') {
+  const st = G.state;
+  if (st === 'play') {
+    if (G.input.pressed('Escape') && !G.desk.seated) G.pause.show();
     G.player.update(dt);
     G.physics.update(dt);
     G.world.update(dt);
@@ -115,14 +164,26 @@ function tick(dt) {
     G.player.lateUpdate(dt);
     G.cat.update(dt);
     G.desk.update(dt);
-    G.director.update && G.director.update(dt);
+    G.director.update(dt);
+    G.mirror.update(dt);
+  } else if (st === 'menu') {
+    G.physics.update(dt);
+    G.world.update(dt);
+    G.apartment.update(dt);
+    G.menu.update(dt);
+  } else if (st === 'ending') {
+    G.ending.update(dt);
+    G.body.lateUpdate(dt);
   }
-  G.sky.update(dt, G.camera);
-  G.fx.update(dt);
-  G.particles.update(dt);
+  if (st !== 'play') G.engine.fx.faceSpot.w = 0;
+  if (st !== 'paused') {
+    G.sky.update(dt, G.camera);
+    G.fx.update(dt);
+    G.particles.update(dt);
+  }
   G.hud.update(dt);
   G.audio.update(dt);
-  G.engine.render(G.scene, G.camera, G.time);
+  if (!G.noRender) G.engine.render(G.scene, G.camera, G.time);
   G.input.endFrame();
 }
 
@@ -132,7 +193,11 @@ function makeDebugApi() {
     tp(x, z, yaw = 0, pitch = 0) { G.player.ctrl.teleport(x, 0.05, z, yaw, pitch); },
     look(yaw, pitch) { G.player.ctrl.yaw = yaw; G.player.ctrl.pitch = pitch; },
     async step(n = 10, dt = 1 / 30) { for (let i = 0; i < n; i++) tick(dt); },
+    // advance without rendering, then render one frame
+    async fast(n = 10, dt = 1 / 30) { G.noRender = true; for (let i = 0; i < n; i++) tick(dt); G.noRender = false; tick(dt); },
     sit() { G.desk.sit(); },
+    day(n) { G.state = 'play'; G.menu.close(); G.director.startDay(n); },
+    hour(h) { G.director.minutes = h * 60; },
     key(code, frames = 1) { G.input.pressedSet.add(code); G.input.down.add(code); tick(1 / 30); G.input.down.delete(code); },
   };
 }

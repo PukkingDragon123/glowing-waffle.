@@ -132,7 +132,7 @@ export class Particles {
 export class Decals {
   constructor() {
     this.list = [];
-    this.mats = [1, 2, 3, 4].map((s) => new THREE.MeshStandardMaterial({ map: bloodSplat({ seed: 30 + s }), transparent: true, depthWrite: false, roughness: 0.15, polygonOffset: true, polygonOffsetFactor: -2, envMapIntensity: 1.4 }));
+    this.mats = [1, 2, 3, 4].map((s) => new THREE.MeshStandardMaterial({ map: bloodSplat({ seed: 30 + s }), transparent: true, depthWrite: false, roughness: 0.32, polygonOffset: true, polygonOffsetFactor: -2, envMapIntensity: 1 }));
     this.coffeeMat = new THREE.MeshStandardMaterial({ map: bloodSplat({ seed: 40 }), color: 0x6a4a2a, transparent: true, depthWrite: false, roughness: 0.1, polygonOffset: true, polygonOffsetFactor: -2 });
     this.eggMat = new THREE.MeshStandardMaterial({ map: bloodSplat({ seed: 41 }), color: 0xffe080, transparent: true, depthWrite: false, roughness: 0.1, polygonOffset: true, polygonOffsetFactor: -2 });
     this.geo = new THREE.PlaneGeometry(1, 1);

@@ -226,7 +226,12 @@ export class Building {
     scr.position.set(11.29, 0.88, 2.2); scr.rotation.y = Math.PI / 2; this.root.add(scr);
     this.tvLight = new THREE.PointLight(0xa0b8ff, 1.2, 3.5, 2); this.tvLight.position.set(11.6, 0.9, 2.2); this.root.add(this.tvLight);
     this.light4C = F.ceilingFixture(V(13.2, 2.68, 3.8), { name: '4C', room: '4C', intensity: 5, fill: 0, on: false });
+    this.food4C = [];
+    this.spawnFood4C();
+  }
+  spawnFood4C() {
     // plates of food on the table + food in the fridge
+    for (const it of this.food4C) if (!it.dead) it.destroy();
     this.food4C = [];
     const sp = (t, x, y, z) => { const it = spawn(t, x, y, z); if (it) this.food4C.push(it); return it; };
     sp('plate', 12.4, 0.78, 4.55); sp('plate', 12.4, 0.78, 3.85);
@@ -465,6 +470,22 @@ export class Building {
       const m = all4B ? (this._p4B || (this._p4B = labelMat(L.aptNumber('4B')))) : this.plates[k];
       d.panel.traverse((o) => { if (o.isMesh && o.geometry.type === 'PlaneGeometry') o.material = m; });
     }
+  }
+
+  // every morning the floor is as it was
+  resetDay(day) {
+    this.loop = false; this.loops = 0; this.setPlates(false);
+    for (const k of ['4A', '4C', '4D', '4E', '4F', '4G']) { const d = this.doors[k]; d.locked = true; d.setAngle(0); }
+    this.doors.trash.setAngle(0); this.doors.stair.setAngle(0);
+    this.figure.visible = false;
+    this.hallLights.forEach((f, i) => { f.flicker = i === 0 ? 0.35 : i === 4 ? 0.2 : 0; f.dim = 1; f.on = true; });
+    for (const m of this.staticsS) m.visible = true;
+    this.lostPoster.visible = !!G.story.catFled;
+    this.seenPoster.visible = day >= 5;
+    this.el.state = 'idle'; this.el.open = 0; this.el.travelling = false; this.drawIndicator('4');
+    if (this.rumble) { this.rumble.stop(0.2); this.rumble = null; }
+    this.knocked = {};
+    this.spawnFood4C();
   }
 
   zones() {
