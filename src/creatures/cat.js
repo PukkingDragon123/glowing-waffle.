@@ -83,6 +83,7 @@ export class Cat {
     const loud = e.loud / (1 + d * 0.5);
     if (loud > 0.18 && e.kind !== 'growl') { this.startle = Math.max(this.startle, loud * 2); this.lookAt = e.pos.clone(); }
     if (e.kind === 'growl' && d < 3) this.startle = Math.max(this.startle, 0.25);
+    if (e.kind !== 'meow' && e.kind !== 'hiss' && loud > 0.03) this.model.hear(e.pos);
   }
 
   // ------------------------------------------------------------- emotions
@@ -142,6 +143,10 @@ export class Cat {
   setBehavior(b, data = {}) {
     const prev = this.behavior;
     this.behavior = b; this.bt = 0; this.bdata = data;
+    // waking up: a yawn and a long stretch
+    if (prev === 'sleep' && b !== 'flee') { this.model.yawn(); this.stretchT = 2.4; }
+    if (prev === 'eat' && b !== 'flee') setTimeout(() => this.model.lick(), 600);
+    if (prev === 'drink' && chance(0.5)) setTimeout(() => this.model.headShake(), 300);
     if (this.purr && b !== 'petted' && b !== 'greet') { this.purr.stop(0.5); this.purr = null; }
     if (this.eatLoop && b !== 'eat' && b !== 'drink') { this.eatLoop.stop(0.3); this.eatLoop = null; }
     this.path = null;
@@ -232,6 +237,11 @@ export class Cat {
     emit('catHiss');
   }
   headPos() { return this.model.by.head.getWorldPosition(V()); }
+  playerLooking() {
+    const to = this.headPos().sub(G.camera.position);
+    const f = G.camera.getWorldDirection(V());
+    return to.normalize().dot(f) > 0.94;
+  }
 
   // ------------------------------------------------------------- player interactions
   tryPickUp() {
@@ -343,15 +353,19 @@ export class Cat {
     const M = this.model;
     const d = this.distPlayer();
     const fear = this.fear;
-    const relaxed = { sit: 0, loaf: 0, crouch: 0, arch: 0, puff: 0, stretch: 0, held: 0, eat: 0, groom: 0, earFlat: 0, tailTwitch: 0, lid: 1, legSpread: 0 };
+    const relaxed = { sit: 0, loaf: 0, crouch: 0, arch: 0, puff: 0, stretch: 0, held: 0, eat: 0, groom: 0, earFlat: 0, tailTwitch: 0, lid: 0.88, legSpread: 0, tongue: 0, knead: 0, whisk: 0, tailTip: 0, purr: 0, sniff: 0 };
     // ear swivel noise + fear posture
     const earNoise = snoise1(G.time * 0.7, 3) * 0.4;
-    const base = { ...relaxed, earL: earNoise, earR: -earNoise, earFlat: smoothstep(0.35, 0.8, fear), crouch: smoothstep(0.4, 0.9, fear) * 0.6, tailUp: lerp(0.35, -0.5, fear), tailSway: lerp(0.15, 0.05, fear), tailTwitch: fear > 0.3 ? fear * 0.6 : 0 };
+    const base = { ...relaxed, whisk: this.behavior === 'wander' || this.behavior === 'beg' ? 0.3 : 0, earL: earNoise, earR: -earNoise, earFlat: smoothstep(0.35, 0.8, fear), crouch: smoothstep(0.4, 0.9, fear) * 0.6, tailUp: lerp(0.35, -0.5, fear), tailSway: lerp(0.15, 0.05, fear), tailTwitch: fear > 0.3 ? fear * 0.6 : 0 };
     switch (this.behavior) {
       case 'idle':
         if (this.bt > 3 && !this.path) M.set({ ...base, sit: fear < 0.3 ? 1 : 0, tailUp: 0.1 });
         else M.set(base);
         if (this.bt > 2 && chance(dt * 0.05)) this.meow(fear > 0.4 ? 'meowShort' : 'meow');
+        // trust: answers the player's gaze with a slow blink
+        if (this.trust > 0.55 && fear < 0.2 && d < 3.5 && this.playerLooking() && chance(dt * 0.25)) this.model.slowBlink();
+        if (this.bt > 6 && fear < 0.2 && chance(dt * 0.015)) this.model.yawn();
+        if (chance(dt * 0.006)) this.model.headShake();
         break;
       case 'wander': M.set(base); if (!this.path) this.decideT = Math.min(this.decideT, 0.2); break;
       case 'groom':
@@ -364,6 +378,8 @@ export class Cat {
         if (arrived) {
           M.set({ ...relaxed, loaf: 1, headPitch: 0.5, lid: 0.05, tailUp: -0.2, tailSway: 0.02, tailCurve: 0.8, earL: 0, earR: 0 });
           this.energy = Math.min(1, this.energy + dt / 120);
+          // dreaming: paws and whiskers twitch
+          if (chance(dt * 0.12)) this.model.flick[chance(0.5) ? 'aL' : 'aR'] = 1;
           if (this.energy > 0.98) this.setBehavior('idle');
         } else M.set(base);
         break;
@@ -382,7 +398,8 @@ export class Cat {
         const bowl = G.apartment.bowl;
         if (!this.path) {
           this.faceTo(bowl.pos, dt);
-          M.set({ ...base, crouch: 0.3, eat: 1, headYaw: 0 });
+          M.set({ ...base, crouch: 0.3, eat: 1, headYaw: 0, sniff: this.bt < 1.4 ? 1 : 0, whisk: 0.5 });
+          if (this.bt < 1.4) break;
           if (!this.eatLoop) this.eatLoop = G.audio && G.audio.loop('catEat', { pos: this.headPos(), vol: 0.45 });
           bowl.fill(bowl.level - dt * 0.025);
           this.hunger = Math.max(0, this.hunger - dt * 0.03);
@@ -395,7 +412,7 @@ export class Cat {
         const wb = G.apartment.waterBowl;
         if (!this.path) {
           this.faceTo(wb.pos, dt);
-          M.set({ ...base, crouch: 0.35, eat: 1 });
+          M.set({ ...base, crouch: 0.35, eat: 1, tongue: this.bt > 0.8 ? 0.8 : 0, sniff: this.bt < 0.8 ? 1 : 0 });
           if (!this.eatLoop) this.eatLoop = G.audio && G.audio.loop('catLap', { pos: this.headPos(), vol: 0.35 });
           if (this.bt > 6) this.setBehavior('idle');
         } else M.set(base);
@@ -422,9 +439,9 @@ export class Cat {
           const tgt = V(p.x + Math.cos(a) * 0.35, 0, p.z + Math.sin(a) * 0.35);
           this.path = [this.pos.clone(), tgt]; this.pi = 1; this.moveSpeed = 0.3;
           if (!this.purr) { this.purr = G.audio && G.audio.loop('purr', { pos: this.headPos(), vol: 0.55 }); sfx('trill', { pos: this.headPos(), vol: 0.5 }); }
-          M.set({ ...base, tailUp: 0.9, tailSway: 0.08, lid: 0.7, headTilt: Math.sin(G.time * 2) * 0.2 });
+          M.set({ ...base, tailUp: 0.9, tailSway: 0.08, tailTip: 1, purr: 1, whisk: 0.4, lid: 0.7, headTilt: Math.sin(G.time * 2) * 0.2 });
           if (this.bdata.circle > 6) { this.social = 0; this.setBehavior('idle'); }
-        } else M.set({ ...base, tailUp: 0.8 });
+        } else M.set({ ...base, tailUp: 0.8, tailTip: 0.8, whisk: 0.4 });
         break;
       }
       case 'follow': if (d > 2 && (!this.path || this.bt % 2 < dt)) this.goto(this.playerPos.clone(), 0.5); M.set(base); if (d < 2) this.setBehavior('idle'); break;
@@ -432,7 +449,7 @@ export class Cat {
         if (!this.toy || this.toy.dead) { this.toy = null; this.setBehavior('idle'); break; }
         const tp = this.toy.mesh.position;
         if (this.bt % 1 < dt) this.goto(V(tp.x, 0, tp.z), 1.4);
-        M.set({ ...base, crouch: 0.5, tailTwitch: 0.8, earFlat: 0 });
+        M.set({ ...base, crouch: 0.5, tailTwitch: 0.8, earFlat: 0, whisk: 0.8, pupil: 0.8 });
         if (this.pos.distanceTo(V(tp.x, 0, tp.z)) < 0.25) {
           // pounce: bat the toy
           const b = this.toy.body;
@@ -471,7 +488,9 @@ export class Cat {
         this.petT += dt;
         this.path = null;
         if (calm) {
-          M.set({ ...base, sit: this.petT > 1.5 ? 1 : 0, lid: 0.35, tailUp: 0.8, headTilt: Math.sin(G.time * 1.5) * 0.25, neckUp: 0.4, earFlat: 0 });
+          M.set({ ...base, sit: this.petT > 1.5 ? 1 : 0, lid: 0.35, tailUp: 0.8, tailTip: 0.5, purr: 1, knead: this.petT > 3 && this.trust > 0.6 ? 1 : 0, headTilt: Math.sin(G.time * 1.5) * 0.25, neckUp: 0.4, earFlat: 0 });
+          if (chance(dt * 0.6)) this.model.twitch(M.by.spine2.getWorldPosition(V()).add(V(0, 0.07, 0)));
+          if (this.trust > 0.5 && chance(dt * 0.15)) this.model.slowBlink();
           if (!this.purr) this.purr = G.audio && G.audio.loop('purr', { pos: this.headPos(), vol: 0.6 });
           this.annoy += dt * (0.05 + WRONG[G.story.day] * 0.3);
           this.trust = Math.min(1, this.trust + dt * 0.004);
@@ -479,6 +498,7 @@ export class Cat {
           if (this.annoy > 1) { this.endPet(); this.setBehavior('wander'); }
         } else {
           M.set({ ...base, earFlat: 1, tailTwitch: 1, crouch: 0.4 });
+          if (chance(dt * 2)) this.model.twitch(M.by.spine1.getWorldPosition(V()).add(V(0, 0.08, 0)));
           if (this.petT > 0.8 && G.time - this.lastHiss > 2) { this.hiss(); }
           if (this.petT > 1.4 && this.fear > 0.5) { this.scratchPlayer('R'); this.endPet(); this.setBehavior('flee'); }
           else if (this.petT > 2.2) { this.endPet(); this.setBehavior('flee'); }
@@ -487,6 +507,7 @@ export class Cat {
       }
       default: M.set(base);
     }
+    if (this.stretchT > 0) { this.stretchT -= dt; if (!this.path) M.set({ stretch: this.stretchT > 0.6 ? 1 : 0, sit: 0, loaf: 0, tailUp: 0.6 }); }
     // startle: jump back
     if (this.startle > 0.6 && this.behavior !== 'flee' && this.behavior !== 'hide' && this.behavior !== 'defend') { this.startle = 0.3; this.fear = Math.min(1, this.fear + 0.3); M.set({ puff: 0.8, earFlat: 1 }); this.setBehavior(this.fear > 0.55 ? 'flee' : 'idle'); }
     // defend when cornered
@@ -588,7 +609,7 @@ export class Cat {
     const calm = this.heldT < this.tolerance;
     if (calm) {
       this.struggle = Math.max(0, this.struggle - dt);
-      M.set({ held: 1, sit: 0, loaf: 0, crouch: 0, lid: this.petting ? 0.4 : 0.85, tailUp: -0.4, tailSway: 0.1, earFlat: this.fear * 0.8, puff: 0 });
+      M.set({ held: 1, sit: 0, loaf: 0, crouch: 0, lid: this.petting ? 0.4 : 0.85, tailUp: -0.4, tailSway: 0.1, earFlat: this.fear * 0.8, puff: 0, purr: this.petting && this.fear < 0.3 ? 1 : 0, knead: this.petting && this.trust > 0.7 ? 0.7 : 0 });
       if (this.petting && !this.purr && this.fear < 0.3) this.purr = G.audio && G.audio.loop('purr', { pos: this.headPos(), vol: 0.6 });
       if (!this.petting && this.purr) { this.purr.stop(0.4); this.purr = null; }
     } else {

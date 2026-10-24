@@ -16,6 +16,7 @@ import { HUD } from './ui/hud.js';
 import { Sky } from './world/sky.js';
 import { NavGrid } from './world/nav.js';
 import { Cat } from './creatures/cat.js';
+import { Desk } from './world/desk.js';
 import { FX } from './gfx/fx.js';
 import { nextFrame, Tasks } from './core/util.js';
 
@@ -76,6 +77,8 @@ async function boot() {
   G.nav.addDoor(D.closet, new THREE.Vector3(3.46, 0, 6.6), new THREE.Vector3(3.46, 0, 7.25));
   G.nav.addDoor(D.front, new THREE.Vector3(7.25, 0, 7.75), new THREE.Vector3(8.05, 0, 7.75));
   G.cat = new Cat(G.nav);
+  G.desk = new Desk(G.apartment);
+  if (!G.director) G.director = { hour: 9, minutes: 540, clockMinutes() { return this.minutes; }, nightness: 0, update(dt) { this.minutes += dt * 2; this.hour = this.minutes / 60; } };
 
   progress(1, 'PLAY ▶');
   document.getElementById('boot').hidden = true;
@@ -103,6 +106,8 @@ function tick(dt) {
     G.apartment.update(dt);
     G.player.lateUpdate(dt);
     G.cat.update(dt);
+    G.desk.update(dt);
+    G.director.update && G.director.update(dt);
   }
   G.sky.update(dt, G.camera);
   G.fx.update(dt);
@@ -119,6 +124,7 @@ function makeDebugApi() {
     tp(x, z, yaw = 0, pitch = 0) { G.player.ctrl.teleport(x, 0.05, z, yaw, pitch); },
     look(yaw, pitch) { G.player.ctrl.yaw = yaw; G.player.ctrl.pitch = pitch; },
     async step(n = 10, dt = 1 / 30) { for (let i = 0; i < n; i++) tick(dt); },
+    sit() { G.desk.sit(); },
     key(code, frames = 1) { G.input.pressedSet.add(code); G.input.down.add(code); tick(1 / 30); G.input.down.delete(code); },
   };
 }
