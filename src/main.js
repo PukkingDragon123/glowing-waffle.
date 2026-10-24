@@ -11,6 +11,7 @@ import { World } from './world/world.js';
 import { Apartment } from './world/apartment.js';
 import { hookItemEvents } from './world/items.js';
 import { Player } from './player/player.js';
+import { Body } from './player/body.js';
 import { HUD } from './ui/hud.js';
 import { Sky } from './world/sky.js';
 import { nextFrame, Tasks } from './core/util.js';
@@ -53,6 +54,7 @@ async function boot() {
   await nextFrame();
   progress(0.6, 'WAKING UP...');
   G.player = new Player();
+  G.player.body = G.body = new Body();
   G.player.ctrl.teleport(6.0, 0.05, 4.5, 0.6, -0.05);
 
   G.sky = new Sky();
