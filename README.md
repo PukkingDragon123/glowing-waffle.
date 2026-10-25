@@ -9,7 +9,9 @@ You wake up, turn off the alarm, make coffee, cook eggs, feed Mochi, and take th
 - **Browser:** open `dist/bengrim.html` (a single file; three.js and cannon-es load from jsDelivr).
 - **From source:** serve the repo root over HTTP (for example `python3 -m http.server`) and open `index.html`. Modules load from `src/` with the vendored libraries in `vendor/`.
 
-Click **INSERT TAPE** to start the audio. At the window, touch the glass to choose **NEW GAME**, **LOAD GAME** (resumes at the last dawn) or **SETTINGS**.
+There is no loading screen, only three dots and Mochi running in the dark. When she stops and sits, click or press any key. The menu is the apartment wall, seen from across the room: the window, Manhattan across the river, and the ship coming down over it. Choose **new game**, **load game** (resumes at the last dawn) or **settings**.
+
+The whole game is graded in noir by default. Red is the only colour it keeps. You can switch noir off in the pause menu. On screen you only get Alex talking to themself and the current objective.
 
 | Key | Action |
 | --- | --- |
@@ -46,6 +48,9 @@ At night something hunts by light. Turn the lamps off, switch off the monitor, s
 - Procedural Web Audio: every sound effect is synthesized at load. Voices come from a formant speech synthesizer with letter-to-sound rules.
 - Glass 98 is an immediate-mode Windows 98-style desktop drawn on a 640×480 canvas and shown through a curved CRT shader.
 - Verlet cloth for the curtains and the shower curtain. The bathroom mirror is a planar reflection with oblique clipping and a frame-delay ring buffer.
+- The menu city is a 1:1-scale skyline made of modelled towers, including the Twin Towers, the Empire State and the Chrysler, under fwidth-antialiased procedural facades and a shader sky. The sci-fi ship has triplanar hull panels. When it falls, it breaks into rigid parts with gravity, drag and bounce, plus instanced debris, billboard smoke, fire and a shock ring on the water.
+- The furniture is low poly but never boxy. It uses Shaker doors, lathe-turned legs and knobs, bar pulls, castors, eased cabinet boards with shelf lips and a cornice, a draped quilt, and a woodgrain CRT TV with a VCR and rabbit ears.
+- The paintings are real public-domain works with the faces smeared out (see Credits). They hang in swept, mitred moulding frames on matte, varnish-aged canvas, with weave, craquelure and impasto in the normal map.
 
 ## Build
 
@@ -55,5 +60,17 @@ node tools/build.mjs      # writes dist/bengrim.html and dist/bengrim.artifact.h
 ```
 
 `tools/shot.mjs`, `tools/views.mjs` and `tools/distcheck.mjs` are headless Playwright helpers for screenshots and smoke tests. Add `?capture` to the URL to keep the drawing buffer. `window.BENGRIM` exposes `day(n)`, `tp(x, z, yaw, pitch)` and `fast(frames)` for debugging.
+
+`tools/paintings.py` rebuilds `src/world/paintings.data.js`. It downloads the paintings, smears the faces and embeds them as JPEG data URIs. It needs Pillow and numpy.
+
+## Credits
+
+The paintings come from The Metropolitan Museum of Art's Open Access programme (public domain, CC0). The faces have been altered for the game.
+
+- Auguste Renoir, *Madame Georges Charpentier and Her Children*, 1878 (object 438815)
+- Johannes Vermeer, *Young Woman with a Water Pitcher*, ca. 1662 (object 437881)
+- John Singer Sargent, *Madame X (Virginie Amélie Avegno Gautreau)*, 1883–84 (object 12127)
+- Thomas Eakins, *The Thinker: Portrait of Louis N. Kenton*, 1900 (object 10827)
+- Rembrandt van Rijn, *Aristotle with a Bust of Homer*, 1653 (object 437394)
 
 Third-party licenses are in `vendor/LICENSE-*.txt`.
