@@ -13,8 +13,10 @@ import { Builder } from './builder.js';
 import * as F from './furniture.js';
 import { Door, Switch, Button, SashWindow, Interactable } from './interactables.js';
 import { Fixture, glowMat } from './lights.js';
-import { L, labelMat, photoTex } from './labels.js';
+import { L, labelMat } from './labels.js';
 import { spawn } from './items.js';
+import { CrtTV } from './tv.js';
+import { hangPainting, settlePaintings } from './paintings.js';
 import { boxGeo, cylGeo, roundedBox } from '../gfx/geo.js';
 import { clamp, damp, rand } from '../core/util.js';
 import * as T from '../gfx/textures.js';
@@ -180,10 +182,13 @@ export class Apartment {
     this.switches.main = new Switch({ pos: V(7.02, 1.25, 7.592), ry: Math.PI, plateMat: M.trim, label: 'lights', onToggle: (on) => this.lights.main.set(on) });
     // wall clock
     this.clock = this.wallClock(V(6.5, 1.95, 0.02));
-    // framed photos above bookshelf + on north wall
-    this.frame(V(4.3, 2.05, 7.59), Math.PI, 0.3, 0.24, 11);
-    this.frame(V(4.85, 2.0, 7.59), Math.PI, 0.22, 0.3, 12);
-    this.frame(V(9.0, 1.7, 7.59), Math.PI, 0.4, 0.3, 13);
+    // paintings: above the bookshelf, by the kitchen, over the TV
+    this.paintings = [];
+    const hang = (key, o) => this.paintings.push(hangPainting(this.root, key, o));
+    hang('pitcher', { pos: V(4.32, 2.12, 7.6), ry: Math.PI, height: 0.34, frame: 'ebony', fw: 0.045, fd: 0.032, roll: 0.006, age: 0.9 });
+    hang('madamex', { pos: V(4.9, 2.1, 7.6), ry: Math.PI, height: 0.34, frame: 'gilt', fw: 0.036, fd: 0.028, roll: -0.004, age: 0.5 });
+    hang('thinker', { pos: V(9.0, 1.62, 7.6), ry: Math.PI, height: 0.46, frame: 'walnut', fw: 0.042, fd: 0.03, roll: 0.01, age: 0.4 });
+    hang('aristotle', { pos: V(3.52, 1.88, 1.1), ry: Math.PI / 2, height: 0.58, frame: 'gilt', fw: 0.07, fd: 0.05, age: 1 });
     // coat hooks + jacket near the door
     b.box(6.65, 1.68, 7.585, 0.6, 0.06, 0.02, M.woodDark, { collide: false });
     for (let i = 0; i < 4; i++) b.geo(cylGeo(0.008, 0.06, 6), M.chrome, { x: 6.42 + i * 0.15, y: 1.68, z: 7.55, rx: Math.PI / 2 });
@@ -199,6 +204,7 @@ export class Apartment {
     this.tvGroup.position.set(3.82, 0.52, 1.1);
     this.tvGroup.rotation.y = Math.PI / 2;
     this.root.add(this.tvGroup);
+    this.tv = new CrtTV(this.tvGroup);
     b.collider(3.8, 0.76, 1.1, 0.5, 0.5, 0.62);
   }
 
@@ -266,7 +272,7 @@ export class Apartment {
     b.geo(new THREE.TorusGeometry(0.2, 0.07, 6, 14), M.couchFabric, { x: 2.7, y: 0.07, z: 3.2, rx: Math.PI / 2 });
     b.geo(cylGeo(0.2, 0.05, 14), M.quilt, { x: 2.7, y: 0.03, z: 3.2 });
     this.catBed = V(2.7, 0.06, 3.2);
-    this.frame(V(0.01, 1.55, 2.25), Math.PI / 2, 0.5, 0.35, 21);
+    this.paintings.push(hangPainting(this.root, 'charpentier', { pos: V(0, 1.58, 2.25), ry: Math.PI / 2, height: 0.56, frame: 'gilt', fw: 0.085, fd: 0.055, roll: -0.008, age: 0.6 }));
     this.bedPos = V(1.15, 0.5, 2.25);
   }
 
@@ -309,19 +315,6 @@ export class Apartment {
   }
 
   // ------------------------------------------------------------- helpers
-  frame(pos, ry, w, h, seed) {
-    const g = new THREE.Group();
-    const fr = new THREE.Mesh(boxGeo(w + 0.04, h + 0.04, 0.02), M.woodDark);
-    const pic = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshStandardMaterial({ map: photoTex(seed), roughness: 0.3, envMapIntensity: 1 }));
-    pic.position.z = 0.011;
-    g.add(fr, pic);
-    g.position.copy(pos); g.rotation.y = ry;
-    this.root.add(g);
-    this.photos = this.photos || [];
-    this.photos.push({ group: g, pic, seed });
-    return g;
-  }
-
   wallClock(pos) {
     const g = new THREE.Group();
     const face = new THREE.Mesh(new THREE.CircleGeometry(0.16, 24), new THREE.MeshStandardMaterial({ map: T.printed('clockface', 64, 64, (c, w, h) => {
@@ -602,11 +595,13 @@ export class Apartment {
     for (const [k, v] of Object.entries(this.init.lights)) this.lights[k].set(v);
     for (const w of Object.values(this.windows)) { w.pos = 0; w.vel = 0; w.target = null; w.sash.position.copy(w.base); }
     for (const sk of [this.sink, this.bathSink]) if (sk.running) sk.o.onUse();
+    settlePaintings(this.paintings, G.story.day);
     if (this.coffee.stop) this.coffee.stop();
     this.coffee.mug = null;
     this.bowl.fill(0); this.waterBowl.fill(0.8);
     this.trash.setFull(true); this.trash.count = 0;
     this.stove.knobs.forEach((kb, i) => { if (this.stove.burners[[2, 0, 1, 3][i]].on) kb.o.onUse(); });
+    if (this.tv && this.tv.on) this.tv.toggle();
     G.world.power = true;
   }
 
@@ -616,6 +611,7 @@ export class Apartment {
   }
 
   update(dt) {
+    this.tv && this.tv.update(dt);
     // wall clock reflects game time
     if (G.director) {
       const t = G.director.clockMinutes();

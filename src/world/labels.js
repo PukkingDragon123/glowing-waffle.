@@ -184,25 +184,6 @@ export const L = {
   poster: (key, draw) => printed('poster' + key, 128, 176, draw),
 };
 
-// a simple procedural "photo" (family / landscape) for frames
-export function photoTex(seed) {
-  return printed('photo' + seed, 64, 48, (c, w, h) => {
-    let a = seed * 9301 + 49297;
-    const r = () => { a = (a * 9301 + 49297) % 233280; return a / 233280; };
-    const sky = c.createLinearGradient(0, 0, 0, h); sky.addColorStop(0, `hsl(${200 + r() * 30},40%,${55 + r() * 20}%)`); sky.addColorStop(1, `hsl(${30 + r() * 30},30%,60%)`);
-    c.fillStyle = sky; c.fillRect(0, 0, w, h);
-    c.fillStyle = `hsl(${80 + r() * 50},30%,${25 + r() * 15}%)`; c.fillRect(0, h * 0.62, w, h);
-    const n = 1 + Math.floor(r() * 3);
-    for (let i = 0; i < n; i++) {
-      const x = 12 + i * 16 + r() * 6, s = 0.8 + r() * 0.4;
-      c.fillStyle = `hsl(${r() * 360},35%,35%)`; c.fillRect(x - 4 * s, h * 0.45, 8 * s, 16 * s);
-      c.fillStyle = '#e0b8a0'; c.beginPath(); c.arc(x, h * 0.4, 4 * s, 0, Math.PI * 2); c.fill();
-      c.fillStyle = '#2a1a10'; c.fillRect(x - 4 * s, h * 0.4 - 5 * s, 8 * s, 3 * s);
-    }
-    ageCanvas(c, w, h, 0.25, seed);
-  });
-}
-
 export function labelMat(tex, o = {}) {
   return new THREE.MeshStandardMaterial({ map: tex, roughness: o.roughness ?? 0.6, metalness: o.metalness ?? 0, envMapIntensity: o.env ?? 0.8, transparent: o.transparent ?? false, side: o.side ?? THREE.FrontSide });
 }

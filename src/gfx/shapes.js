@@ -155,3 +155,35 @@ export function drapeGeo(w, L, drop, { thick = 0.03, folds = 7, seed = 3 } = {})
 
 // lathe helper from [radius, y] pairs
 export function lathe(pairs, seg = 16) { return nonIdx(new THREE.LatheGeometry(pairs.map(([r, y]) => new THREE.Vector2(Math.max(0.0005, r), y)), seg)); }
+
+// A picture-frame moulding swept around a w x h sight opening, mitred at the
+// corners. prof: [[out, z, shade], ...] from the sight edge outward (repeat a
+// point for a hard edge); shade goes into vertex colour for dirt in the coves.
+// Back of the frame at z=0, front toward +z.
+export function mouldingFrame(w, h, prof) {
+  const pos = [], uv = [], col = [], idx = [];
+  const vs = [0];
+  for (let i = 1; i < prof.length; i++) vs.push(vs[i - 1] + Math.hypot(prof[i][0] - prof[i - 1][0], prof[i][1] - prof[i - 1][1]));
+  // corners counter-clockwise seen from the front, so every strip faces out
+  const sides = [[-1, -1, 1, -1], [1, -1, 1, 1], [1, 1, -1, 1], [-1, 1, -1, -1]];
+  sides.forEach(([ax, ay, bx, by], s) => {
+    const base = pos.length / 3;
+    for (let i = 0; i < prof.length; i++) {
+      const [o, z, sh = 1] = prof[i];
+      const hw = w / 2 + o, hh = h / 2 + o;
+      const pa = [ax * hw, ay * hh], pb = [bx * hw, by * hh];
+      pos.push(pa[0], pa[1], z, pb[0], pb[1], z);
+      // u runs along the side so wood grain follows the moulding
+      const ua = s % 2 ? pa[1] : pa[0], ub = s % 2 ? pb[1] : pb[0];
+      uv.push(ua, vs[i], ub, vs[i]);
+      col.push(sh, sh, sh, sh, sh, sh);
+    }
+    for (let i = 0; i < prof.length - 1; i++) { const a = base + i * 2, b = a + 1, c = a + 2, d = a + 3; idx.push(a, c, b, b, c, d); }
+  });
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  g.setIndex(idx); g.computeVertexNormals(); g.computeBoundingSphere();
+  return g;
+}
