@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>bengrim</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=VT323&family=Noto+Sans:wght@700;900&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Special+Elite&family=Caveat:wght@600;700&display=swap">
 <link rel="stylesheet" href="css/style.css">
 <script type="importmap">
 { "imports": {
@@ -39,13 +39,9 @@
   </div>
 </div>
 <div id="boot">
-  <div class="boot-inner">
-    <div class="boot-title">bengrim</div>
-    <div class="boot-bar"><div id="boot-fill"></div></div>
-    <div id="boot-msg">TRACKING...</div>
-    <button id="boot-start" hidden>INSERT TAPE</button>
-    <div class="boot-warn">Psychological horror. Contains body horror, blood, flashing lights and loud sounds.<br>Best with headphones. Keyboard and mouse required; click to capture the mouse.</div>
-  </div>
+  <div class="dots" aria-label="loading"><i></i><i></i><i></i></div>
+  <div class="hint" id="boot-hint">click</div>
+  <div class="warn">headphones · body horror, blood, flashing lights · keyboard and mouse</div>
 </div>
 <script type="module" src="src/main.js"></script>
 </body>

@@ -31,7 +31,7 @@ const js = res.outputFiles[0].text.replace(/<\/script/gi, '<\\/script');
 const css = fs.readFileSync(path.join(root, 'css/style.css'), 'utf8');
 const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 const body = html.slice(html.indexOf('<body>') + 6, html.indexOf('<script type="module"')).trim();
-const fonts = '<link rel="preconnect" href="https://fonts.googleapis.com">\n<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=VT323&family=Noto+Sans:wght@700;900&display=swap">';
+const fonts = '<link rel="preconnect" href="https://fonts.googleapis.com">\n<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Special+Elite&family=Caveat:wght@600;700&display=swap">';
 const inner = `<title>bengrim</title>
 ${fonts}
 <style>

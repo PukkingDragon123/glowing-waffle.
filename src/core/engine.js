@@ -39,7 +39,7 @@ const COMPOSITE_FS = /* glsl */`
 uniform sampler2D tScene; uniform sampler2D tBloom; uniform sampler2D tBloom2; uniform sampler2D tPrev;
 uniform float bloomStrength; uniform float exposure; uniform float saturation; uniform float contrast;
 uniform float ghost; uniform float brightness; uniform vec3 tint; uniform vec3 lift; uniform float time;
-uniform vec2 res; uniform float dither; uniform float flesh;
+uniform vec2 res; uniform float dither; uniform float flesh; uniform float noir;
 varying vec2 vUv;
 vec3 aces(vec3 x) { const float a = 2.51, b = 0.03, c = 2.43, d = 0.59, e = 0.14; return clamp((x * (a * x + b)) / (x * (c * x + d) + e), 0.0, 1.0); }
 vec3 toSRGB(vec3 c) { return mix(c * 12.92, 1.055 * pow(max(c, vec3(0.0)), vec3(1.0 / 2.4)) - 0.055, step(0.0031308, c)); }
@@ -63,6 +63,17 @@ void main() {
   c = mix(vec3(l), c, saturation);
   c = (c - 0.5) * contrast + 0.5;
   c = c * tint + lift + brightness;
+  // noir: silver-gelatin monochrome, deep blacks, a hard S-curve; only red survives
+  if (noir > 0.001) {
+    float L = dot(c, vec3(0.299, 0.587, 0.114));
+    float Ls = smoothstep(0.02, 0.95, L);
+    Ls = Ls * Ls * (3.0 - 2.0 * Ls);
+    vec3 mono = vec3(mix(L, Ls, 0.7)) * vec3(1.0, 0.985, 0.95);
+    float redness = clamp((c.r - max(c.g, c.b) * 2.3) * 5.0, 0.0, 1.0) * smoothstep(0.12, 0.3, c.r);
+    vec3 keep = mix(mono, vec3(L * 1.6, L * 0.2, L * 0.18), 0.85);
+    mono = mix(mono, keep, redness);
+    c = mix(c, mono, noir);
+  }
   // fleshy red pulse (late days)
   c = mix(c, c * vec3(1.15, 0.75, 0.7), flesh * (0.6 + 0.4 * sin(time * 2.1)));
   vec3 p = texture2D(tPrev, vUv).rgb;
@@ -226,7 +237,7 @@ export class Engine {
       tScene: { value: null }, tBloom: { value: null }, tBloom2: { value: null }, tPrev: { value: null },
       bloomStrength: { value: 1 }, exposure: { value: 1 }, saturation: { value: 1 }, contrast: { value: 1 },
       ghost: { value: 0 }, brightness: { value: 0 }, tint: { value: new THREE.Vector3(1, 1, 1) }, lift: { value: new THREE.Vector3() },
-      time: { value: 0 }, res: { value: new THREE.Vector2() }, dither: { value: 1 }, flesh: { value: 0 },
+      time: { value: 0 }, res: { value: new THREE.Vector2() }, dither: { value: 1 }, flesh: { value: 0 }, noir: { value: 0 },
     });
     const fu = {
       tLDR: { value: null }, lowRes: { value: new THREE.Vector2() }, outRes: { value: new THREE.Vector2() }, time: { value: 0 },
@@ -300,6 +311,7 @@ export class Engine {
     const out = this.pp ? this.rtL1 : this.rtL0;
     const prev = this.pp ? this.rtL0 : this.rtL1;
     cu.tScene.value = this.rtScene.texture; cu.tBloom.value = this.rtB1.texture; cu.tBloom2.value = this.rtB4.texture; cu.tPrev.value = prev.texture;
+    cu.noir.value = fx.noir || 0;
     cu.bloomStrength.value = fx.bloom; cu.exposure.value = fx.exposure; cu.saturation.value = fx.saturation;
     cu.contrast.value = fx.contrast; cu.ghost.value = fx.ghost; cu.brightness.value = fx.brightness;
     cu.tint.value.copy(fx.tint); cu.lift.value.copy(fx.lift); cu.time.value = time; cu.res.value.set(this.lowW, this.lowHc);

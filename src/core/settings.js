@@ -14,6 +14,7 @@ export const DEFAULTS = {
   brightness: 5,       // 0..10
   headBob: true,
   subtitles: true,
+  noir: true,          // black-and-white film look
 };
 
 export const OPTIONS = {

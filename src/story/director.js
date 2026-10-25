@@ -143,7 +143,7 @@ export class Director {
     }
     this.wakeInBed();
     writeSave({ day, story: G.story });
-    await G.hud.titleCard('JULY 1, 1999', `THURSDAY   ·   TAPE ${String(day).padStart(2, '0')}${G.story.deaths && fromDeath ? '   ·   AGAIN' : ''}`, 3.2);
+    await G.tasks.wait(fromDeath ? 2.5 : 1.6);
     G.fx.fadeTo(0, 0.6);
     this.alarmStart();
     this.cutscene = true;
@@ -246,7 +246,6 @@ export class Director {
     if (pl.hunger.coffeeT > 0) this.done('coffee');
     this.liminal(dt);
     this.dayScript(dt);
-    G.hud.setOSD('PLAY ▶', `${this.clockText()}\nJUL. 01 1999`);
   }
   clockText() {
     const m = Math.floor(this.minutes), h = Math.floor(m / 60) % 24, mm = m % 60;
@@ -593,7 +592,7 @@ export class Director {
     G.story.catTrust = G.cat.trust;
     G.story.daysDone = this.day;
     // dreams: a few seconds of something else
-    await G.hud.titleCard('', this.day >= 4 ? 'it is warm in here' : '', 2.4);
+    await G.tasks.wait(2.4);
     this.startDay(this.day + 1);
   }
   forceSleep() {

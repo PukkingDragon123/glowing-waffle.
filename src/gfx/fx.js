@@ -54,6 +54,9 @@ export class FX {
     fx.ghost = this.cur.ghost; fx.flesh = this.cur.flesh; fx.shake = this.cur.shake; fx.blur = this.cur.blur;
     fx.saturation = this.grade.saturation; fx.contrast = this.grade.contrast; fx.exposure = this.grade.exposure * (0.8 + s.brightness * 0.04);
     fx.tint.copy(this.grade.tint);
+    // noir by default; the lab at the end is the only thing left in colour
+    this.noirK = (this.noirK ?? 1) + ((s.noir && !this.noColor ? 1 : 0) - (this.noirK ?? 1)) * Math.min(1, dt * 3);
+    fx.noir = this.noirK;
     fx.brightness = (s.brightness - 5) * 0.006;
     G.uniforms.uSnapOn.value = s.wobble ? 1 : 0;
   }

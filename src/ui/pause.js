@@ -11,6 +11,7 @@ const ROWS = [
   ['fov', 'FIELD OF VIEW', 60, 90, 2],
   ['volume', 'VOLUME', 0, 10, 1],
   ['resolution', 'RESOLUTION', 'list'],
+  ['noir', 'NOIR', 'bool'],
   ['vhs', 'VHS EFFECT', 0, 10, 1],
   ['grain', 'FILM GRAIN', 0, 10, 1],
   ['wobble', 'VERTEX WOBBLE', 'bool'],

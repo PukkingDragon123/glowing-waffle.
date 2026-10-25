@@ -21,6 +21,8 @@ export class HUD {
   inner(text, o = {}) { return this.say(text, { ...o, cls: 'inner' }); }
   // a spoken line with speaker name
   say(text, o = {}) {
+    // only your own voice gets written down; everyone else is just heard
+    if (o.cls !== 'inner' && !o.force) return null;
     if (!G.settings.v.subtitles && !o.force) return null;
     const el = document.createElement('div');
     el.className = 'line ' + (o.cls || '');
@@ -47,11 +49,12 @@ export class HUD {
     this.promptKey = key;
     if (!actions || !actions.length) { this.prompt.classList.remove('on'); this.cross.classList.remove('hot'); return; }
     this.prompt.innerHTML = '';
+    // just the keys, no words
+    const seen = new Set();
     for (const a of actions) {
-      const row = document.createElement('span'); row.className = 'row';
-      if (a.key) { const k = document.createElement('span'); k.className = 'key'; k.textContent = a.key; row.appendChild(k); }
-      row.appendChild(document.createTextNode(a.label));
-      this.prompt.appendChild(row);
+      if (!a.key || seen.has(a.key)) continue; seen.add(a.key);
+      const k = document.createElement('span'); k.className = 'key'; k.textContent = a.key === 'LMB' ? '◐' : a.key === 'RMB' ? '◑' : a.key;
+      this.prompt.appendChild(k);
     }
     this.prompt.classList.add('on');
     this.cross.classList.add('hot');
@@ -61,7 +64,8 @@ export class HUD {
     const els = this.inv.querySelectorAll('.slot');
     els.forEach((el, i) => {
       const it = slots[i];
-      el.querySelector('.n').textContent = it ? it.label : '—';
+      el.classList.toggle('full', !!it);
+      el.querySelector('.n').textContent = '';
     });
     this.inv.classList.add('on');
     this.invTimer = 3.5;
@@ -89,6 +93,7 @@ export class HUD {
   }
 
   setOSD(left, right) {
+    return;
     const s = left + '|' + right;
     if (s === this.osdText) return;
     this.osdText = s;

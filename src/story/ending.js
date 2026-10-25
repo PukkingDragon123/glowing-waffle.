@@ -59,6 +59,12 @@ export class Ending {
     add(new THREE.CylinderGeometry(0.35, 0.5, 0.2, 16), new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xfff4e8, emissiveIntensity: 1.1 }), 0, 3.45, 0.1);
     this.green = new THREE.PointLight(0x80ff60, 0, 9, 1.6); this.green.position.set(0, 1.5, -1); g.add(this.green);
     this.floorFill = new THREE.PointLight(0xc8d8e0, 0, 4, 1.5); this.floorFill.position.set(0.5, 0.5, -0.6); g.add(this.floorFill);
+    // a wall monitor that reports on you
+    this.monCv = document.createElement('canvas'); this.monCv.width = 256; this.monCv.height = 128;
+    this.monTex = new THREE.CanvasTexture(this.monCv); this.monTex.colorSpace = THREE.SRGBColorSpace;
+    const mon = add(new THREE.PlaneGeometry(0.9, 0.45), new THREE.MeshBasicMaterial({ map: this.monTex, toneMapped: false }), -1.6, 2.1, -5.12);
+    add(new THREE.BoxGeometry(1.0, 0.55, 0.08), bio, -1.6, 2.1, -5.18);
+    this.setMonitor('SUBJECT 0419\nGESTATION 100%');
     // what comes out
     this.thing = makeThing(); this.thing.visible = false; g.add(this.thing);
     this.cord = new THREE.Mesh(new THREE.BufferGeometry(), flesh); g.add(this.cord);
@@ -71,7 +77,8 @@ export class Ending {
     G.director.running = false;
     G.alien && G.alien.reset();
     G.engine.background = null;
-    G.hud.objective([]); G.hud.setOSD('', ''); G.hud.crosshair(false);
+    G.hud.objective([]); G.hud.crosshair(false);
+    G.fx.noColor = true;   // the only colour left in the world
     G.uniforms.uBend.value.set(0, 0, 0, 0); G.uniforms.uWarp.value = 0; G.uniforms.uBreath.value = 0;
     G.fx.clear('alien'); G.fx.clear('stalker');
     G.fx.setGrade({ saturation: 0.55, contrast: 1.15, tint: new THREE.Vector3(0.95, 1.0, 0.92) });
@@ -182,7 +189,7 @@ export class Ending {
       if (bt > 13 && !this.voice) {
         this.voice = true;
         const h = G.audio && G.audio.speak('Subject status. Complete.', { voice: 'machine', mech: true, vol: 0.9, reverb: 0.6 });
-        G.hud.say('SUBJECT STATUS: COMPLETE.', { who: '', cls: 'strange', dur: 5, force: true });
+        this.setMonitor('SUBJECT STATUS:\nCOMPLETE');
       }
       if (bt > 15.5 && !this.lightsOff) {
         this.lightsOff = true;
@@ -191,6 +198,14 @@ export class Ending {
       }
       if (bt > 18 && !this.done) { this.done = true; this.finish(); }
     }
+  }
+  setMonitor(text) {
+    const c = this.monCv.getContext('2d');
+    c.fillStyle = '#020402'; c.fillRect(0, 0, 256, 128);
+    c.fillStyle = '#7dff9a'; c.font = '22px "Special Elite", "Courier New", monospace'; c.textBaseline = 'top';
+    text.split('\n').forEach((l, i) => c.fillText(l, 16, 26 + i * 34));
+    for (let y = 0; y < 128; y += 3) { c.fillStyle = 'rgba(0,0,0,0.35)'; c.fillRect(0, y, 256, 1); }
+    this.monTex.needsUpdate = true;
   }
   updateCord(a, b) {
     const mid = a.clone().lerp(b, 0.5); mid.y = Math.min(a.y, b.y) - 0.05;
@@ -205,7 +220,6 @@ export class Ending {
     this.running = false;
     clearSave();
     await G.hud.titleCard('bengrim', '', 5);
-    await G.hud.titleCard('', 'thank you for playing', 4);
     G.body.mode = 'stand'; G.body.customPose = null;
     G.body.setMutation({ split: 0 });
     this.thing.visible = false;

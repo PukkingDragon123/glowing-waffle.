@@ -45,6 +45,8 @@ export class Cloth {
     let wind = 0.002;
     if (this.window && this.window.open) wind = 0.012 + Math.max(0, Math.sin(this.t * 0.9) * Math.sin(this.t * 2.3)) * 0.03;
     if (G.story.day >= 7) wind += 0.01;
+    // a blast wave pushes everything into the room
+    if (G.windGust) { wind += G.windGust * (0.6 + 0.4 * Math.sin(this.t * 9)); }
     const pl = G.player && G.player.ctrl.body.position;
     const cat = G.cat && G.cat.present ? G.cat.pos : null;
     for (let k = 0; k < this.p.length; k++) {

@@ -338,7 +338,7 @@ export class Cat {
   faceSmear(dt) {
     const fx = G.engine.fx.faceSpot;
     const day = G.story.day;
-    const on = this.present && G.state === 'play' && (day >= 2 || (G.director && G.director.flags.blinded));
+    const on = this.present && (G.state === 'menu' || (G.state === 'play' && (day >= 2 || (G.director && G.director.flags.blinded))));
     if (!on) { fx.w = 0; return; }
     const cam = G.camera;
     const head = this.model.by.head.localToWorld(V(0, -0.012, -0.03));

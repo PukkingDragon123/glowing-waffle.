@@ -4,14 +4,19 @@
 // lights, searchlights and the biomechanical ship. Also drives sun/ambient
 // lighting for the interior. -z is east (toward Manhattan).
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/BufferGeometryUtils.js';
 import { G } from '../core/globals.js';
 import { clamp, lerp, smoothstep, RNG, damp } from '../core/util.js';
 import { makeCanvas, toTexture, radial } from '../gfx/textures.js';
+import { Landmarks } from './city.js';
+import { Ship } from './ship.js';
+import { Debris } from './debris.js';
 
 const SKY_VS = `varying vec3 vDir; void main(){ vDir = position; vec4 p = projectionMatrix * modelViewMatrix * vec4(position, 1.0); gl_Position = p.xyww; }`;
 const SKY_FS = /* glsl */`
 uniform vec3 sunDir; uniform vec3 zenith; uniform vec3 horizon; uniform vec3 groundCol; uniform vec3 sunCol;
 uniform float time; uniform float cloudCover; uniform vec3 cloudCol; uniform float stars; uniform float sunVis; uniform float smoke; uniform vec3 smokeCol;
+uniform float lights; uniform float burnGlow; uniform float flash;
 varying vec3 vDir;
 float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 float noise(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3.0-2.0*f); return mix(mix(hash(i), hash(i+vec2(1,0)), f.x), mix(hash(i+vec2(0,1)), hash(i+vec2(1,1)), f.x), f.y); }
@@ -28,7 +33,22 @@ void main(){
     float c = fbm(p * 1.6);
     float cov = smoothstep(1.0 - cloudCover, 1.05 - cloudCover * 0.4, c);
     vec3 cc = cloudCol * (0.75 + 0.35 * fbm(p * 4.0 + 3.0)) + sunCol * pow(s, 8.0) * 0.5 * sunVis;
+    // the burning city lights the bellies of the clouds from below, strongest over Manhattan
+    float east = smoothstep(0.2, -0.9, d.z);
+    cc += vec3(0.9, 0.32, 0.1) * burnGlow * east * (0.35 + 0.65 * (1.0 - fbm(p * 2.2 + 9.0))) * smoothstep(0.6, 0.02, h);
+    // energy discharges inside the cloud deck
+    cc += vec3(0.7, 0.9, 1.0) * flash * smoothstep(0.4, 0.8, fbm(p * 0.9 + 21.0)) * 2.5;
     col = mix(col, cc, cov * smoothstep(0.0, 0.12, h) * 0.95);
+    // light dome over the city at night
+    col += vec3(0.32, 0.18, 0.09) * burnGlow * east * exp(-h * 9.0) * 0.6;
+    // alien aurora: tall curtains of green light, folding slowly
+    if (lights > 0.0) {
+      float ax = d.x / (h + 0.25);
+      float fold = fbm(vec2(ax * 1.4 + time * 0.03, time * 0.02));
+      float curtain = smoothstep(0.55, 0.0, abs(fract(ax * 0.9 + fold * 1.6) - 0.5)) * smoothstep(0.08, 0.3, h) * smoothstep(0.85, 0.4, h);
+      float rays = 0.6 + 0.4 * fbm(vec2(ax * 18.0, h * 2.0 - time * 0.2));
+      col += vec3(0.15, 0.85, 0.5) * curtain * rays * lights * 0.35 * (1.0 - cov * 0.7);
+    }
     // smoke haze from the burning city, thick low on the horizon
     float sm = fbm(vec2(d.x * 6.0 + time * 0.01, h * 18.0 - time * 0.02));
     col = mix(col, smokeCol * (0.6 + sm * 0.6), smoke * smoothstep(0.45, 0.0, h) * (0.4 + sm * 0.6));
@@ -90,7 +110,7 @@ void main(){
 }`;
 
 const WATER_FS = /* glsl */`
-uniform vec3 skyCol; uniform vec3 deep; uniform float time; uniform float night; uniform vec3 fogCol; uniform float fogDensity; uniform vec3 sunDir; uniform vec3 sunCol; uniform float fire;
+uniform vec3 skyCol; uniform vec3 deep; uniform float time; uniform float night; uniform vec3 fogCol; uniform float fogDensity; uniform vec3 sunDir; uniform vec3 sunCol; uniform float fire; uniform vec4 shock;
 varying vec3 vWorld;
 float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 float noise(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3.0-2.0*f); return mix(mix(hash(i), hash(i+vec2(1,0)), f.x), mix(hash(i+vec2(0,1)), hash(i+vec2(1,1)), f.x), f.y); }
@@ -104,8 +124,11 @@ void main(){
   float sg = pow(max(dot(r, normalize(sunDir)), 0.0), 200.0) * (0.5 + w);
   col += sunCol * sg * 3.0 * (1.0 - night);
   float streak = step(0.75, noise(vec2(vWorld.x * 0.08, vWorld.z * 0.6 + time))) * night * smoothstep(-1600.0, -1100.0, vWorld.z);
-  col += streak * vec3(1.0, 0.75, 0.4) * 0.6 * (0.5 + w);
-  col += fire * vec3(0.9, 0.3, 0.05) * smoothstep(-1500.0, -1150.0, vWorld.z) * (0.3 + w * 0.5);
+  col += streak * vec3(1.0, 0.75, 0.4) * 0.35 * (0.5 + w);
+  col *= 1.0 - night * 0.45;
+  col += fire * vec3(0.9, 0.3, 0.05) * smoothstep(-1500.0, -1150.0, vWorld.z) * (0.12 + w * 0.25);
+  // the blast's shock ring racing across the river
+  if (shock.w > 0.0) { float sd = abs(length(vWorld.xz - shock.xy) - shock.z); col += vec3(0.9, 0.85, 0.8) * smoothstep(40.0, 0.0, sd) * shock.w * 0.8; }
   float dist = length(vWorld - cameraPosition);
   col = mix(col, fogCol, clamp(1.0 - exp(-dist * fogDensity), 0.0, 1.0));
   gl_FragColor = vec4(col, 1.0);
@@ -130,6 +153,8 @@ function moonTexture(red) {
   return t;
 }
 
+function mergeTankGeo(parts) { return mergeGeometries(parts.map((g) => (g.index ? g.toNonIndexed() : g)), false); }
+
 export class Sky {
   constructor() {
     this.scene = new THREE.Scene();
@@ -143,7 +168,7 @@ export class Sky {
       uniforms: {
         sunDir: { value: new THREE.Vector3(0, 0.2, -1) }, zenith: { value: new THREE.Color() }, horizon: { value: new THREE.Color() }, groundCol: { value: new THREE.Color(0x222428) },
         sunCol: { value: new THREE.Color(1, 0.9, 0.7) }, time: { value: 0 }, cloudCover: { value: 0.4 }, cloudCol: { value: new THREE.Color(1, 1, 1) }, stars: { value: 0 }, sunVis: { value: 1 },
-        smoke: { value: 0 }, smokeCol: { value: new THREE.Color(0.2, 0.15, 0.12) },
+        smoke: { value: 0 }, smokeCol: { value: new THREE.Color(0.2, 0.15, 0.12) }, lights: { value: 0 }, burnGlow: { value: 0 }, flash: { value: 0 },
       },
     });
     this.dome = new THREE.Mesh(new THREE.SphereGeometry(8000, 32, 16), sky);
@@ -179,23 +204,32 @@ export class Sky {
     const rng = new RNG(1999);
     const list = [];
     const add = (x, z, w, d, h, o = {}) => list.push({ x, z, w, d, h, seed: rng.range(0, 100), lit: o.lit ?? rng.range(0.6, 1.3), burn: o.burn ?? 0, tint: rng.next(), y: o.y ?? -14, name: o.name });
-    // Manhattan: along x, beyond the river (z -1250 .. -2600). Lower Manhattan centred on x=0.
-    for (let i = 0; i < 520; i++) {
-      const x = rng.range(-1800, 1800), z = rng.range(-1280, -2600);
-      const core = Math.exp(-((x - 60) ** 2) / (2 * 520 ** 2)) + 0.5 * Math.exp(-((x + 1100) ** 2) / (2 * 300 ** 2));
-      const h = 20 + rng.next() ** 2 * 230 * (0.3 + core);
-      const w = rng.range(25, 60), d = rng.range(25, 60);
-      add(x, z, w, d, h, { burn: rng.next() < 0.5 ? rng.range(0.4, 1) : 0 });
+    // landmarks are modelled separately; keep the filler clear of them
+    const keep = [[-42, -1380, 80], [-118, -1450, 80], [-24, -1312, 45], [-95, -1395, 30], [-60, -1490, 55], [-175, -1500, 35], [-190, -1560, 45],
+      [-210, -1210, 40], [-130, -1180, 40], [-40, -1185, 40], [40, -1215, 40], [420, -1820, 50], [-520, -1980, 35], [-610, -2050, 30], [3800, -2950, 90], [4650, -3500, 50]];
+    const clear = (x, z, w) => keep.every(([kx, kz, r]) => Math.hypot(x - kx, z - kz) > r + w * 0.6);
+    this.roofs = [];
+    const tower = (x, z, w, d, h, o) => {
+      if (!clear(x, z, Math.max(w, d))) return;
+      add(x, z, w, d, h, o);
+      // older towers step back near the top; mid-rise roofs carry water tanks
+      if (h > 110 && rng.next() < 0.45) add(x, z, w * 0.7, d * 0.7, h * rng.range(0.15, 0.3), { y: -14 + h, burn: o.burn });
+      if (h > 40 && h < 140 && rng.next() < 0.35) this.roofs.push(new THREE.Vector3(x + rng.range(-w, w) * 0.3, -14 + h, z + rng.range(-d, d) * 0.3));
+    };
+    // Lower Manhattan: shoreline at z ~ -1150, densest around the Financial District
+    for (let i = 0; i < 620; i++) {
+      const x = rng.range(-1100, 2600), z = rng.range(-1250, -2900);
+      if (x < -900 && z > -1600) continue;            // the Battery is a park
+      const core = Math.exp(-((x + 250) ** 2) / (2 * 420 ** 2)) * Math.exp(-((z + 1800) ** 2) / (2 * 500 ** 2));
+      const h = 18 + rng.next() ** 2 * 150 * (0.35 + core * 1.6);
+      tower(x, z, rng.range(22, 55), rng.range(22, 55), h, { burn: rng.next() < 0.5 ? rng.range(0.4, 1) : 0 });
     }
-    // World Trade Center
-    this.wtc = [];
-    for (const dx of [-38, 38]) {
-      add(-80 + dx, -1420 + (dx > 0 ? 40 : -30), 63, 63, 417, { name: 'wtc', lit: 1.2, burn: 0.3 });
-      this.wtc.push(list[list.length - 1]);
+    // Midtown, far off to the north-east
+    for (let i = 0; i < 260; i++) {
+      const x = rng.range(2900, 5600), z = rng.range(-2500, -3900);
+      const h = 40 + rng.next() ** 1.6 * 230;
+      tower(x, z, rng.range(25, 60), rng.range(25, 60), h, { burn: rng.next() < 0.3 ? rng.range(0.3, 0.8) : 0 });
     }
-    add(-30, -1350, 50, 50, 190, { name: 'wtc7', burn: 0.6 });
-    // Empire State Building, uptown-ish
-    add(1150, -2300, 60, 50, 380, { name: 'esb' }); add(1150, -2300, 30, 25, 440, { name: 'esb2' });
     // Jersey City waterfront (near): low/mid rise around our building, both sides
     for (let i = 0; i < 160; i++) {
       const x = rng.range(-700, 700);
@@ -228,10 +262,17 @@ export class Sky {
     mesh.frustumCulled = false;
     this.scene.add(mesh);
     this.buildings = list;
-    // antenna on the north tower
-    const ant = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 2, 110, 6), new THREE.MeshBasicMaterial({ color: 0x222226 }));
-    ant.position.set(this.wtc[0].x, -14 + 417 + 55, this.wtc[0].z);
-    this.scene.add(ant); this.antenna = ant;
+    // rooftop water tanks: a barrel on stilts with a cone hat
+    {
+      const parts = [new THREE.CylinderGeometry(3.2, 3.4, 6, 8).translate(0, 7, 0), new THREE.ConeGeometry(3.6, 2.4, 8).translate(0, 11.2, 0)];
+      for (const [dx, dz] of [[-2, -2], [2, -2], [2, 2], [-2, 2]]) parts.push(new THREE.CylinderGeometry(0.25, 0.25, 4, 3).translate(dx, 2, dz));
+      const tg = mergeTankGeo(parts);
+      const tm = new THREE.InstancedMesh(tg, new THREE.MeshLambertMaterial({ color: 0x3a3028, fog: false }), this.roofs.length);
+      const mm = new THREE.Matrix4();
+      this.roofs.forEach((p, i) => { mm.makeTranslation(p.x, p.y, p.z); tm.setMatrixAt(i, mm); });
+      this.scene.add(tm); this.tanks = tm;
+    }
+    this.landmarks = new Landmarks(this.scene);
     // street + promenade below our window
     const ground = new THREE.Mesh(new THREE.PlaneGeometry(3000, 440), new THREE.MeshBasicMaterial({ color: 0x1d1d1f }));
     ground.rotation.x = -Math.PI / 2; ground.position.set(0, -13.9, 186);
@@ -256,7 +297,7 @@ export class Sky {
     const mat = this.waterMat = new THREE.ShaderMaterial({
       vertexShader: `varying vec3 vWorld; void main(){ vec4 w = modelMatrix * vec4(position,1.0); vWorld = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }`,
       fragmentShader: WATER_FS,
-      uniforms: { skyCol: { value: new THREE.Color() }, deep: { value: new THREE.Color(0x0e1a20) }, time: { value: 0 }, night: { value: 0 }, fogCol: { value: new THREE.Color() }, fogDensity: { value: 0.00035 }, sunDir: { value: new THREE.Vector3() }, sunCol: { value: new THREE.Color() }, fire: { value: 0 } },
+      uniforms: { skyCol: { value: new THREE.Color() }, deep: { value: new THREE.Color(0x0e1a20) }, time: { value: 0 }, night: { value: 0 }, fogCol: { value: new THREE.Color() }, fogDensity: { value: 0.00035 }, sunDir: { value: new THREE.Vector3() }, sunCol: { value: new THREE.Color() }, fire: { value: 0 }, shock: { value: new THREE.Vector4(0, 0, 0, 0) } },
     });
     const w = new THREE.Mesh(new THREE.PlaneGeometry(6000, 1250), mat);
     w.rotation.x = -Math.PI / 2; w.position.set(0, -15, -660);
@@ -320,42 +361,12 @@ export class Sky {
   }
 
   buildShip() {
-    // horseshoe-shaped derelict, ribbed, Giger-esque
-    const g = new THREE.Group();
-    const mat = new THREE.MeshStandardMaterial({ color: 0x2a2a2e, roughness: 0.5, metalness: 0.6, emissive: 0x0a1210, fog: false });
-    this.shipMat = mat;
-    const torus = new THREE.TorusGeometry(260, 70, 18, 64, Math.PI * 1.45);
-    const p = torus.attributes.position;
-    const v = new THREE.Vector3();
-    for (let i = 0; i < p.count; i++) {
-      v.fromBufferAttribute(p, i);
-      const a = Math.atan2(v.y, v.x);
-      const rib = Math.sin(a * 60) * 6 + Math.sin(a * 13) * 10;
-      const taper = 0.55 + 0.45 * Math.sin(clamp((a + 0.2) / (Math.PI * 1.45), 0, 1) * Math.PI);
-      const cx = Math.cos(a) * 260, cy = Math.sin(a) * 260;
-      const dx = v.x - cx, dy = v.y - cy;
-      v.set(cx + dx * taper + Math.cos(a) * rib * 0.5, cy + dy * taper + Math.sin(a) * rib * 0.5, v.z * taper * 1.2 + rib * 0.3);
-      p.setXYZ(i, v.x, v.y, v.z);
-    }
-    torus.computeVertexNormals();
-    const hull = new THREE.Mesh(torus, mat);
-    hull.rotation.z = Math.PI * 0.77;
-    g.add(hull);
-    // lights along the hull
-    const lmap = radial({ size: 32, inner: 'rgba(160,255,220,1)', outer: 'rgba(60,255,160,0)' });
-    for (let i = 0; i < 40; i++) {
-      const a = (i / 40) * Math.PI * 1.45;
-      const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: lmap, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, fog: false }));
-      s.position.set(Math.cos(a) * 260, Math.sin(a) * 260, 72).applyAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI * 0.77);
-      s.scale.setScalar(i % 5 === 0 ? 60 : 24);
-      g.add(s);
-    }
-    const shipLight = new THREE.PointLight(0x80ffc0, 0, 3000, 1);
-    g.add(shipLight);
-    this.shipLight = shipLight;
+    this.shipObj = new Ship(this.scene);
+    const g = this.ship = this.shipObj.group;
     g.visible = false;
-    this.scene.add(g);
-    this.ship = g;
+    this.shipLight = new THREE.PointLight(0x80ffc0, 0, 3000, 1);
+    g.add(this.shipLight);
+    this.debris = new Debris(this.scene);
     // explosion / crash effects
     const fireMap = radial({ size: 64, inner: 'rgba(255,220,140,1)', outer: 'rgba(255,80,0,0)' });
     this.blasts = [];
@@ -423,10 +434,19 @@ export class Sky {
     const bu = this.bldMat.uniforms;
     bu.night.value = night; bu.litFrac.value = p.litFrac; bu.time.value = t; bu.fogCol.value.copy(hor); bu.sunDir.value.copy(p.sunDir);
     bu.dayCol.value.setRGB(1, 0.95, 0.9).lerp(new THREE.Color(1, 0.6, 0.4), red * 0.5); bu.burnAmt.value = p.burn; bu.blackout.value = p.blackout;
-    bu.fogDensity.value = 0.00025 + p.smoke * 0.0004;
+    bu.fogDensity.value = 0.00011 + p.smoke * 0.00026;
     const wu = this.waterMat.uniforms;
     wu.skyCol.value.copy(hor); wu.time.value = t; wu.night.value = night; wu.fogCol.value.copy(hor); wu.sunDir.value.copy(p.sunDir); wu.sunCol.value.copy(u.sunCol.value); wu.fire.value = p.burn * night;
     wu.fogDensity.value = bu.fogDensity.value;
+    // shared outdoor state for the landmarks, the ship and the debris
+    const sh = this.shared || (this.shared = { fogCol: new THREE.Color(), skyCol: new THREE.Color(), sunDir: new THREE.Vector3(), dayCol: new THREE.Color() });
+    sh.night = night; sh.litFrac = p.litFrac; sh.fogCol.copy(hor); sh.fogDensity = bu.fogDensity.value; sh.sunDir.copy(p.sunDir);
+    sh.dayCol.copy(bu.dayCol.value); sh.skyCol.copy(zen).lerp(hor, 0.55); sh.blackout = p.blackout; sh.burn = p.burn;
+    this.landmarks.update(t, sh);
+    this.shipObj.update(dt, t, sh);
+    this.debris.update(dt, sh);
+    u.lights.value = p.lights * night; u.burnGlow.value = p.burn * night; u.flash.value = Math.max(0, (u.flash.value || 0) - dt * 2.5);
+    if (wu.shock) { if (this.shock) { this.shock.r += dt * 340; wu.shock.value.set(this.shock.x, this.shock.z, this.shock.r, Math.max(0, 1 - this.shock.r / 2500)); } else wu.shock.value.w = 0; }
     // moons (east-ish, high)
     const md1 = new THREE.Vector3(-0.35, 0.32, -1).normalize(), md2 = new THREE.Vector3(0.45, 0.2, -1).normalize();
     this.moon1.s.position.copy(cam.position).addScaledVector(md1, 5000);
@@ -462,12 +482,11 @@ export class Sky {
     if (!this.cinematic) {
       this.ship.visible = p.ship > 0.01;
       if (this.ship.visible) {
-        this.ship.position.set(-200, 1400 - p.ship * 500 + Math.sin(t * 0.05) * 20, -2600);
-        this.ship.rotation.set(0.25, 0.4 + Math.sin(t * 0.02) * 0.05, 0.1);
+        this.ship.position.set(-260, 1150 - p.ship * 380 + Math.sin(t * 0.05) * 20, -2400);
+        this.ship.rotation.set(0.06, 1.25 + Math.sin(t * 0.02) * 0.05, 0.04);
         this.shipLight.intensity = 0;
       }
     }
-    this.shipMat.emissive.setRGB(0.02, 0.05 + 0.03 * Math.sin(t * 1.3), 0.04);
     this.updateBlasts(dt);
     this.lampMat.opacity = clamp(night * 1.4 - 0.2, 0, 1) * (1 - p.blackout * 0.7);
     this.bgHemi.intensity = 0.25 + (1 - night) * 1.2;
@@ -485,27 +504,19 @@ export class Sky {
     this.sun.shadow.autoUpdate = this.sun.intensity > 0.02;
     this.hemi.color.copy(zen).lerp(new THREE.Color(1, 1, 1), 0.3);
     this.hemi.groundColor.setRGB(0.18, 0.14, 0.1);
-    this.hemi.intensity = 0.06 + (1 - night) * 0.32 + p.burn * night * 0.05;
+    this.hemi.intensity = (0.06 + (1 - night) * 0.32 + p.burn * night * 0.05) * (this.hemiBoost ?? 1);
     const winCol = hor.clone().lerp(zen, 0.3);
     if (p.burn > 0.3) winCol.lerp(new THREE.Color(0.9, 0.35, 0.12), p.burn * night * 0.5);
     for (const w of this.windowLights) {
       w.l.color.copy(winCol);
-      w.l.intensity = (0.25 + (1 - night) * 2.2 + p.burn * night * 0.6 + p.lights * night * 0.25) * w.w;
+      w.l.intensity = (0.25 + (1 - night) * 2.2 + p.burn * night * 0.6 + p.lights * night * 0.25) * w.w * (this.windowBoost ?? 1);
     }
   }
 
   // ---------------------------------------------------------- crash cinematic helpers
   // collapse a tower: k = remaining height fraction
-  setTower(i, k, burn = 1) {
-    const b = this.wtc[i]; if (!b) return;
-    const m = new THREE.Matrix4().compose(new THREE.Vector3(b.x, b.y, b.z), new THREE.Quaternion(), new THREE.Vector3(b.w, Math.max(1, b.h * k), b.d));
-    this.city.setMatrixAt(b.index, m); this.city.instanceMatrix.needsUpdate = true;
-    const g = this.city.geometry;
-    g.attributes.iData.array[b.index * 4 + 2] = burn; g.attributes.iData.needsUpdate = true;
-    g.attributes.iSize.array[b.index * 3 + 1] = Math.max(1, b.h * k); g.attributes.iSize.needsUpdate = true;
-    if (i === 0) this.antenna.visible = k > 0.95;
-  }
-  resetTowers() { for (let i = 0; i < this.wtc.length; i++) this.setTower(i, 1, 0.3); }
+  setTower(i, k, burn = 1) { const t = this.landmarks.towers[i]; this.landmarks.setCut(i, t.h * k + (k >= 1 ? 1e5 : 0)); }
+  resetTowers() { this.landmarks.reset(); if (this.shipObj) this.shipObj.reset(); if (this.debris) this.debris.clear(); this.shock = null; }
   blast(pos, n = 8, size = 120, spread = 60) {
     for (let i = 0; i < n; i++) {
       const b = this.blasts.find((x) => x.t < 0) || this.blasts[i % this.blasts.length];

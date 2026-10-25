@@ -175,7 +175,6 @@ export class Desk {
     G.input.captureText = true;
     this.os.focused = true;
     G.hud.crosshair(false);
-    G.hud.say('Esc: stand up   ·   hold right mouse: look around', { cls: 'inner', dur: 4, key: 'deskHint' });
     emit('seated', true);
   }
   stand() {

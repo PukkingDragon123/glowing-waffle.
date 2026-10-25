@@ -26,21 +26,15 @@ import { Alien } from './creatures/alien.js';
 import { Mirror } from './gfx/mirror.js';
 import { Menu } from './ui/menu.js';
 import { Pause } from './ui/pause.js';
+import { Loader } from './ui/loader.js';
 import { FX } from './gfx/fx.js';
 import { nextFrame, Tasks } from './core/util.js';
 
 const params = new URLSearchParams(location.search);
 G.debug.enabled = params.has('debug');
 
-function progress(p, msg) {
-  const f = document.getElementById('boot-fill'); if (f) f.style.width = Math.round(p * 100) + '%';
-  const m = document.getElementById('boot-msg'); if (m && msg) m.textContent = msg;
-}
-
-
 async function boot() {
   const canvas = document.getElementById('game');
-  progress(0.02, 'TRACKING...');
   G.settings = new Settings();
   G.engine = new Engine(canvas);
   G.engine.setLowHeight(G.settings.v.resolution);
@@ -52,32 +46,43 @@ async function boot() {
   G.tasks = new Tasks();
   G.audio = new AudioEngine();
   G.hud = new HUD();
+  G.fx = new FX();
   setMaxAnisotropy(G.engine.renderer.capabilities.getMaxAnisotropy());
-  await nextFrame();
-  progress(0.1, 'DEVELOPING TEXTURES...');
+  // the loader runs on the real renderer while everything else is built
+  G.state = 'loading';
+  const loader = new Loader();
+  await loader.warm();
+  let last = performance.now();
+  function frame(now) {
+    const dt = Math.min(0.05, (now - last) / 1000); last = now;
+    if (G.state === 'loading') { G.time += dt; G.uniforms.uTime.value = G.time; loader.frame(dt); G.input.endFrame(); }
+    else tick(dt);
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+  const step = () => new Promise((r) => setTimeout(r, 16));
+  await step();
   initMaterials();
-  await nextFrame();
-  progress(0.3, 'BUILDING APARTMENT 4B...');
+  await step();
   G.world = new World();
   G.particles = new Particles();
   G.decals = new Decals();
   G.apartment = new Apartment().build();
+  await step();
   G.building = new Building().build();
   hookItemEvents();
-  await nextFrame();
-  progress(0.6, 'WAKING UP...');
+  await step();
   G.player = new Player();
   G.player.body = G.body = new Body();
   G.player.ctrl.teleport(6.0, 0.05, 4.5, 0.6, -0.05);
-
+  await step();
   G.sky = new Sky();
-  G.engine.background = G.sky;
   for (const w of Object.values(G.apartment.windows)) {
     const f = w.frame.group.position;
     G.sky.addWindowLight(new THREE.Vector3(f.x, 1.6, f.z + 0.25), new THREE.Vector3(0, -0.55, 1), 1);
   }
   G.sky.apply(G.sky.preset(+(params.get('day') || 1), +(params.get('t') || 0.12)), true);
-  G.fx = new FX();
+  await step();
   G.nav = new NavGrid(-8.6, -0.4, 20.6, 10.0, 0.1);
   G.nav.bake(G.physics.statics);
   const D = G.apartment.doors;
@@ -89,10 +94,10 @@ async function boot() {
   G.nav.addDoor(BD['4A'], new THREE.Vector3(-3.55, 0, 7.76), new THREE.Vector3(-2.8, 0, 7.76));
   G.nav.addDoor(BD['4C'], new THREE.Vector3(12.35, 0, 7.76), new THREE.Vector3(13.1, 0, 7.76));
   G.nav.addDoor(BD.trash, new THREE.Vector3(-6.46, 0, 8.4), new THREE.Vector3(-6.46, 0, 9.15));
+  await step();
   G.cat = new Cat(G.nav);
   G.desk = new Desk(G.apartment);
   G.cloth = hangCloth();
-
   G.mirror = new Mirror(G.apartment.mirrorSpot);
   G.alien = new Alien();
   G.ending = new Ending();
@@ -101,19 +106,11 @@ async function boot() {
   G.pause = new Pause();
   hookSounds();
   matteAll(G.scene);
-  // compile everything once behind the boot screen
-  progress(0.9, 'REWINDING...');
-  G.state = 'boot';
-  G.engine.renderer.compile(G.scene, G.camera);
-  progress(1, '');
+  await step();
+  // compile the world's shaders without blocking the loader
+  try { await G.engine.renderer.compileAsync(G.scene, G.camera); } catch (e) { G.engine.renderer.compile(G.scene, G.camera); }
+  loader.finish();
 
-  let last = performance.now();
-  function frame(now) {
-    const dt = Math.min(0.05, (now - last) / 1000); last = now;
-    tick(dt);
-    requestAnimationFrame(frame);
-  }
-  requestAnimationFrame(frame);
   canvas.addEventListener('click', () => { if (G.state === 'play') G.input.lock(); });
   on('unlock', () => {
     if (G.state !== 'play') return;
@@ -121,23 +118,26 @@ async function boot() {
     G.pause.show();
   });
   window.BENGRIM = makeDebugApi();
-  // INSERT TAPE: audio needs a gesture
-  const btn = document.getElementById('boot-start');
-  const msg = document.getElementById('boot-msg');
-  if (msg) msg.textContent = '';
-  btn.hidden = false;
+  // one click: sound needs a gesture
+  const boot = document.getElementById('boot');
   const go = async () => {
-    btn.hidden = true;
-    if (msg) msg.textContent = 'PLAY ▶';
-    try { await G.audio.init((p) => progress(p, 'PLAY ▶')); } catch (e) { console.warn('audio', e); }
-    document.getElementById('boot').hidden = true;
+    window.removeEventListener('pointerdown', go); window.removeEventListener('keydown', go);
+    try { await G.audio.init(); } catch (e) { console.warn('audio', e); }
+    G.audio.play && G.audio.play('tapeHiss', { vol: 0.15 });
+    await G.fx.fadeTo(1, 2.5);
+    boot.classList.add('out');
+    loader.dispose();
+    G.engine.background = G.sky;
+    G.state = 'boot';
     if (params.has('day')) {
       // debug: jump straight into a day
       G.state = 'play'; G.hud.crosshair(true);
       G.director.startDay(+params.get('day'));
     } else G.menu.open({ intro: !params.has('nointro') });
+    setTimeout(() => (boot.hidden = true), 1300);
   };
-  btn.addEventListener('click', go, { once: true });
+  window.addEventListener('pointerdown', go);
+  window.addEventListener('keydown', go);
   if (params.has('autostart')) go();
 }
 
@@ -175,11 +175,12 @@ function tick(dt) {
     G.world.update(dt);
     G.apartment.update(dt);
     G.menu.update(dt);
+    G.windGust = Math.max(0, (G.windGust || 0) - dt * 0.12);
   } else if (st === 'ending') {
     G.ending.update(dt);
     G.body.lateUpdate(dt);
   }
-  if (st !== 'play') G.engine.fx.faceSpot.w = 0;
+  if (st !== 'play' && st !== 'menu') G.engine.fx.faceSpot.w = 0;
   if (st !== 'paused') {
     G.sky.update(dt, G.camera);
     G.fx.update(dt);
