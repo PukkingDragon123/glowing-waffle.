@@ -187,3 +187,16 @@ export function mouldingFrame(w, h, prof) {
   g.setIndex(idx); g.computeVertexNormals(); g.computeBoundingSphere();
   return g;
 }
+
+// a box with eased edges and world-scaled UVs (grain keeps its density)
+export function softBox(w, h, d, r = 0.004, ts = 1) {
+  const g = roundedBox(w, h, d, Math.min(r, w / 2.2, h / 2.2, d / 2.2), 1);
+  const uv = g.attributes.uv, n = g.attributes.normal, p = g.attributes.position;
+  for (let i = 0; i < uv.count; i++) {
+    const ax = Math.abs(n.getX(i)), ay = Math.abs(n.getY(i)), az = Math.abs(n.getZ(i));
+    if (ax >= ay && ax >= az) uv.setXY(i, p.getZ(i) / ts, p.getY(i) / ts);
+    else if (ay >= az) uv.setXY(i, p.getX(i) / ts, p.getZ(i) / ts);
+    else uv.setXY(i, p.getX(i) / ts, p.getY(i) / ts);
+  }
+  return g;
+}

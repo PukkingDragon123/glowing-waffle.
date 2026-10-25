@@ -1,7 +1,7 @@
 // Furniture builders. Each works in a local frame whose origin is the centre of
 // the footprint on the floor with the front facing local +z.
 import * as THREE from 'three';
-import { turnedLeg, bentRail, shakerGeo, barPull, knobGeo, castorGeo, drapeGeo, lathe } from '../gfx/shapes.js';
+import { turnedLeg, bentRail, shakerGeo, barPull, knobGeo, castorGeo, drapeGeo, lathe, softBox } from '../gfx/shapes.js';
 import { G } from '../core/globals.js';
 import { M } from '../gfx/materials.js';
 import { Door, Drawer, Button } from './interactables.js';
@@ -14,17 +14,28 @@ function worldYaw(b, local = 0) { return (b.frame ? b.frame.ry : 0) + local; }
 function wpos(b, x, y, z) { const p = b.toWorld(x, y, z); return new THREE.Vector3(p[0], p[1], p[2]); }
 
 // hollow carcass: sides, back, bottom, top, shelves. Returns interior info.
-export function carcass(b, w, h, d, y0, mat, { shelves = 1, top = true, thick = 0.018, back = true, kick = 0 } = {}) {
-  const t = thick;
-  b.box(-w / 2 + t / 2, y0 + h / 2, 0, t, h, d, mat);
-  b.box(w / 2 - t / 2, y0 + h / 2, 0, t, h, d, mat);
+export function carcass(b, w, h, d, y0, mat, { shelves = 1, top = true, thick = 0.018, back = true, kick = 0, crown = false } = {}) {
+  const t = thick, ts = mat.userData.ws || 1;
+  // eased edges on every board, so the front reads as joinery, not a cube
+  const board = (x, y, z, bw, bh, bd, o = {}) => { b.geo(softBox(bw, bh, bd, o.r ?? 0.004, ts), o.mat || mat, { x, y, z, cast: o.cast ?? true }); if (o.collide !== false) b.collider(x, y, z, bw, bh, bd); };
+  board(-w / 2 + t / 2, y0 + h / 2, 0, t, h, d);
+  board(w / 2 - t / 2, y0 + h / 2, 0, t, h, d);
   if (back) b.box(0, y0 + h / 2, -d / 2 + t / 2, w - 2 * t, h, t, mat);
-  b.box(0, y0 + kick + t / 2, 0, w - 2 * t, t, d, mat);
+  board(0, y0 + kick + t / 2, 0, w - 2 * t, t, d);
   if (kick) b.box(0, y0 + kick / 2, d / 2 - 0.05, w, kick, 0.02, M.black, { collide: false });
-  if (top) b.box(0, y0 + h - t / 2, 0, w - 2 * t, t, d, mat);
+  if (top) board(0, y0 + h - t / 2, 0, w - 2 * t, t, d);
   for (let i = 1; i <= shelves; i++) {
     const sy = y0 + kick + (h - kick) * (i / (shelves + 1));
-    b.box(0, sy, 0.0, w - 2 * t, t, d - 0.04, mat);
+    board(0, sy, 0.0, w - 2 * t, t, d - 0.04, { r: 0.003 });
+    // a lipped front edge on each shelf
+    board(0, sy - 0.004, d / 2 - 0.03, w - 2 * t, t + 0.012, 0.016, { r: 0.004, collide: false, cast: false });
+  }
+  if (crown) {
+    // stepped cornice: frieze, bead, cap overhanging front and sides
+    const yt = y0 + h;
+    board(0, yt + 0.02, 0.004, w + 0.01, 0.04, d + 0.008, { r: 0.004, collide: false });
+    b.geo(cylGeo(0.009, w + 0.03, 8, null, ts), mat, { x: 0, y: yt + 0.044, z: d / 2 + 0.012, rz: Math.PI / 2 });
+    board(0, yt + 0.06, 0.01, w + 0.05, 0.022, d + 0.03, { r: 0.006, collide: false });
   }
   return { inner: { w: w - 2 * t, h: h - kick - 2 * t, d: d - t } };
 }
@@ -368,7 +379,7 @@ export function table(b, x, z, ry, w, d, h, mat = M.woodTable, o = {}) {
 export function bookshelf(b, x, z, ry, o = {}) {
   b.beginFrame(x, 0, z, ry);
   const w = o.w ?? 0.9, d = 0.3, h = o.h ?? 1.8;
-  carcass(b, w, h, d, 0, M.woodDark, { shelves: 4, kick: 0.05 });
+  carcass(b, w, h, d, 0, M.woodDark, { shelves: 4, kick: 0.05, crown: true });
   // books
   const rng = mulberry(o.seed ?? 7);
   const cols = [0x6a2a24, 0x2f3d5c, 0x44583a, 0x8a7448, 0x5c3a52, 0x2a2a2a, 0x9a8a70, 0x704028];
@@ -380,7 +391,7 @@ export function bookshelf(b, x, z, ry, o = {}) {
       const bw = 0.02 + rng() * 0.035, bh = 0.18 + rng() * 0.1;
       if (rng() < 0.12) { bx += 0.06; continue; }
       const lean = rng() < 0.1 ? 0.2 : 0;
-      b.geo(boxGeo(bw, bh, 0.17 + rng() * 0.05, 1), mats[Math.floor(rng() * mats.length)], { x: bx + bw / 2, y: sy + bh / 2, z: 0, rz: lean, cast: false });
+      b.geo(softBox(bw, bh, 0.17 + rng() * 0.05, 0.003), mats[Math.floor(rng() * mats.length)], { x: bx + bw / 2, y: sy + bh / 2, z: 0, rz: lean, cast: false });
       bx += bw + 0.002;
     }
   }
