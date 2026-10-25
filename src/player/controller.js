@@ -192,7 +192,8 @@ export class Controller {
     if (this.overrideBlend > 0 && this.lastOverride) {
       const o = this.override || this.lastOverride;
       this._camPos.lerp(o.pos, this.overrideBlend);
-      this._camQuat.slerp(o.quat, this.overrideBlend);
+      // followLook: only the position is overridden (sitting, free to look around)
+      if (!o.followLook) this._camQuat.slerp(o.quat, this.overrideBlend);
       if (this.override) this.lastOverride = this.override;
     } else if (this.override) this.lastOverride = this.override;
     cam.position.copy(this._camPos);

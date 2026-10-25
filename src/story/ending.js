@@ -78,7 +78,6 @@ export class Ending {
     G.alien && G.alien.reset();
     G.engine.background = null;
     G.hud.objective([]); G.hud.crosshair(false);
-    G.fx.noColor = true;   // the only colour left in the world
     G.uniforms.uBend.value.set(0, 0, 0, 0); G.uniforms.uWarp.value = 0; G.uniforms.uBreath.value = 0;
     G.fx.clear('alien'); G.fx.clear('stalker');
     G.fx.setGrade({ saturation: 0.55, contrast: 1.15, tint: new THREE.Vector3(0.95, 1.0, 0.92) });

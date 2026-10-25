@@ -15,7 +15,7 @@ const errs = [];
 page.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') errs.push(m.text()); else if (process.env.LOG) console.log('[log]', m.text()); });
 page.on('pageerror', (e) => errs.push('PAGEERROR ' + e.message + ' ' + (e.stack || '').split('\n').slice(0, 3).join(' | ')));
 await page.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
-await page.goto(`http://localhost:${server.address().port}/index.html?${query}`);
+await page.goto(`http://localhost:${server.address().port}/${process.env.PAGE || "index.html"}?${query}`);
 await page.waitForTimeout(wait);
 let r;
 try { r = await page.evaluate(`(async () => { ${script} })()`); } catch (e) { errs.push('SCRIPT ' + e.message); }

@@ -43,9 +43,9 @@ export class FX {
     const fx = G.engine.fx;
     const vhs = s.vhs / 10, grain = s.grain / 10;
     fx.vhs = vhs * (1 + this.cur.glitch);
-    fx.chroma = 0.35 + vhs * 0.6;
-    fx.tracking = 0.08 + vhs * 0.25 + this.cur.glitch * 0.8;
-    fx.scan = 0.25 + vhs * 0.5;
+    fx.chroma = 0.08 + vhs * 0.6;
+    fx.tracking = 0.02 + vhs * 0.25 + this.cur.glitch * 0.8;
+    fx.scan = 0.04 + vhs * 0.5;
     fx.grain = grain * 0.8 + this.cur.noiseBurst * 0.5;
     fx.wave = this.cur.wave; fx.doubleV = this.cur.doubleV; fx.red = this.cur.red;
     fx.white = Math.max(this.cur.white, this.white);
@@ -54,9 +54,7 @@ export class FX {
     fx.ghost = this.cur.ghost; fx.flesh = this.cur.flesh; fx.shake = this.cur.shake; fx.blur = this.cur.blur;
     fx.saturation = this.grade.saturation; fx.contrast = this.grade.contrast; fx.exposure = this.grade.exposure * (0.8 + s.brightness * 0.04);
     fx.tint.copy(this.grade.tint);
-    // noir by default; the lab at the end is the only thing left in colour
-    this.noirK = (this.noirK ?? 1) + ((s.noir && !this.noColor ? 1 : 0) - (this.noirK ?? 1)) * Math.min(1, dt * 3);
-    fx.noir = this.noirK;
+    fx.ink = s.ink / 10; fx.paint = s.paint / 10;
     fx.brightness = (s.brightness - 5) * 0.006;
     G.uniforms.uSnapOn.value = s.wobble ? 1 : 0;
   }

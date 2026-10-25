@@ -162,7 +162,8 @@ export class Builder {
     const yy = (r.y0 ?? 0) + (r.h ?? 2.7);
     const w = x1 - x0, d = z1 - z0;
     const g = quadGeo((x0 + x1) / 2, yy, (z0 + z1) / 2, 1, 0, 0, 0, 0, 1, 0, -1, 0, w, d, this.ts(mat), x0, z0);
-    this.batch.add(g, mat, { cast: false, receive: true });
+    // ceilings sit right on the lamps: their shadow maps only make acne there
+    this.batch.add(g, mat, { cast: false, receive: false });
     if (collide) G.physics.addStaticBox((x0 + x1) / 2, yy + 0.1, (z0 + z1) / 2, w / 2, 0.1, d / 2);
   }
 

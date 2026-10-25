@@ -1,11 +1,13 @@
 import * as THREE from 'three';
 import { G, emit, on } from './core/globals.js';
 import { Engine } from './core/engine.js';
+import './gfx/toon.js';
 import { Input } from './core/input.js';
 import { Settings } from './core/settings.js';
 import { Physics } from './core/physics.js';
 import { initMaterials, matteAll, M } from './gfx/materials.js';
 import { setMaxAnisotropy } from './gfx/textures.js';
+import { loadAssets, applySurfaces } from './gfx/assets.js';
 import { Particles, Decals } from './gfx/particles.js';
 import { World } from './world/world.js';
 import { Apartment } from './world/apartment.js';
@@ -61,8 +63,12 @@ async function boot() {
   }
   requestAnimationFrame(frame);
   const step = () => new Promise((r) => setTimeout(r, 16));
+  // the CC0 models and painted textures download while the cat runs
+  const assets = loadAssets();
   await step();
   initMaterials();
+  await assets;
+  applySurfaces();
   await step();
   G.world = new World();
   G.particles = new Particles();

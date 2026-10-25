@@ -15,7 +15,7 @@ export function makeCanvas(w, h) {
   return { c, ctx };
 }
 
-export function toTexture(canvas, { srgb = true, nearest = true, repeat = true, mips = true } = {}) {
+export function toTexture(canvas, { srgb = true, nearest = false, repeat = true, mips = true } = {}) {
   const t = new THREE.CanvasTexture(canvas);
   t.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace;
   t.magFilter = nearest ? THREE.NearestFilter : THREE.LinearFilter;
@@ -99,7 +99,7 @@ function grayToCanvas(arr, w, h, map = (v) => v) {
 }
 
 // Bundle -> { map, normalMap, roughnessMap, worldSize }
-function bundle(p, { normal = 2, rough = null, worldSize = 1, nearest = true } = {}) {
+function bundle(p, { normal = 2, rough = null, worldSize = 1, nearest = false } = {}) {
   const out = { map: toTexture(p.canvas, { nearest }), worldSize };
   if (p.height && normal) out.normalMap = toTexture(normalFromHeight(p.height, p.w, p.h, normal), { srgb: false, nearest });
   if (p.height && rough) out.roughnessMap = toTexture(grayToCanvas(p.height, p.w, p.h, rough), { srgb: false, nearest });
@@ -574,7 +574,7 @@ export function biomech({ seed = 23, size = 128, worldSize = 1.5 } = {}) {
 }
 
 // generic label/print texture helper: draws with a callback on a canvas
-export function printed(key, w, h, draw, { nearest = true } = {}) {
+export function printed(key, w, h, draw, { nearest = false } = {}) {
   return cached('print:' + key, () => {
     const { c, ctx } = makeCanvas(w, h);
     ctx.imageSmoothingEnabled = false;

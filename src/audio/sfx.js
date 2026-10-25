@@ -620,6 +620,34 @@ function pageTurn() { return rustle(0.25, 3500); }
 function radioTune() { const bp = new Biquad('bp', 2000, 0.5); let ph = 0; return normalize(render(2, (i, t) => { ph += TAU * (800 + 600 * Math.sin(TAU * 0.8 * t)) / SR; return bp.p(white()) * 0.6 + Math.sin(ph) * 0.15 * (Math.sin(TAU * 3 * t) > 0.5 ? 1 : 0); }), 0.35); }
 function alarmBeep() { const out = silence(1.0); for (let k = 0; k < 4; k++) mixInto(out, tone(0.08, [2900], () => 1), k * 0.12, 0.5); return out; }
 
+// ceiling fan: motor hum and the soft chop of four blades
+function fanHum() {
+  const lp = new Biquad('lp', 500, 0.7);
+  return normalize(makeLoop(render(4, (i, t) => Math.sin(TAU * 58 * t) * 0.25 + Math.sin(TAU * 116 * t) * 0.1 + lp.p(white()) * (0.55 + 0.45 * Math.sin(TAU * 4.2 * t)) * 0.6), 0.3), 0.3);
+}
+// an AM station playing something soft: electric piano chords, bass, brushed
+// drums and a little tune, all squeezed through a narrow radio band
+function radioMusic() {
+  const beat = 60 / 92, chords = [[220, 277.2, 329.6], [196, 246.9, 293.7], [174.6, 220, 261.6], [196, 246.9, 311.1]];
+  const tune = [659.3, 587.3, 523.3, 587.3, 659.3, 784, 659.3, 587.3, 523.3, 493.9, 440, 493.9, 523.3, 587.3, 523.3, 493.9];
+  const bp = new Biquad('bp', 1300, 0.55), hp = new Biquad('hp', 260, 0.7);
+  let mph = 0;
+  return normalize(makeLoop(render(beat * 16, (i, t) => {
+    const ch = chords[Math.floor(t / (beat * 4)) % 4], bt = t % beat, k = Math.floor(t / beat);
+    let x = 0;
+    for (const f of ch) x += Math.sin(TAU * f * t + 0.6 * Math.sin(TAU * f * 2 * t) * Math.exp(-bt * 2)) * 0.11 * (0.6 + 0.4 * Math.exp(-bt * 1.5));
+    x += Math.sin(TAU * ch[0] / 2 * t) * 0.22 * Math.exp(-(t % (beat * 2)) * 1.8);
+    x += k % 2 === 0 ? Math.sin(TAU * (55 + 60 * Math.exp(-bt * 30)) * bt) * Math.exp(-bt * 14) * 0.55 : white() * Math.exp(-bt * 22) * 0.3;
+    x += white() * Math.exp(-((t * 2) % beat) * 55) * 0.07;
+    mph += TAU * tune[k % 16] / SR;
+    x += Math.sin(mph) * 0.08 * Math.exp(-bt * 2.5);
+    return sat(hp.p(bp.p(x)) * 2.4 + white() * 0.015, 1.4);
+  }), 0.25), 0.42);
+}
+function microwaveHum() { const lp = new Biquad('lp', 900, 1); return normalize(makeLoop(render(3, (i, t) => Math.sin(TAU * 120 * t) * 0.35 + Math.sin(TAU * 60 * t) * 0.2 + lp.p(white()) * 0.12), 0.2), 0.35); }
+function kettleWhistle() { let ph = 0; const bp = new Biquad('bp', 2200, 4); return normalize(makeLoop(render(3, (i, t) => { ph += TAU * (2150 + 60 * Math.sin(TAU * 5 * t) + 30 * white()) / SR; return Math.sin(ph) * 0.6 + bp.p(white()) * 0.4; }), 0.2), 0.4); }
+function fireBell() { return normalize(makeLoop(render(2, (i, t) => { const tr = (t * 18) % 1; return (Math.sin(TAU * 1650 * t) * 0.6 + Math.sin(TAU * 3300 * t) * 0.25) * Math.exp(-tr * 6); }), 0.05), 0.5); }
+
 export const GEN = {
   step_wood: () => V(6, () => step('wood')), step_tile: () => V(5, () => step('tile')), step_carpet: () => V(5, () => step('carpet')),
   step_concrete: () => V(5, () => step('concrete')), step_metal: () => V(4, () => step('metal')), step_flesh: () => V(4, () => step('flesh')),
@@ -646,6 +674,7 @@ export const GEN = {
   hum60: () => [hum60()], fluoro: () => [fluoro()], scream: () => [scream()], tvBabble: () => [tvBabble()], alienNear: () => [alienNear()], shipHum: () => [shipHum()], tapeHiss: () => [tapeHiss()],
   elevatorDing: () => [elevatorDing()], vending: () => [vending()], canDrop: () => [canDrop()], coin: () => [coin()], pickup, place, pocket: () => [rustle(0.2, 1600)], pageTurn: () => [pageTurn()],
   pain, radioTune: () => [radioTune()], alarmBeep: () => [alarmBeep()], sting2: () => [stinger()],
+  fanHum: () => [fanHum()], radioMusic: () => [radioMusic()], microwaveHum: () => [microwaveHum()], kettleWhistle: () => [kettleWhistle()], fireBell: () => [fireBell()],
 };
 // sounds that loop when started with loop()
-export const LOOPS = new Set(['water', 'sizzle', 'brew', 'fridgeHum', 'dialTone', 'crtWhine', 'pcHum', 'lineStatic', 'purr', 'catEat', 'catLap', 'droneLow', 'droneVoid', 'droneLab', 'wind', 'cityDay', 'static', 'hum60', 'fluoro', 'tvBabble', 'alienNear', 'shipHum', 'tapeHiss', 'vending', 'breath', 'breathHeavy']);
+export const LOOPS = new Set(['water', 'sizzle', 'brew', 'fridgeHum', 'dialTone', 'crtWhine', 'pcHum', 'lineStatic', 'purr', 'catEat', 'catLap', 'droneLow', 'droneVoid', 'droneLab', 'wind', 'cityDay', 'static', 'hum60', 'fluoro', 'tvBabble', 'alienNear', 'shipHum', 'tapeHiss', 'vending', 'breath', 'breathHeavy', 'fanHum', 'radioMusic', 'microwaveHum', 'kettleWhistle', 'fireBell']);

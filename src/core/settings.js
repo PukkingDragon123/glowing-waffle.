@@ -1,24 +1,25 @@
 // Player settings, persisted per browser. Storage may be unavailable (private
 // windows, sandboxed previews) so every access is guarded.
-const KEY = 'bengrim_settings_v1';
+const KEY = 'bengrim_settings_v2';
 
 export const DEFAULTS = {
   sensitivity: 5,      // 1..10
   invertY: false,
   fov: 72,             // 60..90
   volume: 8,           // 0..10
-  resolution: 360,     // internal render height: 240 | 360 | 480 | 720
-  vhs: 7,              // 0..10
-  grain: 6,            // 0..10
-  wobble: true,        // ps1 vertex snapping
+  resolution: 720,     // internal render height: 480 | 720 | 900 | 1080
+  vhs: 2,              // 0..10
+  grain: 2,            // 0..10
+  ink: 7,              // 0..10 black outline strength
+  paint: 6,            // 0..10 painterly brush filter
+  wobble: false,       // ps1 vertex snapping
   brightness: 5,       // 0..10
   headBob: true,
   subtitles: true,
-  noir: true,          // black-and-white film look
 };
 
 export const OPTIONS = {
-  resolution: [240, 360, 480, 720],
+  resolution: [480, 720, 900, 1080],
 };
 
 export class Settings {

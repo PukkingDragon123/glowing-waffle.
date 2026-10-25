@@ -17,6 +17,9 @@ import { L, labelMat } from './labels.js';
 import { spawn } from './items.js';
 import { CrtTV } from './tv.js';
 import { hangPainting, settlePaintings } from './paintings.js';
+import * as R from './furnish.js';
+import { has, prop } from './props.js';
+import { Seat, Pushable } from './seats.js';
 import { boxGeo, cylGeo, roundedBox } from '../gfx/geo.js';
 import { clamp, damp, rand } from '../core/util.js';
 import * as T from '../gfx/textures.js';
@@ -164,16 +167,23 @@ export class Apartment {
 
   livingRoom(b) {
     // TV stand + CRT TV on west wall
-    const tv = F.tvStand(b, 3.75, 1.1, Math.PI / 2);
-    this.tvPos = V(3.82, 0.52, 1.1);
-    F.couch(b, 6.15, 1.2, -Math.PI / 2);
-    this.couchSeat = V(6.0, 0.5, 1.2);
+    const stand = R.tvStand();
+    if (!stand) F.tvStand(b, 3.75, 1.1, Math.PI / 2);
+    this.tvTop = stand ? stand.top : 0.52;
+    this.tvPos = V(3.82, this.tvTop, 1.1);
+    const sofa = R.sofa();
+    if (!sofa) F.couch(b, 6.15, 1.2, -Math.PI / 2);
+    this.couchSeat = sofa ? sofa.seat : V(6.0, 0.5, 1.2);
+    this.armchair = R.armchair();
+    R.ceilingFan(this);
     F.table(b, 4.95, 1.2, Math.PI / 2, 0.95, 0.5, 0.42, M.woodTable, { leg: 0.04 });
     // rug
     b.box(5.05, 0.004, 1.2, 1.9, 0.008, 2.0, M.rug, { collide: false, cast: false });
     F.radiator(b, 5.3, 0.12, 0, 0.9);
     F.radiator(b, 7.7, 0.12, 0, 0.9);
-    F.bookshelf(b, 4.6, 7.44, Math.PI, { w: 0.9, seed: 3 });
+    this.shelf = R.bookshelf();
+    if (!this.shelf) F.bookshelf(b, 4.6, 7.44, Math.PI, { w: 0.9, seed: 3 });
+    R.commode(this);
     F.floorLamp(b, 6.75, 2.45);
     this.lights.floorLamp = F.tableLamp(V(6.75, 1.4, 2.45), { name: 'floorLamp', room: 'main', intensity: 3.5, distance: 5 });
     this.lights.floorLamp.group.scale.set(1.3, 1.3, 1.3);
@@ -181,7 +191,7 @@ export class Apartment {
     this.lights.main = F.ceilingFixture(V(6.2, 2.7, 3.6), { name: 'main', room: 'main', shadow: true, intensity: 9, distance: 9 });
     this.switches.main = new Switch({ pos: V(7.02, 1.25, 7.592), ry: Math.PI, plateMat: M.trim, label: 'lights', onToggle: (on) => this.lights.main.set(on) });
     // wall clock
-    this.clock = this.wallClock(V(6.5, 1.95, 0.02));
+    this.clock = R.wallClock() || this.wallClock(V(6.5, 1.95, 0.02));
     // paintings: above the bookshelf, by the kitchen, over the TV
     this.paintings = [];
     const hang = (key, o) => this.paintings.push(hangPainting(this.root, key, o));
@@ -195,17 +205,20 @@ export class Apartment {
     this.coatHook = V(6.57, 1.66, 7.52);
     // door mat
     b.box(7.65, 0.006, 7.25, 0.8, 0.012, 0.5, M.cardboard.clone ? M.rug : M.rug, { collide: false, cast: false });
-    // plant (dead-ish)
-    b.geo(cylGeo(0.14, 0.3, 10, 0.18), M.cardboard, { x: 9.75, y: 0.15, z: 7.2 });
-    for (let i = 0; i < 7; i++) b.geo(new THREE.ConeGeometry(0.06, 0.5, 4), std('leaf' + i, null, { color: 0x4a5a2a, roughness: 0.9, side: THREE.DoubleSide }), { x: 9.75 + Math.cos(i) * 0.06, y: 0.5, z: 7.2 + Math.sin(i) * 0.06, rx: Math.cos(i * 2) * 0.4, rz: Math.sin(i * 2) * 0.4 });
-    b.collider(9.75, 0.3, 7.2, 0.3, 0.6, 0.3);
+    // plant by the door
+    this.plant = R.bigPlant();
+    if (!this.plant) {
+      b.geo(cylGeo(0.14, 0.3, 10, 0.18), M.cardboard, { x: 9.75, y: 0.15, z: 7.2 });
+      for (let i = 0; i < 7; i++) b.geo(new THREE.ConeGeometry(0.06, 0.5, 4), std('leaf' + i, null, { color: 0x4a5a2a, roughness: 0.9, side: THREE.DoubleSide }), { x: 9.75 + Math.cos(i) * 0.06, y: 0.5, z: 7.2 + Math.sin(i) * 0.06, rx: Math.cos(i * 2) * 0.4, rz: Math.sin(i * 2) * 0.4 });
+      b.collider(9.75, 0.3, 7.2, 0.3, 0.6, 0.3);
+    }
     // TV itself
     this.tvGroup = new THREE.Group();
-    this.tvGroup.position.set(3.82, 0.52, 1.1);
+    this.tvGroup.position.set(3.82, this.tvTop, 1.1);
     this.tvGroup.rotation.y = Math.PI / 2;
     this.root.add(this.tvGroup);
     this.tv = new CrtTV(this.tvGroup);
-    b.collider(3.8, 0.76, 1.1, 0.5, 0.5, 0.62);
+    b.collider(3.8, this.tvTop + 0.25, 1.1, 0.5, 0.5, 0.62);
   }
 
   kitchen(b) {
@@ -221,9 +234,17 @@ export class Apartment {
     this.switches.kitchen = new Switch({ pos: V(10.192, 1.25, 4.62), ry: -Math.PI / 2, plateMat: M.trim, label: 'kitchen light', onToggle: (on) => this.lights.kitchen.set(on) });
     // under-cabinet strip glow
     // dining table + chairs
-    F.table(b, 8.0, 5.5, 0, 1.1, 0.75, 0.75, M.woodTable);
-    F.chairStatic(b, 8.0, 6.15, Math.PI);
-    F.chairStatic(b, 8.0, 4.85, 0);
+    this.dining = R.dining();
+    if (!this.dining) {
+      F.table(b, 8.0, 5.5, 0, 1.1, 0.75, 0.75, M.woodTable);
+      F.chairStatic(b, 8.0, 6.15, Math.PI);
+      F.chairStatic(b, 8.0, 4.85, 0);
+    }
+    this.tableTop = this.dining ? this.dining.top : 0.75;
+    // microwave on the short counter, the radio on the fridge
+    this.microwave = R.microwave(9.98, 0.92, 4.15, -Math.PI / 2);
+    this.radio = R.boombox(9.88, 1.74, 0.43, -Math.PI / 2);
+    R.kettleWatch(this);
     // calendar on the east wall by the table
     this.calendarMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.3, 0.4), labelMat(L.calendar(0)));
     this.calendarMesh.position.set(10.19, 1.6, 6.2); this.calendarMesh.rotation.y = -Math.PI / 2;
@@ -247,6 +268,7 @@ export class Apartment {
     // corkboard + desk lamp
     b.box(3.535, 1.45, 5.65, 0.02, 0.6, 0.9, M.cardboard, { collide: false });
     this.lights.desk = F.tableLamp(V(3.75, 0.74, 6.15), { name: 'desk', room: 'main', intensity: 2.6, distance: 3.5 });
+    R.deskLamp(this.lights.desk, V(3.74, 0.74, 6.18), Math.PI / 2 + 0.5);
     // sticky notes on corkboard
     const noteCol = [0xf6ec8a, 0xf0b0c8, 0xa8e0f0];
     for (let i = 0; i < 6; i++) {
@@ -308,6 +330,7 @@ export class Apartment {
     this.root.add(box);
     this.breaker = new Button(box, { name: 'breaker', label: () => (G.world.power ? 'Flip the main breaker off' : 'Flip the main breaker on'), onUse: () => { G.world.power = !G.world.power; sfx('breaker', { pos: box.position, vol: 0.9 }); emit('power', G.world.power); } });
     this.lights.closet = F.bareBulb(V(1.7, 2.35, 6.95), { name: 'closet', room: 'closet', intensity: 3, distance: 4, on: false, cord: 0.3 });
+    R.closetClutter();
     this.switches.closet = new Switch({ pos: V(3.392, 1.25, 7.42), ry: -Math.PI / 2, plateMat: M.trim, label: 'light', on: false, onToggle: (on) => this.lights.closet.set(on) });
     // bucket + mop
     b.geo(cylGeo(0.14, 0.28, 10, 0.16), M.rustMetal, { x: 2.9, y: 0.14, z: 7.3 });
@@ -490,6 +513,8 @@ export class Apartment {
     g.add(can, lid, bag);
     g.traverse((m) => { if (m.isMesh) m.castShadow = true; });
     this.root.add(g);
+    // the real can, open at the top so the bag shows
+    if (R.trashCan(V(0, 0, 0), g)) { can.visible = false; lid.visible = false; }
     G.physics.addStaticCyl(pos.x, 0.25, pos.z, 0.17, 0.5);
     const t = new Button(g, {
       name: 'trash',
@@ -572,6 +597,27 @@ export class Apartment {
     it('beans', 1.95, 0.56, 6.48, {});
     it('catCan', 2.2, 0.53, 6.5, {});
     it('crackers', 2.5, 1.12, 6.5, {});
+    // the real-model clutter: all of it can be picked up, carried and thrown
+    const m = (model, t, x, y, z, o = {}) => has(model) && it(t, x, y, z, o);
+    const bn = this.stove.burners;
+    m('kettle', 'kettle', bn[1].center.x, bn[1].center.y + 0.16, bn[1].center.z, { ry: Math.PI / 2 });
+    m('pot', 'pot', bn[0].center.x, bn[0].center.y + 0.1, bn[0].center.z, { ry: 0.4 });
+    const tt = this.tableTop + 0.005;
+    m('jug', 'jug', 7.86, tt + 0.105, 5.38, { ry: 2.1 });
+    m('bowl', 'woodBowl', 8.16, tt + 0.045, 5.62, {});
+    m('bottles', 'wine', 7.98, tt + 0.155, 5.72, {});
+    m('cleaner', 'cleaner', 10.02, 0.92 + 0.165, 1.66, { ry: -Math.PI / 2 });
+    m('bleach', 'bleach', 2.75, 0.5 + 0.16, 6.55, {});
+    if (this.shelf) m('plant', 'plantPot', 4.62, this.shelf.top + 0.14, 7.36, {});
+    if (this.commode) {
+      const c = this.commode.top;
+      m('photoFrame', 'photo', c.x - 0.3, c.y + 0.13, c.z, { ry: Math.PI - 0.3 });
+      m('alarmClock', 'twinBell', c.x + 0.28, c.y + 0.09, c.z + 0.02, { ry: Math.PI + 0.2 });
+    }
+    m('box', 'cardboard', 1.05, 0.18, 7.22, { ry: 0.1 });
+    m('box', 'cardboard', 1.08, 0.54, 7.2, { ry: -0.15 });
+    m('basket', 'basket', 1.2, 1.5 + 0.075, 6.52, {});
+    m('dustpan', 'dustpan', 2.62, 0.06, 7.05, { ry: 0.6 });
   }
 
   // the loop: every morning the apartment is exactly as it was on July 1st.
@@ -596,6 +642,9 @@ export class Apartment {
     for (const w of Object.values(this.windows)) { w.pos = 0; w.vel = 0; w.target = null; w.sash.position.copy(w.base); }
     for (const sk of [this.sink, this.bathSink]) if (sk.running) sk.o.onUse();
     settlePaintings(this.paintings, G.story.day);
+    Seat.release(); Pushable.resetAll();
+    if (this.radio) this.radio.off();
+    if (this.fan) this.fan.on = false;
     if (this.coffee.stop) this.coffee.stop();
     this.coffee.mug = null;
     this.bowl.fill(0); this.waterBowl.fill(0.8);

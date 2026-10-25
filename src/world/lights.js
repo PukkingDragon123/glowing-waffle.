@@ -28,13 +28,13 @@ export class Fixture {
       if (o.shadow) {
         l.castShadow = true;
         l.shadow.mapSize.set(o.shadowSize ?? 512, o.shadowSize ?? 512);
-        l.shadow.bias = -0.0008; l.shadow.normalBias = 0.02;
+        l.shadow.bias = -0.0015; l.shadow.normalBias = 0.05;
         l.shadow.camera.near = 0.1; l.shadow.camera.far = o.distance ?? 9;
       }
     } else {
       const l = this.light = new THREE.PointLight(this.color, this.baseIntensity, o.distance ?? 7, o.decay ?? 1.7);
       l.position.copy(o.pos);
-      if (o.shadow) { l.castShadow = true; l.shadow.mapSize.set(256, 256); l.shadow.bias = -0.002; l.shadow.normalBias = 0.03; l.shadow.camera.near = 0.05; }
+      if (o.shadow) { l.castShadow = true; l.shadow.mapSize.set(256, 256); l.shadow.bias = -0.003; l.shadow.normalBias = 0.07; l.shadow.camera.near = 0.05; }
     }
     parent.add(this.light);
     if (o.fill) {

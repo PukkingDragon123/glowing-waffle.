@@ -36,26 +36,71 @@ void main() {
 }`;
 
 const COMPOSITE_FS = /* glsl */`
-uniform sampler2D tScene; uniform sampler2D tBloom; uniform sampler2D tBloom2; uniform sampler2D tPrev;
+uniform sampler2D tScene; uniform sampler2D tBloom; uniform sampler2D tBloom2; uniform sampler2D tPrev; uniform sampler2D tDepth;
 uniform float bloomStrength; uniform float exposure; uniform float saturation; uniform float contrast;
 uniform float ghost; uniform float brightness; uniform vec3 tint; uniform vec3 lift; uniform float time;
-uniform vec2 res; uniform float dither; uniform float flesh; uniform float noir;
+uniform vec2 res; uniform float dither; uniform float flesh; uniform float ink; uniform float paint; uniform vec2 nearFar;
 varying vec2 vUv;
 vec3 aces(vec3 x) { const float a = 2.51, b = 0.03, c = 2.43, d = 0.59, e = 0.14; return clamp((x * (a * x + b)) / (x * (c * x + d) + e), 0.0, 1.0); }
 vec3 toSRGB(vec3 c) { return mix(c * 12.92, 1.055 * pow(max(c, vec3(0.0)), vec3(1.0 / 2.4)) - 0.055, step(0.0031308, c)); }
-float bayer(vec2 p) {
-  vec2 q = mod(p, 4.0);
-  int x = int(q.x), y = int(q.y);
-  int i = x + y * 4;
-  float m[16];
-  m[0]=0.0; m[1]=8.0; m[2]=2.0; m[3]=10.0; m[4]=12.0; m[5]=4.0; m[6]=14.0; m[7]=6.0;
-  m[8]=3.0; m[9]=11.0; m[10]=1.0; m[11]=9.0; m[12]=15.0; m[13]=7.0; m[14]=13.0; m[15]=5.0;
-  for (int k = 0; k < 16; k++) { if (k == i) return m[k] / 16.0; }
-  return 0.0;
+float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+float vnoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x), mix(hash(i + vec2(0.0, 1.0)), hash(i + 1.0), f.x), f.y); }
+// inverse linear depth: affine in screen space on any plane, so its second
+// difference is zero on flat surfaces and spikes at silhouettes and creases
+float invZ(vec2 uv) { float d = texture2D(tDepth, uv).r; return (nearFar.y - d * (nearFar.y - nearFar.x)) / (nearFar.x * nearFar.y); }
+// generalised Kuwahara: four overlapping quadrants, each weighted by how flat
+// it is, so detail collapses into soft brush patches but edges stay put
+vec3 painted(vec2 uv, vec2 px) {
+  vec3 m0 = vec3(0.0), m1 = vec3(0.0), m2 = vec3(0.0), m3 = vec3(0.0);
+  vec3 s0 = vec3(0.0), s1 = vec3(0.0), s2 = vec3(0.0), s3 = vec3(0.0);
+  for (int j = -2; j <= 2; j++) for (int i = -2; i <= 2; i++) {
+    vec3 c = texture2D(tScene, uv + vec2(float(i), float(j)) * px).rgb;
+    c = c / (1.0 + c); vec3 cc = c * c;
+    if (i <= 0 && j <= 0) { m0 += c; s0 += cc; }
+    if (i >= 0 && j <= 0) { m1 += c; s1 += cc; }
+    if (i <= 0 && j >= 0) { m2 += c; s2 += cc; }
+    if (i >= 0 && j >= 0) { m3 += c; s3 += cc; }
+  }
+  m0 /= 9.0; m1 /= 9.0; m2 /= 9.0; m3 /= 9.0;
+  vec3 v0 = abs(s0 / 9.0 - m0 * m0), v1 = abs(s1 / 9.0 - m1 * m1), v2 = abs(s2 / 9.0 - m2 * m2), v3 = abs(s3 / 9.0 - m3 * m3);
+  float w0 = 1.0 / pow(1.0 + 600.0 * (v0.r + v0.g + v0.b), 4.0), w1 = 1.0 / pow(1.0 + 600.0 * (v1.r + v1.g + v1.b), 4.0);
+  float w2 = 1.0 / pow(1.0 + 600.0 * (v2.r + v2.g + v2.b), 4.0), w3 = 1.0 / pow(1.0 + 600.0 * (v3.r + v3.g + v3.b), 4.0);
+  vec3 r = (m0 * w0 + m1 * w1 + m2 * w2 + m3 * w3) / (w0 + w1 + w2 + w3);
+  return r / max(vec3(1e-3), 1.0 - r);
+}
+float lum(vec3 c) { c = c / (1.0 + c); return dot(c, vec3(0.299, 0.587, 0.114)); }
+// ink: depth creases and silhouettes, plus strong colour edges, with a slight
+// hand-drawn wobble and lines that thin out with distance
+float inkLine(vec2 uv, vec2 px) {
+  // wobble whole pixels only: depth is point-sampled, and off-centre taps
+  // would make flat tilted surfaces (ceilings, floors) read as creases
+  vec2 wob = (vec2(vnoise(uv * res / 19.0), vnoise(uv * res / 19.0 + 31.0)) - 0.5) * 1.6;
+  uv = (floor(uv * res + wob) + 0.5) * px;
+  float wc = invZ(uv);
+  float wn = max(wc, max(max(invZ(uv + vec2(px.x, 0.0)), invZ(uv - vec2(px.x, 0.0))), max(invZ(uv + vec2(0.0, px.y)), invZ(uv - vec2(0.0, px.y)))));
+  float zNear = 1.0 / wn;
+  // close things get a two-pixel line
+  vec2 o = px * (zNear < 2.2 ? 2.0 : 1.0);
+  float wl = invZ(uv - vec2(o.x, 0.0)), wr = invZ(uv + vec2(o.x, 0.0));
+  float wd = invZ(uv - vec2(0.0, o.y)), wu = invZ(uv + vec2(0.0, o.y));
+  float a1 = invZ(uv + o), a2 = invZ(uv - o), a3 = invZ(uv + vec2(o.x, -o.y)), a4 = invZ(uv + vec2(-o.x, o.y));
+  float lap = abs(wl + wr - 2.0 * wc) + abs(wd + wu - 2.0 * wc) + 0.5 * (abs(a1 + a2 - 2.0 * wc) + abs(a3 + a4 - 2.0 * wc));
+  float e = smoothstep(0.006, 0.03, lap / wn);
+  // colour edges (Sobel on compressed luminance), lighter than the geometry lines
+  float tl = lum(texture2D(tScene, uv + vec2(-o.x, o.y)).rgb), tc = lum(texture2D(tScene, uv + vec2(0.0, o.y)).rgb), tr = lum(texture2D(tScene, uv + o).rgb);
+  float ml = lum(texture2D(tScene, uv - vec2(o.x, 0.0)).rgb), mr = lum(texture2D(tScene, uv + vec2(o.x, 0.0)).rgb);
+  float bl = lum(texture2D(tScene, uv - o).rgb), bc = lum(texture2D(tScene, uv - vec2(0.0, o.y)).rgb), br = lum(texture2D(tScene, uv + vec2(o.x, -o.y)).rgb);
+  float gx = (tr + 2.0 * mr + br) - (tl + 2.0 * ml + bl), gy = (tl + 2.0 * tc + tr) - (bl + 2.0 * bc + br);
+  e = max(e, smoothstep(0.5, 0.95, length(vec2(gx, gy))) * 0.35);
+  return e * (1.0 - smoothstep(18.0, 140.0, zNear) * 0.65);
 }
 void main() {
+  vec2 px = 1.0 / res;
   vec3 c = texture2D(tScene, vUv).rgb;
+  if (paint > 0.01) c = mix(c, painted(vUv, px * (0.8 + paint * 0.5)), min(1.0, paint * 1.4));
   c += (texture2D(tBloom, vUv).rgb * 0.6 + texture2D(tBloom2, vUv).rgb * 0.8) * bloomStrength;
+  if (ink > 0.01) c = mix(c, vec3(0.012, 0.01, 0.009), inkLine(vUv, px) * min(1.0, ink * 1.15));
   c *= exposure;
   c = aces(c);
   c = toSRGB(c);
@@ -63,24 +108,12 @@ void main() {
   c = mix(vec3(l), c, saturation);
   c = (c - 0.5) * contrast + 0.5;
   c = c * tint + lift + brightness;
-  // noir: silver-gelatin monochrome, deep blacks, a hard S-curve; only red survives
-  if (noir > 0.001) {
-    float L = dot(c, vec3(0.299, 0.587, 0.114));
-    float Ls = smoothstep(0.02, 0.95, L);
-    Ls = Ls * Ls * (3.0 - 2.0 * Ls);
-    vec3 mono = vec3(mix(L, Ls, 0.7)) * vec3(1.0, 0.985, 0.95);
-    float redness = clamp((c.r - max(c.g, c.b) * 2.3) * 5.0, 0.0, 1.0) * smoothstep(0.12, 0.3, c.r);
-    vec3 keep = mix(mono, vec3(L * 1.6, L * 0.2, L * 0.18), 0.85);
-    mono = mix(mono, keep, redness);
-    c = mix(c, mono, noir);
-  }
   // fleshy red pulse (late days)
   c = mix(c, c * vec3(1.15, 0.75, 0.7), flesh * (0.6 + 0.4 * sin(time * 2.1)));
   vec3 p = texture2D(tPrev, vUv).rgb;
   c = mix(c, max(c, p * 0.97), ghost);
-  // ordered dither + quantize (5 bits per channel)
-  float b = bayer(gl_FragCoord.xy) - 0.5;
-  c = floor(c * 31.0 + 0.5 + b * dither) / 31.0;
+  // break up banding in the dark gradients
+  c += (hash(gl_FragCoord.xy + fract(time) * 61.0) - 0.5) * dither / 255.0;
   gl_FragColor = vec4(clamp(c, 0.0, 1.0), 1.0);
 }`;
 
@@ -211,7 +244,7 @@ export class Engine {
     this.camera = new THREE.PerspectiveCamera(72, 16 / 9, 0.03, 900);
     this.camera.layers.enable(0);
     this.camera.layers.enable(1); // first-person only
-    this.lowH = 360;
+    this.lowH = 720;
     this.forcedLowH = 0; // e.g. computer focus raises resolution
     this.background = null; // object with render(renderer, camera): the outside
 
@@ -219,8 +252,8 @@ export class Engine {
       bloom: 0.55, threshold: 0.9, exposure: 1.0, saturation: 0.86, contrast: 1.06,
       brightness: 0.0, tint: new THREE.Vector3(1.0, 0.98, 0.95), lift: new THREE.Vector3(0.012, 0.012, 0.02),
       ghost: 0, flesh: 0, dither: 0.9,
-      vhs: 0.7, grain: 0.6, chroma: 0.8, scan: 0.6, vignette: 0.75, wave: 0, doubleV: 0,
-      white: 0, black: 0, red: 0, glitch: 0, tracking: 0.25, curvature: 0.06, noiseBurst: 0,
+      vhs: 0.7, grain: 0.6, chroma: 0.8, scan: 0.6, vignette: 0.45, wave: 0, doubleV: 0,
+      white: 0, black: 0, red: 0, glitch: 0, tracking: 0.25, curvature: 0.015, noiseBurst: 0,
       blur: 0, tunnel: 0, whiteColor: new THREE.Vector3(1, 1, 1), shake: 0, faceSpot: new THREE.Vector4(0, 0, 0, 0),
     };
 
@@ -237,7 +270,8 @@ export class Engine {
       tScene: { value: null }, tBloom: { value: null }, tBloom2: { value: null }, tPrev: { value: null },
       bloomStrength: { value: 1 }, exposure: { value: 1 }, saturation: { value: 1 }, contrast: { value: 1 },
       ghost: { value: 0 }, brightness: { value: 0 }, tint: { value: new THREE.Vector3(1, 1, 1) }, lift: { value: new THREE.Vector3() },
-      time: { value: 0 }, res: { value: new THREE.Vector2() }, dither: { value: 1 }, flesh: { value: 0 }, noir: { value: 0 },
+      time: { value: 0 }, res: { value: new THREE.Vector2() }, dither: { value: 1 }, flesh: { value: 0 }, ink: { value: 0.7 }, paint: { value: 0.6 },
+      tDepth: { value: null }, nearFar: { value: new THREE.Vector2(0.03, 900) },
     });
     const fu = {
       tLDR: { value: null }, lowRes: { value: new THREE.Vector2() }, outRes: { value: new THREE.Vector2() }, time: { value: 0 },
@@ -266,14 +300,17 @@ export class Engine {
     const lw = Math.max(2, Math.round(lh * aspect));
     if (this.rtScene && this.rtScene.width === lw && this.rtScene.height === lh) { this.camera.aspect = aspect; this.camera.updateProjectionMatrix(); return; }
     this.lowW = lw; this.lowHc = lh;
+    if (this.rtScene && this.rtScene.depthTexture) this.rtScene.depthTexture.dispose();
     for (const rt of [this.rtScene, this.rtB1, this.rtB2, this.rtB3, this.rtB4, this.rtL0, this.rtL1]) rt && rt.dispose();
     this.rtScene = makeRT(lw, lh, { depth: true, filter: THREE.NearestFilter });
+    // the ink pass reads scene depth
+    this.rtScene.depthTexture = new THREE.DepthTexture(lw, lh, THREE.UnsignedIntType);
     this.rtScene.samples = 0;
     const bw = Math.max(2, lw >> 2), bh = Math.max(2, lh >> 2);
     this.rtB1 = makeRT(bw, bh); this.rtB2 = makeRT(bw, bh);
     this.rtB3 = makeRT(Math.max(2, bw >> 1), Math.max(2, bh >> 1)); this.rtB4 = makeRT(Math.max(2, bw >> 1), Math.max(2, bh >> 1));
-    this.rtL0 = makeRT(lw, lh, { type: THREE.UnsignedByteType, filter: THREE.NearestFilter });
-    this.rtL1 = makeRT(lw, lh, { type: THREE.UnsignedByteType, filter: THREE.NearestFilter });
+    this.rtL0 = makeRT(lw, lh, { type: THREE.UnsignedByteType });
+    this.rtL1 = makeRT(lw, lh, { type: THREE.UnsignedByteType });
     this.pp = 0;
     this.camera.aspect = aspect;
     this.camera.updateProjectionMatrix();
@@ -311,7 +348,8 @@ export class Engine {
     const out = this.pp ? this.rtL1 : this.rtL0;
     const prev = this.pp ? this.rtL0 : this.rtL1;
     cu.tScene.value = this.rtScene.texture; cu.tBloom.value = this.rtB1.texture; cu.tBloom2.value = this.rtB4.texture; cu.tPrev.value = prev.texture;
-    cu.noir.value = fx.noir || 0;
+    cu.ink.value = fx.ink ?? 0.7; cu.paint.value = fx.paint ?? 0.6;
+    cu.tDepth.value = this.rtScene.depthTexture; cu.nearFar.value.set(camera.near, camera.far);
     cu.bloomStrength.value = fx.bloom; cu.exposure.value = fx.exposure; cu.saturation.value = fx.saturation;
     cu.contrast.value = fx.contrast; cu.ghost.value = fx.ghost; cu.brightness.value = fx.brightness;
     cu.tint.value.copy(fx.tint); cu.lift.value.copy(fx.lift); cu.time.value = time; cu.res.value.set(this.lowW, this.lowHc);

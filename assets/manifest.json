@@ -1,0 +1,603 @@
+{
+ "license": "CC0 1.0, Poly Haven (polyhaven.com)",
+ "models": {
+  "alarmClock": {
+   "authors": [
+    "James Ray Cock",
+    "Yann Kervran"
+   ],
+   "bytes": 188956,
+   "file": "models/alarmClock.glb",
+   "id": "alarm_clock_01",
+   "title": "Alarm Clock 01"
+  },
+  "armchair": {
+   "authors": [
+    "Kirill Sannikov"
+   ],
+   "bytes": 274060,
+   "file": "models/armchair.glb",
+   "id": "ArmChair_01",
+   "title": "Arm Chair 01"
+  },
+  "basket": {
+   "authors": [
+    "Kuutti Siitonen"
+   ],
+   "bytes": 202284,
+   "file": "models/basket.glb",
+   "id": "wicker_basket_01",
+   "title": "Wicker Basket 01"
+  },
+  "bed": {
+   "authors": [
+    "Luca B"
+   ],
+   "bytes": 410664,
+   "file": "models/bed.glb",
+   "id": "old_bed_frame",
+   "title": "Old Bed Frame"
+  },
+  "bleach": {
+   "authors": [
+    "James Ray Cock"
+   ],
+   "bytes": 71680,
+   "file": "models/bleach.glb",
+   "id": "bleach_bottle",
+   "title": "Bleach Bottle"
+  },
+  "bookshelf": {
+   "authors": [
+    "Ulan Cabanilla"
+   ],
+   "bytes": 342168,
+   "file": "models/bookshelf.glb",
+   "id": "wooden_bookshelf_worn",
+   "title": "Wooden Bookshelf Worn"
+  },
+  "boombox": {
+   "authors": [
+    "Thomas Paul Mouilleron"
+   ],
+   "bytes": 221704,
+   "file": "models/boombox.glb",
+   "id": "boombox",
+   "title": "Boombox"
+  },
+  "bottles": {
+   "authors": [
+    "Jurita Burger",
+    "Rico Cilliers"
+   ],
+   "bytes": 261572,
+   "file": "models/bottles.glb",
+   "id": "wine_bottles_01",
+   "title": "Wine Bottles 01"
+  },
+  "bowl": {
+   "authors": [
+    "Oliver Harries"
+   ],
+   "bytes": 84248,
+   "file": "models/bowl.glb",
+   "id": "wooden_bowl_01",
+   "title": "Wooden Bowl 01"
+  },
+  "box": {
+   "authors": [
+    "Rahul Chaudhary"
+   ],
+   "bytes": 105952,
+   "file": "models/box.glb",
+   "id": "cardboard_box_01",
+   "title": "Cardboard Box 01"
+  },
+  "camera": {
+   "authors": [
+    "Alexander Otterbeck",
+    "Yann Kervran"
+   ],
+   "bytes": 157604,
+   "file": "models/camera.glb",
+   "id": "security_camera_01",
+   "title": "Security Camera 01"
+  },
+  "chair": {
+   "authors": [
+    "Kuutti Siitonen"
+   ],
+   "bytes": 74984,
+   "file": "models/chair.glb",
+   "id": "painted_wooden_chair_01",
+   "title": "Painted Wooden Chair 01"
+  },
+  "cleaner": {
+   "authors": [
+    "Kuutti Siitonen"
+   ],
+   "bytes": 71272,
+   "file": "models/cleaner.glb",
+   "id": "all_purpose_cleaner",
+   "title": "All Purpose Cleaner"
+  },
+  "commode": {
+   "authors": [
+    "Kirill Sannikov"
+   ],
+   "bytes": 222756,
+   "file": "models/commode.glb",
+   "id": "GothicCommode_01",
+   "title": "Gothic Commode 01"
+  },
+  "desk": {
+   "authors": [
+    "Ulan Cabanilla"
+   ],
+   "bytes": 244540,
+   "file": "models/desk.glb",
+   "id": "metal_office_desk",
+   "title": "Metal Office Desk"
+  },
+  "deskLamp": {
+   "authors": [
+    "Kuutti Siitonen",
+    "Yann Kervran"
+   ],
+   "bytes": 282120,
+   "file": "models/deskLamp.glb",
+   "id": "desk_lamp_arm_01",
+   "title": "Desk Lamp Arm 01"
+  },
+  "dustpan": {
+   "authors": [
+    "Balen"
+   ],
+   "bytes": 79392,
+   "file": "models/dustpan.glb",
+   "id": "dustpan",
+   "title": "Dustpan"
+  },
+  "fan": {
+   "authors": [
+    "Ulan Cabanilla"
+   ],
+   "bytes": 219544,
+   "file": "models/fan.glb",
+   "id": "ceiling_fan",
+   "title": "Ceiling Fan"
+  },
+  "fireAlarm": {
+   "authors": [
+    "Slinc"
+   ],
+   "bytes": 105080,
+   "file": "models/fireAlarm.glb",
+   "id": "fire_alarm",
+   "title": "Fire Alarm"
+  },
+  "fluoro": {
+   "authors": [
+    "Ulan Cabanilla"
+   ],
+   "bytes": 196640,
+   "file": "models/fluoro.glb",
+   "id": "mounted_fluorescent_lights",
+   "title": "Mounted Fluorescent Lights"
+  },
+  "jug": {
+   "authors": [
+    "Kuutti Siitonen"
+   ],
+   "bytes": 76172,
+   "file": "models/jug.glb",
+   "id": "jug_01",
+   "title": "Jug 01"
+  },
+  "kettle": {
+   "authors": [
+    "SV Garip"
+   ],
+   "bytes": 180108,
+   "file": "models/kettle.glb",
+   "id": "vintage_electric_kettle",
+   "title": "Vintage Electric Kettle"
+  },
+  "microwave": {
+   "authors": [
+    "Adam Nekola"
+   ],
+   "bytes": 162620,
+   "file": "models/microwave.glb",
+   "id": "vintage_microwave",
+   "title": "Vintage Microwave"
+  },
+  "nightstand": {
+   "authors": [
+    "James Ray Cock"
+   ],
+   "bytes": 120068,
+   "file": "models/nightstand.glb",
+   "id": "side_table_01",
+   "title": "Side Table 01"
+  },
+  "photoFrame": {
+   "authors": [
+    "James Ray Cock"
+   ],
+   "bytes": 57996,
+   "file": "models/photoFrame.glb",
+   "id": "standing_picture_frame_01",
+   "title": "Standing Picture Frame 01"
+  },
+  "pillows": {
+   "authors": [
+    "Serhii Khromov"
+   ],
+   "bytes": 202736,
+   "file": "models/pillows.glb",
+   "id": "throw_pillows_01",
+   "title": "Throw Pillows 01"
+  },
+  "plant": {
+   "authors": [
+    "James Ray Cock"
+   ],
+   "bytes": 183092,
+   "file": "models/plant.glb",
+   "id": "potted_plant_04",
+   "title": "Potted Plant 04"
+  },
+  "plantBig": {
+   "authors": [
+    "Rico Cilliers"
+   ],
+   "bytes": 394912,
+   "file": "models/plantBig.glb",
+   "id": "potted_plant_02",
+   "title": "Potted Plant 02"
+  },
+  "pot": {
+   "authors": [
+    "Kuutti Siitonen"
+   ],
+   "bytes": 140788,
+   "file": "models/pot.glb",
+   "id": "pot_enamel_01",
+   "title": "Pot Enamel 01"
+  },
+  "shelves": {
+   "authors": [
+    "James Ray Cock"
+   ],
+   "bytes": 124756,
+   "file": "models/shelves.glb",
+   "id": "steel_frame_shelves_01",
+   "title": "Steel Frame Shelves 01"
+  },
+  "sideTable": {
+   "authors": [
+    "James Ray Cock"
+   ],
+   "bytes": 144428,
+   "file": "models/sideTable.glb",
+   "id": "side_table_tall_01",
+   "title": "Side Table Tall 01"
+  },
+  "socket": {
+   "authors": [
+    "Josh Dean"
+   ],
+   "bytes": 105700,
+   "file": "models/socket.glb",
+   "id": "pull_chain_light_socket",
+   "title": "Pull Chain Light Socket"
+  },
+  "sofa": {
+   "authors": [
+    "Fran Calvente"
+   ],
+   "bytes": 271888,
+   "file": "models/sofa.glb",
+   "id": "sofa_03",
+   "title": "Sofa 03"
+  },
+  "stove": {
+   "authors": [
+    "Kuutti Siitonen"
+   ],
+   "bytes": 374524,
+   "file": "models/stove.glb",
+   "id": "electric_stove",
+   "title": "Electric Stove"
+  },
+  "suitcase": {
+   "authors": [
+    "Maximilian Schuster"
+   ],
+   "bytes": 164272,
+   "file": "models/suitcase.glb",
+   "id": "vintage_suitcase",
+   "title": "Vintage Suitcase"
+  },
+  "table": {
+   "authors": [
+    "Ulan Cabanilla"
+   ],
+   "bytes": 152696,
+   "file": "models/table.glb",
+   "id": "round_wooden_table_01",
+   "title": "Round Wooden Table 01"
+  },
+  "trashCan": {
+   "authors": [
+    "GurJas Studios"
+   ],
+   "bytes": 258420,
+   "file": "models/trashCan.glb",
+   "id": "metal_trash_can",
+   "title": "Metal Trash Can"
+  },
+  "tv": {
+   "authors": [
+    "Gabriel Radi\u0107"
+   ],
+   "bytes": 168424,
+   "file": "models/tv.glb",
+   "id": "Television_01",
+   "title": "Television 01"
+  },
+  "tvStand": {
+   "authors": [
+    "Kirill Sannikov"
+   ],
+   "bytes": 80236,
+   "file": "models/tvStand.glb",
+   "id": "ClassicNightstand_01",
+   "title": "Classic Nightstand 01"
+  },
+  "wallClock": {
+   "authors": [
+    "PierreB3D"
+   ],
+   "bytes": 139552,
+   "file": "models/wallClock.glb",
+   "id": "wall_clock",
+   "title": "Wall Clock"
+  },
+  "wallLamp": {
+   "authors": [
+    "Kuutti Siitonen"
+   ],
+   "bytes": 140408,
+   "file": "models/wallLamp.glb",
+   "id": "industrial_wall_lamp",
+   "title": "Industrial Wall Lamp"
+  },
+  "wheelchair": {
+   "authors": [
+    "Garreth Dean"
+   ],
+   "bytes": 328060,
+   "file": "models/wheelchair.glb",
+   "id": "wheelchair_01",
+   "title": "Wheelchair 01"
+  }
+ },
+ "textures": {
+  "brick": {
+   "authors": [
+    "Jan Burghardt"
+   ],
+   "diff": "tex/brick_diff.jpg",
+   "id": "brick_wall_006",
+   "nor": "tex/brick_nor.jpg",
+   "size": [
+    3.0,
+    3.0
+   ],
+   "title": "Brick Wall 006"
+  },
+  "cabinetWood": {
+   "authors": [
+    "Dimitrios Savva",
+    "Rico Cilliers"
+   ],
+   "diff": "tex/cabinetWood_diff.jpg",
+   "id": "wood_cabinet_worn_long",
+   "nor": "tex/cabinetWood_nor.jpg",
+   "size": [
+    1.0,
+    0.5
+   ],
+   "title": "Wood Cabinet Worn Long"
+  },
+  "carpet": {
+   "authors": [
+    "Rohit Seervi"
+   ],
+   "diff": "tex/carpet_diff.jpg",
+   "id": "dirty_carpet",
+   "nor": "tex/carpet_nor.jpg",
+   "size": [
+    0.5999999046325684,
+    0.5999999046325684
+   ],
+   "title": "Dirty Carpet"
+  },
+  "concrete": {
+   "authors": [
+    "Dimitrios Savva",
+    "Rico Cilliers"
+   ],
+   "diff": "tex/concrete_diff.jpg",
+   "id": "concrete_floor_worn_001",
+   "nor": "tex/concrete_nor.jpg",
+   "size": [
+    3.0,
+    3.000000238418579
+   ],
+   "title": "Concrete Floor Worn 001"
+  },
+  "linen": {
+   "authors": [
+    "Rico Cilliers",
+    "colormass"
+   ],
+   "diff": "tex/linen_diff.jpg",
+   "id": "rough_linen",
+   "nor": "tex/linen_nor.jpg",
+   "size": [
+    0.2707081392676629,
+    0.27129998803138733
+   ],
+   "title": "Rough Linen"
+  },
+  "linoleum": {
+   "authors": [
+    "Charlotte Baglioni"
+   ],
+   "diff": "tex/linoleum_diff.jpg",
+   "id": "old_linoleum_flooring_01",
+   "nor": "tex/linoleum_nor.jpg",
+   "size": [
+    1.9900001287460327,
+    1.9900001287460327
+   ],
+   "title": "Old Linoleum Flooring 01"
+  },
+  "mosaic": {
+   "authors": [
+    "Amal Kumar"
+   ],
+   "diff": "tex/mosaic_diff.jpg",
+   "id": "marble_mosaic_tiles",
+   "nor": "tex/mosaic_nor.jpg",
+   "size": [
+    2.0,
+    2.0
+   ],
+   "title": "Marble Mosaic Tiles"
+  },
+  "paintedConcrete": {
+   "authors": [
+    "Dario Barresi",
+    "Dimitrios Savva"
+   ],
+   "diff": "tex/paintedConcrete_diff.jpg",
+   "id": "painted_concrete",
+   "nor": "tex/paintedConcrete_nor.jpg",
+   "size": [
+    2.0,
+    2.0
+   ],
+   "title": "Painted Concrete"
+  },
+  "paintedPlanks": {
+   "authors": [
+    "Rob Tuytel"
+   ],
+   "diff": "tex/paintedPlanks_diff.jpg",
+   "id": "distressed_painted_planks",
+   "nor": "tex/paintedPlanks_nor.jpg",
+   "size": [
+    1.5999999046325684,
+    1.5999999046325684
+   ],
+   "title": "Distressed Painted Planks"
+  },
+  "plaster": {
+   "authors": [
+    "Amal Kumar"
+   ],
+   "diff": "tex/plaster_diff.jpg",
+   "id": "painted_plaster_wall",
+   "nor": "tex/plaster_nor.jpg",
+   "size": [
+    2.0,
+    2.0
+   ],
+   "title": "Painted Plaster Wall"
+  },
+  "plasterBeige": {
+   "authors": [
+    "Dimitrios Savva",
+    "Rico Cilliers"
+   ],
+   "diff": "tex/plasterBeige_diff.jpg",
+   "id": "beige_wall_002",
+   "nor": "tex/plasterBeige_nor.jpg",
+   "size": [
+    3.0,
+    3.000000238418579
+   ],
+   "title": "Beige Wall 002"
+  },
+  "plasterPeel": {
+   "authors": [
+    "Dimitrios Savva"
+   ],
+   "diff": "tex/plasterPeel_diff.jpg",
+   "id": "peeling_painted_wall",
+   "nor": "tex/plasterPeel_nor.jpg",
+   "size": [
+    1.8000000715255737,
+    1.8000000715255737
+   ],
+   "title": "Peeling Painted Wall"
+  },
+  "plasterWorn": {
+   "authors": [
+    "Dimitrios Savva"
+   ],
+   "diff": "tex/plasterWorn_diff.jpg",
+   "id": "worn_plaster_wall",
+   "nor": "tex/plasterWorn_nor.jpg",
+   "size": [
+    1.8000000715255737,
+    1.8000000715255737
+   ],
+   "title": "Worn Plaster Wall"
+  },
+  "subway": {
+   "authors": [
+    "Jenelle van Heerden",
+    "Sergej Majboroda"
+   ],
+   "diff": "tex/subway_diff.jpg",
+   "id": "long_white_tiles",
+   "nor": "tex/subway_nor.jpg",
+   "size": [
+    1.2699999809265137,
+    1.2699999809265137
+   ],
+   "title": "Long White Tiles"
+  },
+  "wallpaper": {
+   "authors": [
+    "Rob Tuytel"
+   ],
+   "diff": "tex/wallpaper_diff.jpg",
+   "id": "decrepit_wallpaper",
+   "nor": "tex/wallpaper_nor.jpg",
+   "size": [
+    2.5,
+    2.5
+   ],
+   "title": "Decrepit Wallpaper"
+  },
+  "woodFloor": {
+   "authors": [
+    "Dimitrios Savva"
+   ],
+   "diff": "tex/woodFloor_diff.jpg",
+   "id": "wood_floor_worn",
+   "nor": "tex/woodFloor_nor.jpg",
+   "size": [
+    1.9999996423721313,
+    1.9999996423721313
+   ],
+   "title": "Wood Floor Worn"
+  }
+ }
+}

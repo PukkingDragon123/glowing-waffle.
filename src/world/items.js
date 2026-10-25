@@ -8,6 +8,7 @@ import { Interactable } from './interactables.js';
 import { L, labelMat } from './labels.js';
 import { boxGeo, cylGeo, roundedBox } from '../gfx/geo.js';
 import { clamp, rand } from '../core/util.js';
+import { centered } from './props.js';
 
 const sfx = (n, o) => G.audio && G.audio.play(n, o);
 const say = (t, o) => G.hud && G.hud.inner(t, o);
@@ -540,5 +541,26 @@ export function hookItemEvents() {
     });
   });
 }
+
+// things from the CC0 model set you can pick up, carry, drop and throw
+const MED_HOLD = { pos: [0.12, -0.24, -0.45], rot: [0, 0.4, 0] };
+const BIG_HOLD = { pos: [0.0, -0.32, -0.5], rot: [0, 0, 0] };
+Object.assign(ITEMS, {
+  kettle: { name: 'Kettle', build: () => centered('kettle'), shape: { type: 'cyl', r: 0.12, h: 0.3 }, mass: 1.1, sound: 'metal', small: false, hold: MED_HOLD, state: { heat: 0 } },
+  jug: { name: 'Jug', build: () => centered('jug'), shape: { type: 'cyl', r: 0.08, h: 0.21 }, mass: 0.6, sound: 'ceramic', small: false, hold: MED_HOLD },
+  woodBowl: { name: 'Wooden bowl', build: () => centered('bowl'), shape: { type: 'cyl', r: 0.15, h: 0.09 }, mass: 0.3, sound: 'wood', small: false, hold: MED_HOLD },
+  pot: { name: 'Pot', build: () => centered('pot'), shape: { type: 'cyl', r: 0.11, h: 0.18 }, mass: 1.0, sound: 'metal', small: false, hold: MED_HOLD },
+  wine: { name: 'Wine bottle', build: () => centered('bottles', ['wine_bottles_01_bordeaux']), shape: { type: 'cyl', r: 0.04, h: 0.3 }, mass: 0.9, sound: 'glass', small: false, hold: MED_HOLD },
+  cleaner: { name: 'Spray cleaner', build: () => centered('cleaner'), shape: { type: 'box', size: [0.16, 0.32, 0.12] }, mass: 0.6, sound: 'plastic', small: false, hold: MED_HOLD },
+  bleach: { name: 'Bleach', build: () => centered('bleach'), shape: { type: 'box', size: [0.08, 0.29, 0.06] }, mass: 0.7, sound: 'plastic', small: false, hold: MED_HOLD },
+  plantPot: { name: 'Potted plant', build: () => centered('plant', ['potted_plant_04_dirt', 'potted_plant_04_plant', 'potted_plant_04_pot']), shape: { type: 'cyl', r: 0.08, h: 0.27 }, mass: 0.8, sound: 'ceramic', small: false, hold: MED_HOLD },
+  photo: { name: 'Photo frame', build: () => centered('photoFrame'), shape: { type: 'box', size: [0.1, 0.25, 0.2] }, mass: 0.3, sound: 'wood', small: true, hold: { pos: [0.14, -0.15, -0.4], rot: [0, -1.2, 0] } },
+  cardboard: { name: 'Cardboard box', build: () => centered('box'), shape: { type: 'box', size: [0.38, 0.35, 0.52] }, mass: 1.4, sound: 'cardboard', small: false, twoHands: true, hold: BIG_HOLD },
+  basket: { name: 'Wicker basket', build: () => centered('basket'), shape: { type: 'box', size: [0.38, 0.12, 0.3] }, mass: 0.4, sound: 'wood', small: false, hold: MED_HOLD },
+  dustpan: { name: 'Dustpan', build: () => centered('dustpan'), shape: { type: 'box', size: [0.34, 0.1, 0.37] }, mass: 0.3, sound: 'plastic', small: false, hold: MED_HOLD },
+  twinBell: {
+    name: 'Alarm clock', build: () => centered('alarmClock'), shape: { type: 'box', size: [0.14, 0.17, 0.06] }, mass: 0.4, sound: 'metal', small: true, hold: { pos: [0.14, -0.15, -0.38], rot: [0, -0.5, 0] },
+  },
+});
 
 export function spawn(type, x, y, z, o = {}) { return new Item(type, new THREE.Vector3(x, y, z), o); }
