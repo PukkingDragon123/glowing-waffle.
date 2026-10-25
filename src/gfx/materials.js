@@ -79,12 +79,12 @@ export function initMaterials() {
   std('bedroomCarpet', T.carpet({ seed: 71, base: [120, 108, 90], pattern: false }), { roughness: 1 });
 
   // walls
-  std('wallLiving', T.wallpaper({ seed: 1, base: [178, 168, 132], accent: [158, 144, 108] }), { roughness: 0.9 });
-  std('wallBedroom', T.wallpaper({ seed: 12, base: [160, 170, 168], accent: [138, 150, 150], stripes: false }), { roughness: 0.9 });
-  std('wallPaint', T.plaster({ seed: 2, base: [200, 194, 180] }), { roughness: 0.92 });
-  std('wallKitchen', T.plaster({ seed: 21, base: [206, 196, 160], dirt: 0.3 }), { roughness: 0.85 });
-  std('wallHall', T.wallpaper({ seed: 4, base: [170, 164, 140], accent: [150, 142, 118] }), { roughness: 0.6, env: 0.8 });
-  std('wallEmpty', T.plaster({ seed: 44, base: [176, 170, 150], dirt: 0.55 }), { roughness: 0.95 });
+  std('wallLiving', T.wallpaper({ seed: 1, base: [178, 168, 132], accent: [158, 144, 108] }), { roughness: 0.9, normal: 0.35 });
+  std('wallBedroom', T.wallpaper({ seed: 12, base: [160, 170, 168], accent: [138, 150, 150], stripes: false }), { roughness: 0.9, normal: 0.35 });
+  std('wallPaint', T.plaster({ seed: 2, base: [200, 194, 180] }), { roughness: 0.92, normal: 0.3 });
+  std('wallKitchen', T.plaster({ seed: 21, base: [206, 196, 160], dirt: 0.3 }), { roughness: 0.85, normal: 0.3 });
+  std('wallHall', T.wallpaper({ seed: 4, base: [170, 164, 140], accent: [150, 142, 118] }), { roughness: 0.6, env: 0.8, normal: 0.35 });
+  std('wallEmpty', T.plaster({ seed: 44, base: [176, 170, 150], dirt: 0.55 }), { roughness: 0.95, normal: 0.4 });
   std('ceiling', T.ceiling({ seed: 4 }), { roughness: 0.95, normal: 0.25 });
   std('ceilingHall', T.ceiling({ seed: 41 }), { roughness: 0.95, normal: 0.25 });
   std('brick', T.brick({ seed: 16 }), { roughness: 0.95 });
@@ -96,7 +96,7 @@ export function initMaterials() {
   std('woodLight', T.woodDark({ seed: 12, base: [160, 120, 80] }), { roughness: 0.6 });
   std('woodTable', T.woodDark({ seed: 13, base: [120, 82, 52] }), { roughness: 0.4, env: 0.9 });
   std('counter', T.laminate({ seed: 11, base: [206, 198, 172] }), { roughness: 0.35, env: 1 });
-  std('cabinet', T.woodDark({ seed: 14, base: [168, 140, 104] }), { roughness: 0.6 });
+  std('cabinet', T.woodDark({ seed: 14, base: [168, 140, 104] }), { roughness: 0.6, normal: 0.25 });
 
   // fabrics
   std('couchFabric', T.fabric({ seed: 8, base: [112, 86, 56], alt: [84, 64, 42] }), { roughness: 1 });

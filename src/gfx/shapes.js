@@ -84,3 +84,74 @@ export function bentRail(w, depth, rise, thick, hgt) {
   g.scale(1, hgt / thick, 1);
   return nonIdx(g);
 }
+
+// Shaker door / drawer front: a softened frame around a recessed flat panel.
+// Origin at the centre; front face at +z.
+export function shakerGeo(w, h, t, rail = 0.06) {
+  const parts = [];
+  const r = Math.min(rail, w * 0.2, h * 0.2);
+  const rb = (bw, bh, bd, x, y, z, rad = 0.004) => nonIdx(roundedBox(bw, bh, bd, rad).translate(x, y, z));
+  parts.push(rb(r, h, t, -w / 2 + r / 2, 0, 0), rb(r, h, t, w / 2 - r / 2, 0, 0));          // stiles
+  parts.push(rb(w - 2 * r, r, t, 0, h / 2 - r / 2, 0), rb(w - 2 * r, r, t, 0, -h / 2 + r / 2, 0)); // rails
+  parts.push(boxAt(w - 2 * r + 0.004, h - 2 * r + 0.004, t * 0.45, 0, 0, -t * 0.18));      // recessed panel
+  // a small cove inside the frame
+  const cv = t * 0.25;
+  parts.push(boxAt(w - 2 * r, 0.006, cv, 0, h / 2 - r - 0.003, t * 0.12), boxAt(w - 2 * r, 0.006, cv, 0, -h / 2 + r + 0.003, t * 0.12));
+  parts.push(boxAt(0.006, h - 2 * r, cv, -w / 2 + r + 0.003, 0, t * 0.12), boxAt(0.006, h - 2 * r, cv, w / 2 - r - 0.003, 0, t * 0.12));
+  return merge(parts);
+}
+
+// a bar pull with two standoffs, horizontal along x, sticking out along +z
+export function barPull(len = 0.12, r = 0.006) {
+  const parts = [];
+  const bar = new THREE.CylinderGeometry(r, r, len, 8); bar.rotateZ(Math.PI / 2); bar.translate(0, 0, 0.028); parts.push(nonIdx(bar));
+  for (const s of [-1, 1]) { const st = new THREE.CylinderGeometry(r * 0.8, r * 0.9, 0.028, 6); st.rotateX(Math.PI / 2); st.translate(s * (len / 2 - 0.012), 0, 0.014); parts.push(nonIdx(st)); }
+  for (const s of [-1, 1]) { const cap = new THREE.SphereGeometry(r, 6, 4); cap.translate(s * len / 2, 0, 0.028); parts.push(nonIdx(cap)); }
+  return merge(parts);
+}
+
+// a turned mushroom knob pointing along +z
+export function knobGeo(r = 0.016) {
+  const pts = [[0.001, 0], [r * 0.45, 0], [r * 0.4, r * 0.6], [r * 0.55, r * 0.9], [r, r * 1.3], [r * 0.95, r * 1.6], [r * 0.6, r * 1.85], [0.001, r * 1.9]].map(([x, y]) => new THREE.Vector2(x, y));
+  const g = new THREE.LatheGeometry(pts, 10); g.rotateX(Math.PI / 2);
+  return nonIdx(g);
+}
+
+// a castor: twin wheels on a fork
+export function castorGeo() {
+  const parts = [];
+  for (const s of [-1, 1]) { const w = new THREE.CylinderGeometry(0.024, 0.024, 0.012, 10); w.rotateZ(Math.PI / 2); w.translate(s * 0.009, 0.024, 0); parts.push(nonIdx(w)); }
+  const f = new THREE.CylinderGeometry(0.008, 0.01, 0.03, 6); f.translate(0, 0.055, 0); parts.push(nonIdx(f));
+  return merge(parts);
+}
+
+// a quilt draped over a box (w x L, top at y=0): flat on top, hanging down the
+// sides and foot by `drop`, with soft folds
+export function drapeGeo(w, L, drop, { thick = 0.03, folds = 7, seed = 3 } = {}) {
+  const nu = 28, nv = 36;
+  const span = w + 2 * drop, lenSpan = L + drop;
+  const pos = [], uv = [], idx = [];
+  for (let j = 0; j <= nv; j++) for (let i = 0; i <= nu; i++) {
+    const u = (i / nu) * span - span / 2, v = (j / nv) * lenSpan - L / 2;
+    let x = u, y = 0, z = Math.min(v, L / 2);
+    // fold over the sides
+    if (Math.abs(u) > w / 2) { const k = Math.abs(u) - w / 2; x = Math.sign(u) * (w / 2 + 0.01 + k * 0.08); y = -k; }
+    // fold over the foot
+    if (v > L / 2) { const k = v - L / 2; z = L / 2 + 0.01 + k * 0.08; y = Math.min(y, -k); }
+    // folds: soft ripples, stronger where the cloth hangs
+    const hang = Math.min(1, -y / drop + 0.15);
+    const rip = Math.sin(v * folds * 1.3 + seed) * 0.012 + Math.sin(u * folds * 0.9 + v * 3 + seed * 2) * 0.008;
+    y += rip * (0.3 + hang);
+    if (Math.abs(u) > w / 2) x += Math.sign(u) * Math.sin(v * folds * 2 + seed) * 0.015 * hang;
+    pos.push(x, y + thick, z);
+    uv.push(u * 1.2, v * 1.2);
+  }
+  for (let j = 0; j < nv; j++) for (let i = 0; i < nu; i++) { const a = j * (nu + 1) + i, b2 = a + 1, c = a + nu + 1, d = c + 1; idx.push(a, c, b2, b2, c, d); }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.setIndex(idx); g.computeVertexNormals();
+  return nonIdx(g);
+}
+
+// lathe helper from [radius, y] pairs
+export function lathe(pairs, seg = 16) { return nonIdx(new THREE.LatheGeometry(pairs.map(([r, y]) => new THREE.Vector2(Math.max(0.0005, r), y)), seg)); }

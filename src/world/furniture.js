@@ -1,7 +1,7 @@
 // Furniture builders. Each works in a local frame whose origin is the centre of
 // the footprint on the floor with the front facing local +z.
 import * as THREE from 'three';
-import { turnedLeg, bentRail } from '../gfx/shapes.js';
+import { turnedLeg, bentRail, shakerGeo, barPull, knobGeo, castorGeo, drapeGeo, lathe } from '../gfx/shapes.js';
 import { G } from '../core/globals.js';
 import { M } from '../gfx/materials.js';
 import { Door, Drawer, Button } from './interactables.js';
@@ -41,15 +41,18 @@ export function frontDoor(b, x, y0, z, w, h, mat, side = 'L', o = {}) {
     mat, kind: o.kind || 'cabinet', label: o.label || 'cabinet', knob: false, locked: o.locked,
     soundOpen: o.soundOpen, soundClose: o.soundClose,
     buildPanel: (panel, d) => {
-      const g = boxGeo(w - 0.004, h - 0.004, t, 1);
-      remapFront(g);
-      const m = new THREE.Mesh(g, mat);
+      // fridge doors are rounded enamel slabs; everything else is a Shaker door
+      const fridgeDoor = (o.kind || '') === 'fridge';
+      const g = fridgeDoor ? roundedBox(w - 0.004, h - 0.004, t, 0.03) : shakerGeo(w - 0.004, h - 0.004, t, Math.min(0.07, w * 0.16));
+      const m = new THREE.Mesh(g, fridgeDoor ? mat : (mat === M.cabinetDoor ? M.cabinet : mat));
       m.position.set(w / 2, h / 2, 0);
       m.castShadow = true; m.receiveShadow = true;
       panel.add(m);
       if (o.handle !== false) {
-        const hm = new THREE.Mesh(boxGeo(0.012, o.handleLen ?? 0.1, 0.022), o.handleMat || M.chrome);
-        hm.position.set(w - 0.04, o.handleY ?? (h - 0.09), t / 2 + 0.012);
+        const len = o.handleLen ?? 0.1;
+        const hm = new THREE.Mesh(barPull(fridgeDoor ? len : Math.max(0.08, len), fridgeDoor ? 0.009 : 0.005), o.handleMat || M.chrome);
+        hm.rotation.z = Math.PI / 2;
+        hm.position.set(w - (fridgeDoor ? 0.05 : 0.035), o.handleY ?? (h - 0.09), t / 2);
         panel.add(hm);
       }
       if (o.decorate) o.decorate(panel, d);
@@ -127,7 +130,8 @@ export function baseCabinetRun(b, x, z, ry, len, o = {}) {
       b.box(mx, by + 0.09, sd / 2 - 0.01, sw - 0.02, 0.18, 0.01, M.steel);
       b.geo(cylGeo(0.025, 0.004, 10), M.black, { x: mx, y: by + 0.006, z: 0 });
     } else {
-      b.box(mx, h + ctop / 2, 0.01, m.w, ctop, d + 0.03, M.counter);
+      b.geo(roundedBox(m.w, ctop, d + 0.03, 0.012), M.counter, { x: mx, y: h + ctop / 2, z: 0.01 });
+      b.collider(mx, h + ctop / 2, 0.01, m.w, ctop, d + 0.03);
     }
     cx += m.w;
   }
@@ -141,13 +145,12 @@ export function drawerBox(b, w, h, d, mat) {
   const g = new THREE.Group();
   const t = 0.012;
   const add = (geo, m, x, y, z) => { const mesh = new THREE.Mesh(geo, m); mesh.position.set(x, y, z); mesh.castShadow = true; mesh.receiveShadow = true; g.add(mesh); };
-  const fg = boxGeo(w, h, 0.02, 1); remapFront(fg);
-  add(fg, mat, 0, 0, d / 2);
+  add(shakerGeo(w, h, 0.02, Math.min(0.05, h * 0.22)), mat === M.cabinetDoor ? M.cabinet : mat, 0, 0, d / 2);
   add(boxGeo(w - 0.04, t, d - 0.02, 0.5), mat, 0, -h / 2 + t, 0);
   add(boxGeo(t, h * 0.7, d - 0.02, 0.5), mat, -w / 2 + 0.03, -h * 0.15, 0);
   add(boxGeo(t, h * 0.7, d - 0.02, 0.5), mat, w / 2 - 0.03, -h * 0.15, 0);
   add(boxGeo(w - 0.04, h * 0.7, t, 0.5), mat, 0, -h * 0.15, -d / 2 + 0.01);
-  add(boxGeo(0.12, 0.014, 0.02), M.chrome, 0, h * 0.2, d / 2 + 0.018);
+  add(barPull(Math.min(0.14, w * 0.4), 0.005), M.chrome, 0, h * 0.15, d / 2 + 0.01);
   return g;
 }
 
@@ -183,6 +186,11 @@ export function fridge(b, x, z, ry) {
   b.box(0, h - t / 2, 0, w - 2 * t, t, d, M.enamel);
   const split = 1.28;
   b.box(0, split, 0, w - 2 * t, 0.05, d - 0.02, M.enamel);
+  // the rounded '90s cabinet: soft corners, a kick grille, a top cap
+  for (const sx of [-1, 1]) b.geo(roundedBox(0.05, h, d, 0.022), M.enamel, { x: sx * (w / 2 - 0.022), y: h / 2, z: 0, cast: true });
+  b.geo(roundedBox(w, 0.05, d, 0.022), M.enamel, { x: 0, y: h - 0.022, z: 0 });
+  b.box(0, 0.05, d / 2 - 0.01, w - 0.08, 0.07, 0.012, M.plasticDark, { collide: false });
+  for (let i = 0; i < 9; i++) b.box(-w / 2 + 0.08 + i * 0.07, 0.05, d / 2 - 0.004, 0.035, 0.05, 0.004, M.black, { collide: false });
   // interior shelves (white plastic / wire)
   for (const sy of [0.52, 0.86]) b.box(0, sy, -0.02, w - 2 * t, 0.012, d - 0.12, M.porcelain);
   b.box(0, 0.2, 0.02, w - 2 * t - 0.02, 0.2, d - 0.16, M.porcelain, { collide: false }); // crisper
@@ -231,49 +239,53 @@ export function fridge(b, x, z, ry) {
 export function stove(b, x, z, ry) {
   b.beginFrame(x, 0, z, ry);
   const w = 0.76, d = 0.64, h = 0.9;
-  b.box(0, h / 2, 0, w, h, d, M.enamelYellow);
-  b.box(0, h + 0.01, 0, w, 0.02, d, M.black);
-  // backguard with knobs
-  b.box(0, h + 0.1, -d / 2 + 0.04, w, 0.2, 0.06, M.enamelYellow);
-  // oven door window
-  b.box(0, 0.42, d / 2 + 0.004, w - 0.12, 0.3, 0.01, M.blackGloss, { collide: false });
-  b.box(0, 0.66, d / 2 + 0.03, w - 0.2, 0.025, 0.025, M.chrome, { collide: false });
+  // enamel body with softened edges, a recessed cooktop, an oven door with a window
+  b.geo(roundedBox(w, h - 0.04, d, 0.02), M.enamelYellow, { x: 0, y: (h - 0.04) / 2, z: 0 });
+  b.collider(0, h / 2, 0, w, h, d);
+  b.geo(roundedBox(w - 0.02, 0.025, d - 0.02, 0.008), M.black, { x: 0, y: h - 0.01, z: 0 });
+  b.box(0, 0.05, d / 2 + 0.002, w - 0.06, 0.08, 0.01, M.black, { collide: false });             // drawer kick
+  b.geo(roundedBox(w - 0.06, 0.5, 0.03, 0.012), M.enamelYellow, { x: 0, y: 0.38, z: d / 2 + 0.012 }); // oven door
+  b.geo(roundedBox(w - 0.22, 0.24, 0.012, 0.01), M.blackGloss, { x: 0, y: 0.4, z: d / 2 + 0.03 });     // window
+  b.geo(barPull(w - 0.24, 0.01), M.chrome, { x: 0, y: 0.6, z: d / 2 + 0.024 });
+  // backguard with a clock panel
+  b.geo(roundedBox(w, 0.2, 0.07, 0.015), M.enamelYellow, { x: 0, y: h + 0.1, z: -d / 2 + 0.04 });
+  b.box(0, h + 0.13, -d / 2 + 0.077, 0.14, 0.07, 0.006, M.blackGloss, { collide: false });
   const burners = [];
   const pos = [[-0.19, -0.13], [0.19, -0.13], [-0.19, 0.14], [0.19, 0.14]];
   for (let i = 0; i < 4; i++) {
     const [bx, bz] = pos[i];
-    b.geo(cylGeo(0.085, 0.012, 14), M.steel, { x: bx, y: h + 0.026, z: bz });
-    b.geo(cylGeo(0.045, 0.02, 10), M.black, { x: bx, y: h + 0.03, z: bz });
-    // grate bars
-    b.box(bx, h + 0.045, bz, 0.2, 0.012, 0.014, M.black, { collide: false });
-    b.box(bx, h + 0.045, bz, 0.014, 0.012, 0.2, M.black, { collide: false });
+    // drip pan, burner cap, and a cast-iron grate with four fingers
+    b.geo(lathe([[0.001, 0], [0.09, 0], [0.095, 0.012], [0.07, 0.004], [0.001, 0.004]], 18), M.steel, { x: bx, y: h + 0.003, z: bz });
+    b.geo(lathe([[0.001, 0], [0.045, 0], [0.048, 0.012], [0.035, 0.022], [0.001, 0.024]], 14), M.black, { x: bx, y: h + 0.006, z: bz });
+    for (let k = 0; k < 4; k++) {
+      const a = (k / 4) * Math.PI * 2 + Math.PI / 4;
+      b.geo(roundedBox(0.11, 0.012, 0.014, 0.004), M.black, { x: bx + Math.cos(a) * 0.06, y: h + 0.045, z: bz + Math.sin(a) * 0.06, ry: -a, cast: false });
+    }
+    b.geo(new THREE.TorusGeometry(0.1, 0.007, 4, 16), M.black, { x: bx, y: h + 0.04, z: bz, rx: Math.PI / 2, cast: false });
     const center = wpos(b, bx, h + 0.052, bz);
-    // flame ring (emissive) - hidden until lit
     const flameMat = new THREE.MeshBasicMaterial({ color: 0x4a7dff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false });
     const flame = new THREE.Mesh(new THREE.TorusGeometry(0.05, 0.012, 6, 18), flameMat);
     flame.rotation.x = Math.PI / 2; flame.position.copy(center).add(new THREE.Vector3(0, -0.012, 0));
     G.world.root.add(flame);
     burners.push({ center, on: false, flame, flameMat, heat: 0, i });
   }
-  b.box(0, h + 0.046, 0, 0.02, 0.012, d - 0.1, M.black);
   // knobs as buttons
   const knobs = [];
   for (let i = 0; i < 4; i++) {
     const kx = -0.27 + i * 0.18;
-    const kp = wpos(b, kx, h + 0.12, -d / 2 + 0.075);
-    const km = new THREE.Mesh(cylGeo(0.022, 0.025, 10), M.plasticDark);
-    km.rotation.x = Math.PI / 2; km.rotation.z = 0;
+    const kp = wpos(b, kx, h + 0.08, -d / 2 + 0.075);
+    const km = new THREE.Mesh(knobGeo(0.02), M.plasticDark);
     const grp = new THREE.Group(); grp.position.copy(kp); grp.rotation.y = worldYaw(b);
     grp.add(km);
-    const tick = new THREE.Mesh(boxGeo(0.004, 0.018, 0.004), M.paperWhite); tick.position.set(0, 0.012, 0.014); grp.add(tick);
+    const tick = new THREE.Mesh(boxGeo(0.004, 0.016, 0.004), M.paperWhite); tick.position.set(0, 0.01, 0.038); grp.add(tick);
     G.world.root.add(grp);
     const burner = burners[[2, 0, 1, 3][i]];
     const btn = new Button(grp, {
       name: 'knob', label: () => (burner.on ? 'Turn burner off' : 'Turn burner on'),
       onUse: () => {
         burner.on = !burner.on;
-        km.rotation.y = burner.on ? -1.2 : 0;
-        tick.position.set(burner.on ? -0.011 : 0, burner.on ? 0.006 : 0.012, 0.014);
+        km.rotation.z = burner.on ? -1.2 : 0;
+        tick.position.set(burner.on ? -0.009 : 0, burner.on ? 0.005 : 0.01, 0.038);
         sfx(burner.on ? 'stoveIgnite' : 'switch', { pos: burner.center, vol: 0.6 });
       },
     });
@@ -285,12 +297,15 @@ export function stove(b, x, z, ry) {
 
 export function rangeHood(b, x, z, ry) {
   b.beginFrame(x, 0, z, ry);
-  b.box(0, 1.62, -0.12, 0.76, 0.16, 0.48, M.enamelYellow);
-  b.box(0, 1.9, -0.2, 0.3, 0.4, 0.3, M.enamelYellow);
+  // a tapered canopy and its flue
+  const g = new THREE.CylinderGeometry(0.28, 0.54, 0.22, 4, 1); g.rotateY(Math.PI / 4); g.scale(1, 1, 0.62);
+  b.geo(g, M.enamelYellow, { x: 0, y: 1.66, z: -0.12 });
+  b.geo(roundedBox(0.78, 0.04, 0.5, 0.01), M.enamelYellow, { x: 0, y: 1.54, z: -0.12 });
+  b.box(0, 1.52, -0.08, 0.6, 0.006, 0.34, M.steel, { collide: false });
+  b.geo(roundedBox(0.3, 0.34, 0.26, 0.02), M.enamelYellow, { x: 0, y: 1.94, z: -0.2 });
   b.endFrame();
 }
 
-// ------------------------------------------------------------------ living
 export function couch(b, x, z, ry, o = {}) {
   b.beginFrame(x, 0, z, ry);
   const w = o.w ?? 2.0, d = 0.9;
@@ -386,16 +401,36 @@ export function radiator(b, x, z, ry, w = 0.9) {
 export function bed(b, x, z, ry, o = {}) {
   b.beginFrame(x, 0, z, ry);
   const w = 1.4, L = 2.0;
-  // frame on tall legs: a cat fits underneath
-  b.box(0, 0.27, 0, w, 0.12, L, M.woodDark, { collide: false });
-  for (const sx of [-1, 1]) for (const sz of [-1, 1]) b.box(sx * (w / 2 - 0.04), 0.105, sz * (L / 2 - 0.04), 0.06, 0.21, 0.06, M.woodDark, { collide: false });
-  b.box(0, 0.6, -L / 2 - 0.03, w + 0.06, 1.2, 0.05, M.woodDark);
-  b.box(0, 0.38, L / 2 + 0.02, w + 0.04, 0.34, 0.04, M.woodDark);
-  // mattress
-  b.geo(roundedBox(w - 0.06, 0.22, L - 0.06, 0.05), M.bedsheet, { x: 0, y: 0.44, z: 0 });
-  // pillows
-  b.geo(roundedBox(0.58, 0.12, 0.38, 0.05), M.bedsheet, { x: -0.33, y: 0.61, z: -L / 2 + 0.28, rx: 0.15 });
-  b.geo(roundedBox(0.58, 0.12, 0.38, 0.05), M.bedsheet, { x: 0.33, y: 0.61, z: -L / 2 + 0.3, rx: 0.12, ry: -0.05 });
+  const wood = M.woodDark;
+  // side rails and slats on tall legs: a cat fits underneath
+  for (const sx of [-1, 1]) b.geo(roundedBox(0.05, 0.14, L, 0.012), wood, { x: sx * (w / 2 - 0.025), y: 0.28, z: 0, cast: true });
+  b.box(0, 0.32, 0, w - 0.1, 0.02, L - 0.06, wood, { collide: false });
+  // posts: turned, taller at the head
+  for (const sx of [-1, 1]) {
+    b.geo(turnedLeg(1.12, 0.03), wood, { x: sx * (w / 2), y: 0, z: -L / 2 - 0.02 });
+    b.geo(turnedLeg(0.62, 0.028), wood, { x: sx * (w / 2), y: 0, z: L / 2 + 0.02 });
+    b.geo(new THREE.SphereGeometry(0.04, 10, 8), wood, { x: sx * (w / 2), y: 1.14, z: -L / 2 - 0.02 });
+    b.geo(new THREE.SphereGeometry(0.036, 10, 8), wood, { x: sx * (w / 2), y: 0.64, z: L / 2 + 0.02 });
+  }
+  // headboard: top rail, bottom rail, spindles between
+  b.geo(roundedBox(w - 0.04, 0.09, 0.05, 0.02), wood, { x: 0, y: 1.0, z: -L / 2 - 0.02 });
+  b.geo(roundedBox(w - 0.04, 0.07, 0.04, 0.015), wood, { x: 0, y: 0.6, z: -L / 2 - 0.02 });
+  for (let i = 0; i < 9; i++) b.geo(cylGeo(0.012, 0.33, 6), wood, { x: -w / 2 + 0.14 + i * ((w - 0.28) / 8), y: 0.79, z: -L / 2 - 0.02 });
+  // footboard panel
+  b.geo(roundedBox(w - 0.04, 0.07, 0.04, 0.015), wood, { x: 0, y: 0.56, z: L / 2 + 0.02 });
+  b.geo(roundedBox(w - 0.06, 0.2, 0.025, 0.008), wood, { x: 0, y: 0.42, z: L / 2 + 0.02 });
+  b.collider(0, 0.6, -L / 2 - 0.02, w + 0.06, 1.2, 0.06);
+  b.collider(0, 0.33, L / 2 + 0.02, w + 0.04, 0.66, 0.05);
+  // mattress, a quilt that hangs over the edges, pillows with dents
+  b.geo(roundedBox(w - 0.06, 0.22, L - 0.06, 0.06), M.bedsheet, { x: 0, y: 0.44, z: 0 });
+  b.geo(drapeGeo(w - 0.04, L - 0.5, 0.2, { seed: 5 }), M.quilt, { x: 0, y: 0.55, z: 0.22 });
+  for (const [px, pz, rx, ryy] of [[-0.33, -L / 2 + 0.28, 0.15, 0.04], [0.33, -L / 2 + 0.3, 0.12, -0.06]]) {
+    const pg = roundedBox(0.58, 0.13, 0.38, 0.06);
+    const pp = pg.attributes.position;
+    for (let k = 0; k < pp.count; k++) { const yy = pp.getY(k); if (yy > 0.03) pp.setY(k, yy - 0.035 * Math.exp(-((pp.getX(k)) ** 2 + (pp.getZ(k)) ** 2) / 0.02)); }
+    pg.computeVertexNormals();
+    b.geo(pg, M.bedsheet, { x: px, y: 0.61, z: pz, rx, ry: ryy });
+  }
   b.collider(0, 0.39, 0, w, 0.36, L);
   b.collider(0, 0.1, 0, w, 0.2, L * 0.8);
   b.endFrame();
@@ -405,13 +440,20 @@ export function bed(b, x, z, ry, o = {}) {
 export function nightstand(b, x, z, ry) {
   b.beginFrame(x, 0, z, ry);
   const w = 0.45, d = 0.4, h = 0.56;
-  carcass(b, w, h, d, 0, M.woodLight, { shelves: 0, kick: 0.04 });
-  const grp = drawerBox(b, w - 0.04, 0.16, d - 0.05, M.woodLight);
-  grp.position.copy(wpos(b, 0, h - 0.11, 0.025)); grp.rotation.y = worldYaw(b);
+  const wood = M.woodLight;
+  // a top with an overhang, a box on tapered legs, an open shelf, one drawer
+  b.geo(roundedBox(w + 0.03, 0.025, d + 0.02, 0.01), wood, { x: 0, y: h - 0.012, z: 0 });
+  for (const sx of [-1, 1]) b.geo(roundedBox(0.018, 0.3, d - 0.02, 0.005), wood, { x: sx * (w / 2 - 0.009), y: h - 0.17, z: 0 });
+  b.box(0, h - 0.32, 0, w - 0.03, 0.016, d - 0.03, wood);
+  b.box(0, h - 0.17, -d / 2 + 0.01, w - 0.03, 0.3, 0.01, wood, { collide: false });
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) b.geo(lathe([[0.016, 0], [0.012, 0.02], [0.018, 0.24], [0.02, 0.26]], 8), wood, { x: sx * (w / 2 - 0.03), y: 0, z: sz * (d / 2 - 0.03) });
+  b.box(0, 0.14, 0, w - 0.06, 0.014, d - 0.06, wood);
+  b.collider(0, h / 2, 0, w, h, d);
+  const grp = drawerBox(b, w - 0.04, 0.14, d - 0.05, wood);
+  grp.position.copy(wpos(b, 0, h - 0.1, 0.025)); grp.rotation.y = worldYaw(b);
   G.world.root.add(grp);
   const yaw = worldYaw(b);
-  const dr = new Drawer({ group: grp, axis: new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)), max: 0.3, size: [w - 0.04, 0.16, d - 0.05], label: 'drawer' });
-  b.box(0, 0.25, d / 2 - 0.01, w - 0.04, 0.3, 0.015, M.woodLight, { collide: false });
+  const dr = new Drawer({ group: grp, axis: new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)), max: 0.3, size: [w - 0.04, 0.14, d - 0.05], label: 'drawer' });
   b.endFrame();
   return { top: wpos(b, 0, h, 0), drawer: dr, drawerInside: grp };
 }
@@ -425,6 +467,9 @@ export function wardrobe(b, x, z, ry) {
   b.box(0, h / 2, -d / 2 + t / 2, w, h, t, M.woodDark);
   b.box(0, h - t / 2, 0, w, t, d, M.woodDark);
   b.box(0, 0.04, 0, w, 0.08, d, M.woodDark);
+  b.geo(roundedBox(w + 0.06, 0.05, d + 0.04, 0.012), M.woodDark, { x: 0, y: h + 0.02, z: 0.01 });
+  b.geo(roundedBox(w + 0.03, 0.03, d + 0.02, 0.008), M.woodDark, { x: 0, y: h - 0.01, z: 0.005 });
+  b.geo(roundedBox(w + 0.02, 0.09, d + 0.02, 0.01), M.woodDark, { x: 0, y: 0.045, z: 0.005 });
   b.box(0, h - 0.2, -0.02, w - 0.06, 0.02, d - 0.08, M.woodDark);
   b.geo(cylGeo(0.012, w - 0.06, 8), M.chrome, { x: 0, y: h - 0.32, z: 0, rz: Math.PI / 2 });
   // clothes hanging (simple slabs)
@@ -443,8 +488,10 @@ export function wardrobe(b, x, z, ry) {
 export function desk(b, x, z, ry) {
   b.beginFrame(x, 0, z, ry);
   const w = 1.3, d = 0.72, h = 0.74;
-  b.box(0, h - 0.015, 0, w, 0.03, d, M.woodTable);
-  b.box(-w / 2 + 0.02, (h - 0.03) / 2, 0, 0.03, h - 0.03, d - 0.02, M.woodTable);
+  b.geo(roundedBox(w, 0.032, d, 0.012), M.woodTable, { x: 0, y: h - 0.016, z: 0 });
+  b.collider(0, h - 0.016, 0, w, 0.032, d);
+  for (const sz of [-1, 1]) { b.geo(turnedLeg(h - 0.03, 0.022), M.woodTable, { x: -w / 2 + 0.05, y: 0, z: sz * (d / 2 - 0.05) }); b.collider(-w / 2 + 0.05, (h - 0.03) / 2, sz * (d / 2 - 0.05), 0.05, h - 0.03, 0.05); }
+  b.geo(roundedBox(0.03, 0.07, d - 0.12, 0.008), M.woodTable, { x: -w / 2 + 0.05, y: h - 0.07, z: 0 });
   carcass(b, 0.42, h - 0.03, d - 0.02, 0, M.woodTable, { shelves: 0, top: false });
   b.box(-0.1, h - 0.25, -d / 2 + 0.02, w - 0.5, 0.4, 0.015, M.woodTable, { collide: false });
   const drawers = [];
@@ -483,21 +530,35 @@ export function officeChair(b, x, z, ry) {
   b.beginFrame(x, 0, z, ry);
   for (let i = 0; i < 5; i++) {
     const a = (i / 5) * Math.PI * 2;
-    b.geo(boxGeo(0.3, 0.025, 0.04), M.plasticDark, { x: Math.cos(a) * 0.15, y: 0.06, z: Math.sin(a) * 0.15, ry: -a, cast: false });
-    b.geo(new THREE.SphereGeometry(0.025, 6, 4), M.plasticDark, { x: Math.cos(a) * 0.3, y: 0.025, z: Math.sin(a) * 0.3 });
+    const leg = new THREE.CylinderGeometry(0.012, 0.022, 0.3, 4, 1); leg.rotateZ(Math.PI / 2); leg.scale(1, 1.4, 1.8);
+    b.geo(leg, M.plasticDark, { x: Math.cos(a) * 0.15, y: 0.07, z: Math.sin(a) * 0.15, ry: -a, cast: false });
+    b.geo(castorGeo(), M.plasticDark, { x: Math.cos(a) * 0.29, y: 0, z: Math.sin(a) * 0.29, ry: -a + 0.6, cast: false });
   }
-  b.geo(cylGeo(0.025, 0.36, 8), M.chrome, { x: 0, y: 0.24, z: 0 });
-  b.geo(roundedBox(0.48, 0.08, 0.46, 0.03), M.couchFabric, { x: 0, y: 0.46, z: 0 });
-  b.geo(roundedBox(0.44, 0.5, 0.07, 0.03), M.couchFabric, { x: 0, y: 0.82, z: -0.24, rx: -0.12 });
+  b.geo(lathe([[0.04, 0.06], [0.05, 0.1], [0.028, 0.12], [0.028, 0.3], [0.032, 0.36], [0.03, 0.4]], 10), M.chrome, { x: 0, y: 0, z: 0 });
+  b.geo(roundedBox(0.2, 0.04, 0.2, 0.01), M.plasticDark, { x: 0, y: 0.4, z: 0 });
+  // contoured seat cushion and a curved, padded back
+  const seat = roundedBox(0.5, 0.08, 0.48, 0.035); { const p = seat.attributes.position; for (let k = 0; k < p.count; k++) { const yy = p.getY(k); if (yy > 0.02) p.setY(k, yy - 0.015 * (1 - (p.getX(k) / 0.25) ** 2) * (1 - (p.getZ(k) / 0.24) ** 2)); } seat.computeVertexNormals(); }
+  b.geo(seat, M.couchFabric, { x: 0, y: 0.46, z: 0 });
+  const back = roundedBox(0.44, 0.52, 0.07, 0.03); { const p = back.attributes.position; for (let k = 0; k < p.count; k++) p.setZ(k, p.getZ(k) + 0.05 * (p.getX(k) / 0.22) ** 2); back.computeVertexNormals(); }
+  b.geo(back, M.couchFabric, { x: 0, y: 0.86, z: -0.25, rx: -0.12 });
+  b.geo(roundedBox(0.06, 0.34, 0.03, 0.01), M.plasticDark, { x: 0, y: 0.6, z: -0.27, rx: -0.1 });
+  for (const sx of [-1, 1]) {
+    b.geo(roundedBox(0.03, 0.2, 0.03, 0.008), M.plasticDark, { x: sx * 0.24, y: 0.58, z: -0.02 });
+    b.geo(roundedBox(0.06, 0.03, 0.26, 0.012), M.plasticDark, { x: sx * 0.24, y: 0.69, z: 0.0 });
+  }
   b.collider(0, 0.3, 0, 0.5, 0.6, 0.5);
   b.endFrame();
 }
 
 export function tvStand(b, x, z, ry) {
   b.beginFrame(x, 0, z, ry);
-  carcass(b, 1.0, 0.52, 0.45, 0, M.woodDark, { shelves: 1, kick: 0.04 });
+  const w = 1.0, h = 0.52, d = 0.45;
+  carcass(b, w, h - 0.03, d, 0.06, M.woodDark, { shelves: 1, top: false });
+  b.geo(roundedBox(w + 0.03, 0.03, d + 0.02, 0.01), M.woodDark, { x: 0, y: h - 0.015, z: 0 });
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) b.geo(lathe([[0.02, 0], [0.016, 0.03], [0.024, 0.06]], 8), M.woodDark, { x: sx * (w / 2 - 0.04), y: 0, z: sz * (d / 2 - 0.04) });
+  b.collider(0, h / 2, 0, w, h, d);
   b.endFrame();
-  return { top: wpos(b, 0, 0.52, 0) };
+  return { top: wpos(b, 0, h, 0) };
 }
 
 export function bathtub(b, x, z, ry) {
@@ -509,6 +570,10 @@ export function bathtub(b, x, z, ry) {
   b.box(0, h / 2, -L / 2 + t / 2, w - 2 * t, h, t, M.porcelain);
   b.box(0, h / 2, L / 2 - t / 2, w - 2 * t, h, t, M.porcelain);
   b.box(0, 0.12, 0, w - 2 * t, 0.04, L - 2 * t, M.porcelain);
+  // a rolled rim and a rounded apron
+  for (const sx of [-1, 1]) b.geo(cylGeo(0.04, L, 10), M.porcelain, { x: sx * (w / 2 - 0.03), y: h, z: 0, rx: Math.PI / 2, cast: false });
+  for (const sz of [-1, 1]) b.geo(cylGeo(0.04, w - 0.06, 10), M.porcelain, { x: 0, y: h, z: sz * (L / 2 - 0.03), rz: Math.PI / 2, cast: false });
+  b.geo(roundedBox(0.02, h - 0.06, L - 0.08, 0.01), M.porcelain, { x: w / 2 + 0.002, y: h / 2, z: 0, cast: false });
   b.geo(cylGeo(0.02, 0.15, 8), M.chrome, { x: 0, y: h + 0.25, z: -L / 2 + 0.06, rx: Math.PI / 2 - 0.3 });
   b.geo(cylGeo(0.035, 0.02, 10), M.chrome, { x: 0, y: h + 0.28, z: -L / 2 + 0.13, rx: -0.3 });
   b.geo(cylGeo(0.02, 0.012, 8), M.chrome, { x: -0.1, y: h + 0.12, z: -L / 2 + 0.01, rx: Math.PI / 2 });
@@ -519,12 +584,15 @@ export function bathtub(b, x, z, ry) {
 
 export function toilet(b, x, z, ry) {
   b.beginFrame(x, 0, z, ry);
-  b.geo(cylGeo(0.13, 0.36, 12, 0.18), M.porcelain, { x: 0, y: 0.18, z: 0.05 });
-  b.geo(new THREE.TorusGeometry(0.17, 0.035, 6, 16), M.porcelain, { x: 0, y: 0.4, z: 0.08, rx: Math.PI / 2 });
-  b.box(0, 0.6, -0.18, 0.42, 0.38, 0.17, M.porcelain);
-  b.box(0, 0.8, -0.18, 0.45, 0.03, 0.19, M.porcelain);
+  // a turned pedestal flaring into the bowl, a rolled seat and lid, the tank
+  b.geo(lathe([[0.12, 0], [0.13, 0.02], [0.1, 0.12], [0.11, 0.24], [0.17, 0.34], [0.19, 0.38], [0.001, 0.38]], 20), M.porcelain, { x: 0, y: 0, z: 0.06 });
+  const seat = new THREE.TorusGeometry(0.16, 0.028, 8, 24); seat.rotateX(Math.PI / 2); seat.scale(1, 0.55, 1.18);
+  b.geo(seat, M.porcelain, { x: 0, y: 0.4, z: 0.08 });
+  b.geo(roundedBox(0.36, 0.025, 0.42, 0.012), M.porcelain, { x: 0, y: 0.43, z: -0.06, rx: -1.35 });
+  b.geo(roundedBox(0.42, 0.36, 0.18, 0.03), M.porcelain, { x: 0, y: 0.6, z: -0.18 });
+  b.geo(roundedBox(0.45, 0.035, 0.2, 0.012), M.porcelain, { x: 0, y: 0.8, z: -0.18 });
   b.collider(0, 0.4, -0.05, 0.42, 0.8, 0.6);
-  const lever = new THREE.Mesh(boxGeo(0.06, 0.012, 0.012), M.chrome);
+  const lever = new THREE.Mesh(barPull(0.07, 0.005), M.chrome);
   lever.position.copy(wpos(b, -0.17, 0.72, -0.09)); lever.rotation.y = worldYaw(b);
   G.world.root.add(lever);
   new Button(lever, { name: 'flush', label: 'Flush', onUse: () => sfx('flush', { pos: lever.position, vol: 0.8 }) });
@@ -533,11 +601,13 @@ export function toilet(b, x, z, ry) {
 
 export function pedestalSink(b, x, z, ry) {
   b.beginFrame(x, 0, z, ry);
-  b.geo(cylGeo(0.07, 0.75, 10, 0.1), M.porcelain, { x: 0, y: 0.38, z: 0 });
-  b.geo(roundedBox(0.56, 0.16, 0.44, 0.06), M.porcelain, { x: 0, y: 0.82, z: 0.02 });
-  b.box(0, 0.905, 0.04, 0.4, 0.005, 0.28, M.steel, { collide: false });
-  b.geo(cylGeo(0.015, 0.16, 8), M.chrome, { x: 0, y: 0.98, z: -0.15 });
-  b.geo(cylGeo(0.012, 0.12, 8), M.chrome, { x: 0, y: 1.05, z: -0.1, rx: Math.PI / 2 });
+  b.geo(lathe([[0.13, 0], [0.12, 0.03], [0.07, 0.12], [0.06, 0.4], [0.08, 0.66], [0.14, 0.76]], 16), M.porcelain, { x: 0, y: 0, z: -0.02 });
+  b.geo(roundedBox(0.56, 0.16, 0.44, 0.07), M.porcelain, { x: 0, y: 0.82, z: 0.02 });
+  b.geo(lathe([[0.001, 0], [0.19, 0], [0.2, 0.012], [0.001, 0.012]], 20), M.steel, { x: 0, y: 0.9, z: 0.04, cast: false });
+  // a gooseneck spout and two cross taps
+  const spout = new THREE.TubeGeometry(new THREE.CatmullRomCurve3([new THREE.Vector3(0, 0.9, -0.15), new THREE.Vector3(0, 1.03, -0.14), new THREE.Vector3(0, 1.05, -0.08), new THREE.Vector3(0, 1.0, -0.04)]), 12, 0.011, 6);
+  b.geo(spout, M.chrome, {});
+  for (const sx of [-1, 1]) { b.geo(cylGeo(0.012, 0.05, 8), M.chrome, { x: sx * 0.11, y: 0.93, z: -0.15 }); b.geo(roundedBox(0.06, 0.01, 0.012, 0.004), M.chrome, { x: sx * 0.11, y: 0.96, z: -0.15 }); b.geo(roundedBox(0.012, 0.01, 0.06, 0.004), M.chrome, { x: sx * 0.11, y: 0.96, z: -0.15 }); }
   b.collider(0, 0.45, 0, 0.56, 0.9, 0.46);
   b.endFrame();
   return { basin: wpos(b, 0, 0.91, 0.04), tap: wpos(b, 0, 1.04, -0.04) };
@@ -545,7 +615,7 @@ export function pedestalSink(b, x, z, ry) {
 
 export function floorLamp(b, x, z) {
   b.beginFrame(x, 0, z, 0);
-  b.geo(cylGeo(0.14, 0.03, 12), M.plasticDark, { x: 0, y: 0.015, z: 0 });
+  b.geo(lathe([[0.15, 0], [0.15, 0.012], [0.11, 0.03], [0.03, 0.05], [0.018, 0.09]], 18), M.plasticDark, { x: 0, y: 0, z: 0 });
   b.geo(cylGeo(0.012, 1.5, 6), M.chrome, { x: 0, y: 0.76, z: 0 });
   b.collider(0, 0.8, 0, 0.2, 1.6, 0.2);
   b.endFrame();
