@@ -5,19 +5,23 @@
 //   x: -8.4 trash | -6.4 ........ hallway (z 7.92..9.62) ........ 19.4 | stairwell
 //        4A (-3.2)       4B (7.65)      4C (12.7)    4D (16.8)    north side
 //        4E (2.2)        [elevator 7.65] 4F (12.0)   4G (15.6)    south side
+//   The stairwell is a shaft (landing to 21.2, flights east to 24.5, up and
+//   down into the dark). Dressing, hardware and dirt live in hallDressing.js.
 import * as THREE from 'three';
 import { G, emit } from '../core/globals.js';
 import { M, std } from '../gfx/materials.js';
 import { Builder } from './builder.js';
 import * as F from './furniture.js';
 import { Door, Button } from './interactables.js';
-import { Fixture, glowMat } from './lights.js';
+import { Fixture } from './lights.js';
 import { L, labelMat } from './labels.js';
 import { spawn } from './items.js';
 import { boxGeo, cylGeo, roundedBox } from '../gfx/geo.js';
 import { clamp, damp, pick, smoothstep } from '../core/util.js';
 import * as T from '../gfx/textures.js';
 import { makeCanvas } from '../gfx/textures.js';
+import { softBox, barPull } from '../gfx/shapes.js';
+import * as HD from './hallDressing.js';
 
 const sfx = (n, o) => G.audio && G.audio.play(n, o);
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
@@ -27,11 +31,13 @@ export const BLD = {
   a4A: { x0: -6.3, z0: 0, x1: -0.14, z1: 7.6, h: 2.7 },
   a4C: { x0: 10.34, z0: 0, x1: 16.2, z1: 7.6, h: 2.7 },
   trash: { x0: -8.4, z0: 7.92, x1: -6.52, z1: 9.62, h: 2.6 },
-  stair: { x0: 19.52, z0: 7.3, x1: 22.8, z1: 10.6, h: 2.6 },
+  stair: { x0: 19.52, z0: 7.3, x1: 24.5, z1: 10.6, h: 2.6 },   // a shaft: flights run east to half landings
   car: { x0: 7.0, z0: 9.84, x1: 8.3, z1: 11.24, h: 2.4 },
 };
 const NDOORS = { '4A': [-3.6, -2.75], '4C': [12.3, 13.15], '4D': [16.4, 17.25] };
 const SDOORS = { '4E': [1.8, 2.65], '4F': [11.6, 12.45], '4G': [15.2, 16.05] };
+// wall runs between door casings
+const gaps = (a0, a1, holes) => { const out = []; let c = a0; for (const [x0, x1] of [...holes].sort((p, q) => p[0] - q[0])) { if (x0 - 0.07 > c) out.push([c, x0 - 0.07]); c = Math.max(c, x1 + 0.07); } if (c < a1) out.push([c, a1]); return out; };
 
 export class Building {
   constructor() {
@@ -50,15 +56,16 @@ export class Building {
     const D = (a, bb, y1 = 2.08) => ({ a, b: bb, y0: 0, y1, kind: 'door' });
     const W = (a, bb) => ({ a, b: bb, y0: 0.85, y1: 2.2, kind: 'open' });
     const h = BLD.hall;
-    b.floor(h, M.hallCarpet); b.ceiling(h, M.ceilingHall);
+    HD.hallFloor(b, h); b.ceiling(h, M.ceilingHall);
     b.wallSide(h, 'n', M.wallHall, [D(...NDOORS['4A']), D(7.2, 8.1, 2.1), D(...NDOORS['4C'])], { thick: 0.02, baseMat: M.trimWood, crownMat: M.trimWood });
     bS.wallSide(h, 's', M.wallHall, [D(7.15, 8.15, 2.12)], { thick: 0.2, baseMat: M.trimWood, crownMat: M.trimWood });
     b.wallSide(h, 'w', M.wallHall, [D(8.35, 9.2)], { thick: 0.12, baseMat: M.trimWood, crownMat: M.trimWood });
     b.wallSide(h, 'e', M.wallHall, [D(8.35, 9.2)], { thick: 0.12, baseMat: M.trimWood, crownMat: M.trimWood });
     // wainscot: dark panel below a chair rail on both long walls
     const wains = (bb, z, nz, segs) => { for (const [a0, a1] of segs) { const w = a1 - a0; bb.box((a0 + a1) / 2, 0.47, z + nz * 0.008, w, 0.86, 0.016, M.woodDark, { collide: false, cast: false }); bb.box((a0 + a1) / 2, 0.92, z + nz * 0.018, w, 0.05, 0.036, M.trimWood, { collide: false, cast: false }); } };
-    wains(b, h.z0, 1, [[h.x0, -3.67], [-2.68, 7.13], [8.17, 12.23], [13.22, h.x1]]);
-    wains(bS, h.z1, -1, [[h.x0, 7.08], [8.22, h.x1]]);
+    const segN = gaps(h.x0, h.x1, [NDOORS['4A'], [7.2, 8.1], NDOORS['4C'], NDOORS['4D']]), segS = gaps(h.x0, h.x1, [SDOORS['4E'], [7.15, 8.15], SDOORS['4F'], SDOORS['4G']]);
+    wains(b, h.z0, 1, segN); wains(bS, h.z1, -1, segS);
+    HD.wainscotDetail(b, h.z0, 1, segN); HD.wainscotDetail(bS, h.z1, -1, segS);
     this.doorFrames(b);
     this.hallDressing(b, bS);
     this.room4A(b);
@@ -117,20 +124,16 @@ export class Building {
   }
 
   hallDressing(b, bS) {
-    const h = BLD.hall;
-    // doormats in front of the lived-in doors
-    const mat = (x, z) => b.box(x, 0.006, z, 0.7, 0.012, 0.42, M.rug, { collide: false, cast: false });
-    mat(7.65, 8.2); mat(-3.17, 8.2); mat(12.72, 8.2); mat(2.22, 9.35); mat(12.02, 9.35);
-    // radiators, a fire extinguisher cabinet, a dead plant
+    const h = BLD.hall, zc = (h.z0 + h.z1) / 2;
     F.radiator(b, 4.4, h.z0 + 0.12, 0, 0.9);
-    F.radiator(b, 14.4, h.z1 - 0.12, Math.PI, 0.9);
-    b.box(10.2, 1.25, h.z1 - 0.07, 0.36, 0.6, 0.12, M.enamelRed || M.enamel, { collide: true });
-    b.box(10.2, 1.25, h.z1 - 0.135, 0.3, 0.5, 0.01, M.glassDirt, { collide: false, cast: false });
-    b.box(-5.6, 0.18, h.z0 + 0.25, 0.3, 0.36, 0.3, M.terracotta || M.brick, { collide: true });
+    F.radiator(bS, 14.4, h.z1 - 0.12, Math.PI, 0.9);
+    // doormats, wiring, fire gear, the leak, the chained door: see hallDressing.js
+    HD.hallDetails(this, b, bS, h);
     // notice board between 4A and 4B
     const board = new THREE.Group(); board.position.set(1.6, 1.45, h.z0 + 0.012); this.root.add(board);
     const cork = new THREE.Mesh(boxGeo(1.0, 0.7, 0.02), M.cardboard); board.add(cork);
     const frameM = new THREE.Mesh(boxGeo(1.06, 0.76, 0.012), M.woodDark); frameM.position.z = -0.006; board.add(frameM);
+    for (const [x, y, w, hh] of [[0, 0.37, 1.1, 0.04], [0, -0.37, 1.1, 0.04], [0.53, 0, 0.04, 0.7], [-0.53, 0, 0.04, 0.7]]) { const m = new THREE.Mesh(softBox(w, hh, 0.026, 0.006), M.trimWood); m.position.set(x, y, 0.004); board.add(m); }
     this.boardPapers = [];
     const papers = [
       ['trash', ['TRASH PICKUP', 'TUESDAY', 'NO BAGS IN HALL']],
@@ -138,11 +141,13 @@ export class Building {
       ['quiet', ['QUIET HOURS', '10PM - 7AM']],
       ['lost', ['LOST CAT', '"MOCHI" TABBY', 'CALL 555-0142']],
     ];
+    const pinGeo = new THREE.SphereGeometry(0.008, 8, 6), pinMat = HD.hdMats().red;
+    const pin = (m, y) => { const p = new THREE.Mesh(pinGeo, pinMat); p.position.set(0, y, 0.006); m.add(p); };
     papers.forEach(([k, lines], i) => {
       const m = new THREE.Mesh(new THREE.PlaneGeometry(0.26, 0.16), labelMat(L.sign('hb' + k, lines)));
       m.position.set(-0.32 + (i % 3) * 0.32 + (Math.random() - 0.5) * 0.04, 0.16 - Math.floor(i / 3) * 0.3, 0.012);
       m.rotation.z = (Math.random() - 0.5) * 0.12;
-      board.add(m); this.boardPapers.push(m);
+      board.add(m); this.boardPapers.push(m); pin(m, 0.065);
       m.userData.key = k;
     });
     this.lostPoster = this.boardPapers[3];
@@ -155,21 +160,19 @@ export class Building {
       c.fillStyle = '#ddd'; c.beginPath(); c.arc(w / 2, 92, 16, 0, Math.PI * 2); c.fill(); c.fillRect(w / 2 - 26, 108, 52, 28);
       c.fillStyle = '#111'; c.font = '10px Arial'; c.fillText('ALEX BENGRIM, APT 4B', w / 2, 150); c.fillText('MISSING SINCE JULY 1', w / 2, 164);
     })));
-    this.seenPoster.position.set(0.36, -0.12, 0.013); this.seenPoster.rotation.z = 0.05; board.add(this.seenPoster); this.seenPoster.visible = false;
-    // fluorescent ceiling panels
+    this.seenPoster.position.set(0.36, -0.12, 0.013); this.seenPoster.rotation.z = 0.05; board.add(this.seenPoster); this.seenPoster.visible = false; pin(this.seenPoster, 0.135);
+    // fluorescent ceiling fixtures: five live (two with a dead tube), two dead, one with its lens gone
     this.hallLights = [];
-    const fl = glowMat(0xf0fff0, 0xd8ffe0, 1.6);
+    const lens = ['half', 'ok', 'ok', 'ok', 'half'];
     [-4.6, 0.4, 5.4, 10.4, 15.4].forEach((x, i) => {
-      const panel = new THREE.Mesh(boxGeo(1.2, 0.04, 0.3), fl.clone()); panel.position.set(x, h.h - 0.02, (h.z0 + h.z1) / 2); this.root.add(panel);
-      panel.material.userData.emi = 1.6;
-      const f = new Fixture({ pos: V(x, h.h - 0.1, (h.z0 + h.z1) / 2), spot: true, angle: 1.35, penumbra: 1, intensity: 6, distance: 6.5, decay: 1.6, color: 0xe4f8e8, fill: 0, shadow: i === 2, shadowSize: 512, bulbMats: [panel.material], name: 'hall' + i, room: 'hall' });
+      HD.fluoroHousing(b, x, h.h, zc);
+      const lm = HD.lensMat(lens[i], 11 + i);
+      const panel = new THREE.Mesh(HD.lensGeo(), lm); panel.position.set(x, h.h - 0.053, zc); this.root.add(panel);
+      const f = new Fixture({ pos: V(x, h.h - 0.1, zc), spot: true, angle: 1.35, penumbra: 1, intensity: 6, distance: 6.5, decay: 1.6, color: 0xe4f8e8, fill: 0, shadow: i === 2, shadowSize: 512, bulbMats: [lm], name: 'hall' + i, room: 'hall' });
       f.flicker = i === 0 ? 0.35 : i === 4 ? 0.2 : 0;
       this.hallLights.push(f);
     });
-    // exit sign over the stairwell door
-    const ex = new THREE.Mesh(boxGeo(0.04, 0.16, 0.36), glowMat(0xff3020, 0xff2010, 2.2)); ex.position.set(19.37, 2.3, 8.78); this.root.add(ex);
-    const exT = new THREE.Mesh(new THREE.PlaneGeometry(0.32, 0.13), new THREE.MeshBasicMaterial({ map: L.sign('exit', ['EXIT'], '#ff3a20', '#fff0e0'), toneMapped: false }));
-    exT.position.set(19.345, 2.3, 8.78); exT.rotation.y = -Math.PI / 2; this.root.add(exT);
+    HD.fluoroHousing(b, -2.1, h.h, zc, 'dead'); HD.fluoroHousing(b, 12.9, h.h, zc, 'dead'); HD.fluoroHousing(b, 17.9, h.h, zc, 'open');
   }
 
   room4A(b) {
@@ -199,6 +202,7 @@ export class Building {
     this.figure = makeFigure();
     this.figure.position.set(this.chairPos.x, 0, this.chairPos.z); this.figure.rotation.y = Math.PI;
     this.figure.visible = false; this.root.add(this.figure);
+    HD.room4ADetails(this, b, r);
   }
 
   room4C(b) {
@@ -241,27 +245,27 @@ export class Building {
   }
 
   trashRoom(b) {
-    const r = BLD.trash;
+    const r = BLD.trash, mm = HD.hdMats();
     b.floor(r, M.concrete); b.ceiling(r, M.ceilingHall);
     for (const s of ['n', 's', 'w']) b.wallSide(r, s, M.wallEmpty, [], { thick: 0.12, baseMat: null });
-    // chute hatch on the west wall
+    // chute hopper on the west wall: a steel surround, a black throat, a door hinged at its foot
     const hatch = new THREE.Group(); hatch.position.set(r.x0 + 0.02, 1.0, 8.77); this.root.add(hatch);
-    const plate = new THREE.Mesh(boxGeo(0.04, 0.6, 0.7), M.steel); hatch.add(plate);
-    const door = new THREE.Mesh(boxGeo(0.03, 0.42, 0.5), M.rustMetal); door.position.x = 0.03; hatch.add(door);
-    const handle = new THREE.Mesh(boxGeo(0.04, 0.03, 0.22), M.chrome); handle.position.set(0.06, 0.15, 0); hatch.add(handle);
+    hatch.add(new THREE.Mesh(softBox(0.04, 0.62, 0.72, 0.012), mm.galv));
+    const throat = new THREE.Mesh(new THREE.PlaneGeometry(0.46, 0.38), new THREE.MeshBasicMaterial({ color: 0x000000 })); throat.position.x = 0.021; throat.rotation.y = Math.PI / 2; hatch.add(throat);
+    const door = new THREE.Group(); door.position.set(0.035, -0.21, 0); hatch.add(door);
+    const leaf = new THREE.Mesh(softBox(0.025, 0.42, 0.5, 0.008), mm.galv); leaf.position.y = 0.21; door.add(leaf);
+    const pull = new THREE.Mesh(barPull(0.22, 0.007), M.chrome); pull.rotation.y = Math.PI / 2; pull.position.set(0.0125, 0.36, 0); door.add(pull);
     this.chuteDoor = door;
     this.chuteBtn = new Button(hatch, {
       name: 'chute',
       label: () => { const hnd = G.player.inv.hand; return hnd && hnd.type === 'trashBag' ? 'Drop the trash bag down the chute' : 'Open the trash chute'; },
       onUse: () => this.useChute(),
     });
-    b.box(r.x0 + 0.02, 1.0, 8.77, 0.04, 0.6, 0.7, M.steel, { collide: true });
-    // old bags, a broken lamp, a sign
-    for (const [x, z, s] of [[-8.0, 9.3, 1], [-7.6, 9.4, 0.8], [-8.1, 8.2, 0.9]]) { const bag = new THREE.Mesh(new THREE.SphereGeometry(0.2 * s, 8, 6), M.blackGloss); bag.scale.y = 0.8; bag.position.set(x, 0.15 * s, z); bag.castShadow = true; this.root.add(bag); G.physics.addStaticBox(x, 0.15 * s, z, 0.16 * s, 0.15 * s, 0.16 * s); }
-    const sg = new THREE.Mesh(new THREE.PlaneGeometry(0.4, 0.2), labelMat(L.sign('chute', ['TRASH CHUTE', 'BAGS ONLY'])));
-    sg.position.set(r.x0 + 0.005, 1.55, 8.77); sg.rotation.y = Math.PI / 2; this.root.add(sg);
+    b.collider(r.x0 + 0.02, 1.0, 8.77, 0.04, 0.6, 0.7);
     this.trashBulb = F.bareBulb(V(-7.45, 2.3, 8.77), { intensity: 4, distance: 5, name: 'trash', room: 'trash', cord: 0.25 });
     this.trashBulb.flicker = 0.25;
+    // bags round the hopper, a stained mattress, a dropped ceiling with a hole in it
+    HD.trashDetails(this, b, r);
   }
   useChute() {
     const inv = G.player.inv;
@@ -285,31 +289,16 @@ export class Building {
   }
 
   stairwell(b) {
-    const r = BLD.stair;
-    b.floor({ x0: r.x0, z0: r.z0, x1: 21.2, z1: r.z1 }, M.concrete); b.ceiling(r, M.ceilingHall);
-    for (const s of ['n', 's', 'e']) b.wallSide(r, s, M.wallPaint, [], { thick: 0.12 });
-    // stairs going down into the dark, then a collapse of rubble
-    for (let i = 0; i < 9; i++) {
-      const y = -0.17 * (i + 1), x = 21.2 + i * 0.27;
-      b.box(x + 0.135, y - 0.1, 8.0, 0.27, 0.2 + 0.17, 1.2, M.concrete);
-    }
-    b.box(22.5, -1.6, 8.0, 0.6, 1.5, 1.3, M.concrete, { collide: true });
-    // stairs going up: chained gate
-    for (let i = 0; i < 6; i++) b.box(21.335 + i * 0.27, 0.085 + i * 0.17, 9.6, 0.27, 0.17 + i * 0.34, 1.0, M.concrete, { collide: true });
-    for (let i = 0; i < 9; i++) b.box(21.0, 0.6, 9.15 + i * 0.12, 0.02, 1.2, 0.02, M.steel, { collide: false });
-    b.collider(21.0, 0.6, 9.6, 0.05, 1.2, 1.1);
-    // railing
-    b.box(21.2, 0.95, 7.38, 3.4, 0.04, 0.04, M.steel, { collide: false });
-    b.collider(21.2, 0.5, 7.4, 0.05, 1.0, 0.05);
-    const tape = new THREE.Mesh(boxGeo(0.01, 0.06, 1.2), new THREE.MeshStandardMaterial({ color: 0xe8c020, roughness: 0.6 }));
-    tape.position.set(21.3, 0.9, 8.0); tape.rotation.x = 0.15; this.root.add(tape);
-    b.collider(21.35, 0.6, 8.0, 0.05, 1.2, 0.65);
-    const sg = new THREE.Mesh(new THREE.PlaneGeometry(0.4, 0.3), labelMat(L.sign('stair', ['FLOOR', '4'], '#2a4a8a', '#fff'))); sg.position.set(r.x1 - 0.005, 1.6, 8.9); sg.rotation.y = -Math.PI / 2; this.root.add(sg);
+    const r = BLD.stair, land = HD.STAIR.land;
+    b.floor({ x0: r.x0, z0: r.z0, x1: land, z1: r.z1 }, M.concrete); b.ceiling({ ...r, x1: land }, M.ceilingHall);
+    // flights up and down a shaft into the dark: see hallDressing.js
+    HD.stairDetails(this, b, r);
+    // the only ways on are shut: tape below, a locked gate above, a guard round the well
+    b.collider(21.35, 0.6, 8.0, 0.05, 1.2, 1.3);
+    b.collider(21.0, 0.6, 9.85, 0.05, 1.2, 1.55);
+    b.collider(land, 0.5, 8.85, 0.06, 1.0, 0.5);
     this.stairBulb = F.bareBulb(V(20.6, 2.3, 8.9), { intensity: 3, distance: 6, name: 'stair', room: 'stair', cord: 0.2 });
     this.stairBulb.dim = 0.7;
-    // a void below the stairs: just darkness
-    const pit = new THREE.Mesh(new THREE.PlaneGeometry(3, 1.4), new THREE.MeshBasicMaterial({ color: 0x000000 }));
-    pit.rotation.x = -Math.PI / 2; pit.position.set(22.2, -1.4, 8.0); this.root.add(pit);
   }
 
   // ------------------------------------------------------------- elevator
@@ -338,18 +327,18 @@ export class Building {
     bS.box(7.65, 2.32, 9.615, 0.3, 0.16, 0.01, M.black, { collide: false });
     // call button outside
     const cb = new THREE.Group(); cb.position.set(8.45, 1.15, 9.6); this.root.add(cb);
-    const cbp = new THREE.Mesh(boxGeo(0.1, 0.18, 0.015), M.chrome); cb.add(cbp);
+    HD.callPlate(cb);
     this.callLed = new THREE.MeshStandardMaterial({ color: 0x301000, emissive: 0xffa040, emissiveIntensity: 0 });
     const cbb = new THREE.Mesh(cylGeo(0.022, 0.012, 12), this.callLed); cbb.rotation.x = Math.PI / 2; cbb.position.z = -0.012; cb.add(cbb);
     const oos = new THREE.Mesh(new THREE.PlaneGeometry(0.34, 0.2), labelMat(L.sign('oos', ['OUT OF', 'ORDER'], '#f4f0d8', '#a01010')));
-    oos.position.set(7.65, 1.45, 9.69); oos.rotation.y = Math.PI; oos.rotation.z = 0.06; this.oosSign = oos; this.root.add(oos);
+    oos.position.set(0.06, 0.4, -0.0215); oos.rotation.y = Math.PI; oos.rotation.z = 0.06; this.oosSign = oos; this.elDoors[0].mesh.add(oos);   // taped to the left leaf
     this.callBtn = new Button(cb, { name: 'elevator', label: () => (this.el.state === 'idle' ? 'Call the elevator' : null), onUse: () => this.callElevator() });
     // inside panel: L 1 2 3 4
-    const panel = new THREE.Group(); panel.position.set(c.x1 - 0.035, 1.2, 10.15); panel.rotation.y = -Math.PI / 2; this.root.add(panel);
-    panel.add(new THREE.Mesh(boxGeo(0.16, 0.5, 0.012), M.chrome));
+    const panel = new THREE.Group(); panel.position.set(c.x1 - 0.012, 1.2, 10.15); panel.rotation.y = -Math.PI / 2; this.root.add(panel);
+    HD.carPanelExtras(panel);
     this.floorBtns = [];
     ['4', '3', '2', '1', 'L'].forEach((f, i) => {
-      const g = new THREE.Group(); g.position.set(0, 0.18 - i * 0.09, -0.01); panel.add(g);
+      const g = new THREE.Group(); g.position.set(0, 0.18 - i * 0.09, 0.008); panel.add(g);
       const led = new THREE.MeshStandardMaterial({ color: 0x302010, emissive: 0xffc060, emissiveIntensity: 0, map: L.sign('fb' + f, [f], '#d8d0b8', '#222') });
       const bm = new THREE.Mesh(cylGeo(0.026, 0.012, 14), led); bm.rotation.x = Math.PI / 2; g.add(bm);
       this.floorBtns.push({ f, led });
@@ -358,6 +347,7 @@ export class Building {
     this.carLight = F.ceilingFixture(V(7.65, c.h - 0.01, 10.55), { name: 'car', room: 'car', intensity: 3, distance: 3.5, fill: 0, r: 0.12, color: 0xfff0d0 });
     this.el = { state: 'idle', t: 0, open: 0, floor: 4, target: 4, shown: '4' };
     this.drawIndicator('4');
+    HD.elevatorDetails(this, b, bS, c);
   }
   drawIndicator(txt) {
     const { c, ctx } = this.indCv;
@@ -432,7 +422,7 @@ export class Building {
   // ------------------------------------------------------------- doors
   makeDoors() {
     const knob = M.chrome;
-    const plate = (n) => labelMat(L.aptNumber(n));
+    const plate = (n) => HD.plateMat(n);
     const mk = (key, o) => { const d = new Door({ mat: M.doorHall, knobMat: knob, thick: 0.05, height: 2.08, number: !!o.num, numberMat: o.num ? (this.plates[key] = plate(o.num)) : null, label: 'door', ...o }); this.doors[key] = d; d.key = key; return d; };
     const N = NDOORS, S = SDOORS;
     mk('4A', { hinge: V(N['4A'][0] + 0.01, 0, 7.76), width: 0.83, closedYaw: 0, openDir: 1, maxAngle: 1.6, num: '4A', angle: 0, locked: true, onLocked: () => this.knock('4A') });
@@ -440,7 +430,17 @@ export class Building {
     mk('4D', { hinge: V(N['4D'][0] + 0.01, 0, BLD.hall.z0 + 0.03), width: 0.83, closedYaw: 0, openDir: 1, num: '4D', locked: true, onLocked: () => this.knock('4D') });
     for (const k of Object.keys(S)) mk(k, { hinge: V(S[k][1] - 0.01, 0, BLD.hall.z1 - 0.03), width: 0.83, closedYaw: Math.PI, openDir: -1, num: k, locked: true, onLocked: () => this.knock(k) });
     mk('trash', { hinge: V(-6.46, 0, 8.36), width: 0.83, closedYaw: -Math.PI / 2, openDir: -1, maxAngle: 1.6, mat: M.doorPaint, label: 'trash room door' });
-    mk('stair', { hinge: V(19.46, 0, 8.36), width: 0.83, closedYaw: -Math.PI / 2, openDir: 1, maxAngle: 1.6, mat: M.steel, label: 'stairwell door' });
+    mk('stair', { hinge: V(19.46, 0, 8.36), width: 0.83, closedYaw: -Math.PI / 2, openDir: 1, maxAngle: 1.6, mat: M.steel, label: 'stairwell door', knob: false });
+    // brass plates, peepholes, deadbolts and kick plates; a fire door's push bar
+    for (const k of ['4A', '4C', '4D', '4E', '4F', '4G']) HD.doorKit(this.doors[k], { plate: true, peep: true, bolt: true, kick: true, inside: k === '4A' || k === '4C', wreath: k === '4E' });
+    HD.doorKit(this.doors.trash, { face: -1, kick: 'steel', metal: 'steel', scratches: [['scuffA', 0.42, 0.1, 0.5, 0.12]] });
+    HD.doorKit(this.doors.stair, { kick: 'steel', push: true, sign: ['firedoor', 0.26, 0.13, 1.55], scratches: [['scratchA', 0.3, 0.42, 0.26, 0.36, 0.1], ['scuffB', 0.4, 0.1, 0.5, 0.12]] });
+    // 4B's own door from the hall side: the same hardware, and low scratches on it
+    const fd = G.apartment && G.apartment.doors && G.apartment.doors.front;
+    if (fd) {
+      HD.doorKit(fd, { plate: true, peep: true, bolt: true, kick: true, scratches: [['scratchB', 0.3, 0.33, 0.14, 0.18, 0.12], ['scratchB', 0.5, 0.3, 0.12, 0.16, -0.18]] });
+      fd.panel.traverse((m) => { if (m.isMesh && m.geometry.type === 'PlaneGeometry') m.material = HD.plateMat('4B'); });
+    }
   }
   // knocking on neighbours' doors
   knock(key) {
@@ -467,7 +467,7 @@ export class Building {
     this.allFourB = all4B;
     for (const [k, d] of Object.entries(this.doors)) {
       if (!this.plates[k]) continue;
-      const m = all4B ? (this._p4B || (this._p4B = labelMat(L.aptNumber('4B')))) : this.plates[k];
+      const m = all4B ? HD.plateMat('4B') : this.plates[k];
       d.panel.traverse((o) => { if (o.isMesh && o.geometry.type === 'PlaneGeometry') o.material = m; });
     }
   }
@@ -501,6 +501,7 @@ export class Building {
   // ------------------------------------------------------------- per frame
   update(dt) {
     this.updateElevator(dt);
+    HD.updateDressing(this, dt);
     // 4A's bulb sways on its cord
     const sw = Math.sin(G.time * 0.9) * 0.05 + Math.sin(G.time * 0.37) * 0.03;
     const bp = V(-3.2 + sw, 2.2, 3.6 + Math.cos(G.time * 0.7) * 0.03);
