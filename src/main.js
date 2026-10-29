@@ -25,6 +25,7 @@ import { AudioEngine } from './audio/audio.js';
 import { Director } from './story/director.js';
 import { Ending } from './story/ending.js';
 import { Peace } from './story/peace.js';
+import { FridgeMenu } from './ui/fridge.js';
 import { Alien } from './creatures/alien.js';
 import { Mirror } from './gfx/mirror.js';
 import { Menu } from './ui/menu.js';
@@ -114,6 +115,7 @@ async function boot() {
   G.ending = new Ending();
   G.director = new Director();
   G.peace = new Peace();
+  G.fridgeMenu = new FridgeMenu();
   G.menu = new Menu();
   G.pause = new Pause();
   hookSounds();

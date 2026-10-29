@@ -61,15 +61,13 @@ export class HUD {
     this.cross.classList.add('hot');
   }
 
+  // the hotbar: six numbered words at the bottom, the one in your hand lit; it fades when nothing changes
   showInventory(slots, hand) {
-    const els = this.inv.querySelectorAll('.slot');
-    els.forEach((el, i) => {
-      const it = slots[i];
-      el.classList.toggle('full', !!it);
-      el.querySelector('.n').textContent = '';
-    });
+    this.inv.innerHTML = '';
+    if (hand) { const h = document.createElement('span'); h.className = 'hand'; h.textContent = hand.label || hand.type; this.inv.appendChild(h); }
+    slots.forEach((it, i) => { const d = document.createElement('span'); d.className = 'slot' + (it ? ' full' : ''); d.textContent = (i + 1) + ' ' + (it ? it.label || it.type : '-'); this.inv.appendChild(d); });
     this.inv.classList.add('on');
-    this.invTimer = 3.5;
+    this.invTimer = 4;
   }
 
   // choices: [{label, value}] ; returns a promise resolved with value

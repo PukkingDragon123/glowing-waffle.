@@ -2,7 +2,7 @@
 // the footprint on the floor with the front facing local +z.
 import * as THREE from 'three';
 import { turnedLeg, bentRail, shakerGeo, barPull, knobGeo, castorGeo, drapeGeo, lathe, softBox } from '../gfx/shapes.js';
-import { G } from '../core/globals.js';
+import { G, emit } from '../core/globals.js';
 import { M } from '../gfx/materials.js';
 import { Door, Drawer, Button } from './interactables.js';
 import { boxGeo, roundedBox, cylGeo, place } from '../gfx/geo.js';
@@ -241,6 +241,7 @@ export function fridge(b, x, z, ry) {
   out.freezer = mkDoor(split + 0.02, h - split - 0.03, 'freezer');
   out.door.o.onChange = (d, open) => {
     out.light.set(open);
+    emit('fridge', open);
     sfx(open ? 'fridgeOpen' : 'fridgeClose', { pos: d.worldPos(new THREE.Vector3()), vol: 0.7 });
   };
   // the compressor hum emitter

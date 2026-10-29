@@ -636,7 +636,7 @@ export class Apartment {
   resetDay() {
     const keep = new Set(G.building ? G.building.food4C : []);
     const inv = G.player && G.player.inv;
-    if (inv) { inv.hand = null; inv.slots = [null, null]; G.hud.showInventory && G.hud.showInventory(inv); }
+    if (inv) { inv.hand = null; inv.slots = new Array(6).fill(null); inv.changed(); }
     for (const i of [...G.world.items]) if (!keep.has(i)) i.destroy();
     this.items = [];
     this.spawnItems();

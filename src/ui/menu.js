@@ -41,7 +41,7 @@ export class Menu {
     G.scene.add(this.spill, this.spill.target, this.fireGlow);
     if (document.fonts && document.fonts.load) document.fonts.load('64px Alagard').then(() => { this.fontReady = true; this.draw(); }).catch(() => {});
     // the backdrop is Mochi running from the hands (menuChase.js); ?window brings back the glass
-    this.useChase = !!G.chase && !new URLSearchParams(location.search).has('window');
+    this.useChase = false;   // the chase is the loading screen; the menu is the window and the ship
     this.ui = this.buildUI();
     G.menu = this;
   }
@@ -275,8 +275,26 @@ export class Menu {
   }
   async choose(id) {
     if (id === 'settings') { G.pause && G.pause.openSettings(true); this.dolly.waitPause = true; return; }
-    sfx('stinger', { vol: 0.45 });
-    await G.fx.fadeTo(1, 0.9);
+    if (id === 'new') {
+      // the glass goes quiet. Three knocks at the door behind you. Then nothing.
+      G.audio && G.audio.stopAll && G.audio.stopAll();
+      await new Promise((r) => setTimeout(r, 900));
+      sfx('knocks', { vol: 0.9 });
+      G.fx.pulse('shake', 0.25, 0.4);
+      await new Promise((r) => setTimeout(r, 1700));
+      sfx('breathHeavy', { vol: 0.5 });
+      await new Promise((r) => setTimeout(r, 900));
+      sfx('knocks', { vol: 1, rate: 0.8 });
+      await new Promise((r) => setTimeout(r, 450));
+      sfx('stinger', { vol: 0.7 });
+      await G.fx.fadeTo(1, 6);                     // black, all at once
+      sfx('heartbeat', { vol: 0.6 });
+      G.hud.titleCard('', 'Thursday, July 1st, 1999', 3.2);
+      await new Promise((r) => setTimeout(r, 3600));
+    } else {
+      sfx('stinger', { vol: 0.45 });
+      await G.fx.fadeTo(1, 0.9);
+    }
     this.close();
     G.state = 'play';
     G.body.override.R = null;

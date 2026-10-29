@@ -133,10 +133,9 @@ export class Interaction {
       if (!spec && inv.hand) spec = inv.hand.useHeld(ctx);
       if (spec) this.p.runAction(spec);
     }
-    if (inp.pressed('KeyG') && inv.hand) inv.drop(0.4);
+    if (inp.pressed('KeyG') && inv.hand) inv.putDown();
     if (inp.pressed('KeyQ') && inv.hand) inv.store();
-    if (inp.pressed('Digit1')) inv.retrieve(0);
-    if (inp.pressed('Digit2')) inv.retrieve(1);
+    for (let i = 0; i < 6; i++) if (inp.pressed('Digit' + (i + 1))) { if (inv.hand && !inv.slots[i]) { if (inv.hand.small) inv.storeTo(i); } else inv.retrieve(i); }
     if (inp.pressed('Tab')) inv.changed();
     if (inp.mousePressed(2) && inv.hand && !this.drag) { const it = inv.drop(6.5); if (it) sfx('whoosh', { vol: 0.4 }); }
     if (inp.mousePressed(0)) {

@@ -1,4 +1,4 @@
-// Hands + two pocket slots. The held item is parented to a socket in front of
+// Hands + a six-slot hotbar. The held item is parented to a socket in front of
 // the camera; the body's arms reach for it.
 import * as THREE from 'three';
 import { G, emit } from '../core/globals.js';
@@ -9,10 +9,10 @@ export class Inventory {
   constructor(player) {
     this.p = player;
     this.hand = null;
-    this.slots = [null, null];
+    this.slots = new Array(6).fill(null);
   }
-  get full() { return this.hand && this.slots[0] && this.slots[1]; }
-  freeSlot() { return this.slots[0] ? (this.slots[1] ? -1 : 1) : 0; }
+  get full() { return this.hand && this.slots.every(Boolean); }
+  freeSlot() { return this.slots.indexOf(null); }
 
   holdMesh(item) {
     const h = item.def.hold || { pos: [0.17, -0.17, -0.42], rot: [0, 0, 0] };
@@ -114,6 +114,18 @@ export class Inventory {
     this.changed();
     emit('placed', it);
   }
+  // set the held item down gently where you're looking (a table, the floor), or just in front
+  putDown() {
+    const it = this.hand; if (!it) return;
+    const cam = G.camera, fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(cam.quaternion);
+    const hit = G.physics.raycast(cam.position, cam.position.clone().addScaledVector(fwd, 1.9));
+    if (!hit) { this.drop(0.4); return; }
+    const p = new THREE.Vector3(hit.hitPointWorld.x, hit.hitPointWorld.y, hit.hitPointWorld.z);
+    const n = hit.hitNormalWorld;
+    if (n.y < 0.6) { p.addScaledVector(fwd, -0.12); this.drop(0); return; }       // a wall: just let it go
+    const yaw = Math.atan2(-fwd.x, -fwd.z);
+    this.placeHandAt(p.add(new THREE.Vector3(0, 0.04, 0)), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw));
+  }
   // remove the held item entirely (eaten / thrown away)
   consumeHand(destroy = true) {
     const it = this.hand; if (!it) return;
@@ -137,7 +149,7 @@ export class Inventory {
   }
   removeItem(it) {
     if (this.hand === it) { this.hand = null; }
-    for (let i = 0; i < 2; i++) if (this.slots[i] === it) this.slots[i] = null;
+    for (let i = 0; i < this.slots.length; i++) if (this.slots[i] === it) this.slots[i] = null;
     this.changed();
   }
   has(type) { return (this.hand && this.hand.type === type) || this.slots.some((s) => s && s.type === type); }
