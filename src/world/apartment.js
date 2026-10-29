@@ -71,8 +71,10 @@ export class Apartment {
     // main room: two floor regions (wood + kitchen lino)
     const mr = APT.main;
     b.floor({ x0: mr.x0, z0: mr.z0, x1: 8.9, z1: mr.z1 }, M.woodFloor);
-    b.floor({ x0: 8.9, z0: mr.z0, x1: mr.x1, z1: 4.85 }, M.kitchenFloor, { collide: false });
-    b.floor({ x0: 8.9, z0: 4.85, x1: mr.x1, z1: mr.z1 }, M.woodFloor, { collide: false });
+    // the kitchen strip needs its own collider: the main one stops at x 9.05,
+    // and anyone stepping up to the counters used to drop through the floor
+    b.floor({ x0: 8.9, z0: mr.z0, x1: mr.x1, z1: 4.85 }, M.kitchenFloor);
+    b.floor({ x0: 8.9, z0: 4.85, x1: mr.x1, z1: mr.z1 }, M.woodFloor);
     b.box(8.9, 0.003, 2.42, 0.03, 0.006, 4.85, M.chrome, { collide: false });
     b.ceiling(mr, M.ceiling);
     const W = (a, bb, y0 = 0.85, y1 = 2.2) => ({ a, b: bb, y0, y1, kind: 'open' });
