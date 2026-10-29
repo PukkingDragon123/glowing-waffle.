@@ -1,15 +1,16 @@
 // Mochi: a faceted low-poly cat with true feline anatomy (catmesh.js), skinned
 // to a skeleton, painted as a brown mackerel tabby facet by facet, with glossy
 // slit-pupil eyes, eyelids that roll shut, eyeshine, whiskers, tongue and fangs,
-// and a procedural pose/gait system.
+// a worn collar with a little fish tag that swings, and a procedural pose/gait system.
 import * as THREE from 'three';
 import { G } from '../core/globals.js';
-import { buildCatGeometry, EYE, EAR, HEAD, headPt } from './catmesh.js';
+import { buildCatGeometry, fishGeometry, EYE, EAR, HEAD, headPt } from './catmesh.js';
 import { clamp, damp, lerp, smoothstep, snoise1, TAU } from '../core/util.js';
 import { makeCanvas, toTexture } from '../gfx/textures.js';
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
 const _q = new THREE.Quaternion(), _m = new THREE.Matrix4();
+const _ca = new THREE.Vector3(), _cn = new THREE.Vector3(), _cv = new THREE.Vector3(), _cu = new THREE.Vector3(), _cf = new THREE.Vector3(), _cs = new THREE.Vector3(), _cr = new THREE.Vector3(), _cw = new THREE.Vector3(), _cl = new THREE.Vector3(), _cq = new THREE.Quaternion(), _cm = new THREE.Matrix4();
 const glv = (a) => `vec3(${a.map((x) => x.toFixed(5)).join(', ')})`;
 
 function boneTable() {
@@ -88,6 +89,14 @@ vec3 coat(vec3 p, float part, float mat, float rnd, float lid) {
     }
     if (mat < 3.5) return vec3(0.1, 0.06, 0.06) * (0.85 + 0.3 * rnd);   // pads
     if (mat < 4.5) return mix(vec3(0.3, 0.09, 0.1), vec3(0.06, 0.015, 0.02), smoothstep(-0.245, -0.225, p.z));   // mouth
+    if (mat > 6.5) return vec3(0.62, 0.46, 0.2) * (0.75 + 0.35 * rnd);   // brass buckle and plate
+    if (mat > 5.5) {                       // collar: a sun-faded red strap, rubbed pale in patches, fraying at the edges, stitched
+      float e = abs(-lid * 2.0 - 3.0);     // 0 along the middle of the band, 1 at either edge
+      vec3 c = vec3(0.4, 0.045, 0.05) * (0.85 + 0.3 * cn(p * 500.0));
+      c = mix(c, vec3(0.55, 0.3, 0.27), smoothstep(0.55, 0.85, cn(p * 150.0 + 3.0)) * 0.45);
+      c = mix(c, vec3(0.6, 0.42, 0.36), smoothstep(0.82, 1.0, e) * 0.55);
+      return mix(c, vec3(0.72, 0.58, 0.5), line(e - 0.68, 0.07) * step(0.45, fract(dot(p, vec3(260.0, 170.0, 230.0)))) * 0.7);
+    }
     // eyelids: pale rim of fur, dark lid margin against the eye
     return mix(mix(cream, ground, 0.55) * (0.95 + 0.1 * rnd), vec3(0.05, 0.035, 0.03), smoothstep(0.8, 0.9, lid));
   }
@@ -174,7 +183,7 @@ function coatMaterial(u) {
         transformed += nS * 0.0022 * uTwitch.w * sin(twd * 260.0 - uTime * 40.0) * exp(-twd * 30.0) * step(0.2, position.y);
         // hackles: the coat stands on end, ragged, longest on the back and tail
         float hr = fract(sin(dot(floor(position * 3000.0), vec3(12.9898, 78.233, 37.719))) * 43758.5453);
-        transformed += nS * uPuff * aInfo.x * 0.0085 * (0.55 + 0.9 * hr);
+        transformed += nS * uPuff * 0.0085 * (aInfo.y > 7.5 ? 1.55 : aInfo.x * (0.55 + 0.9 * hr));   // the collar rides on top of it
         // shoulder blades ride up over the spine
         transformed.y += abs(aSn.w) * (aSn.w > 0.0 ? uScap.y : uScap.x) * 0.009;`);
     sh.fragmentShader = sh.fragmentShader
@@ -205,14 +214,14 @@ function coatMaterial(u) {
       .replace('#include <color_fragment>', `#include <color_fragment>
         float part = floor(vInfo.y + 0.5), mat = floor(vInfo.z + 0.5);
         vec3 cc = coat(vRest, part, mat, vInfo.w, vLid);
-        gSheen = mat < 0.5 ? 1.0 - uWet * 0.6 : 0.15;
-        gGloss = mat == 1.0 ? 0.45 : mat == 4.0 ? 0.3 : 0.015 + uWet * 0.25;
+        gSheen = mat < 0.5 ? 1.0 - uWet * 0.6 : mat == 6.0 ? 0.35 : 0.15;
+        gGloss = mat == 1.0 ? 0.45 : mat == 4.0 ? 0.3 : mat == 7.0 ? 1.4 : 0.015 + uWet * 0.25;
         gEar = mat == 2.0 ? 1.0 : part == 5.0 ? 0.4 : 0.0;
         cc = mix(cc, vec3(0.32, 0.015, 0.02), uBlood * smoothstep(0.55, 0.8, cn(vRest * 30.0)));
         cc *= (1.0 - uWet * 0.35) * (1.0 - uDirt * 0.25 * cn(vRest * 80.0));
         diffuseColor.rgb = cc;`)
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
-        roughnessFactor = mix(mat == 1.0 ? 0.4 : mat == 4.0 ? 0.45 : 0.85, 0.45, uWet);`);
+        roughnessFactor = mix(mat == 1.0 ? 0.4 : mat == 4.0 ? 0.45 : mat == 7.0 ? 0.3 : mat == 6.0 ? 0.7 : 0.85, 0.45, uWet);`);
   };
   m.customProgramCacheKey = () => 'catcoat_lp1';
   return m;
@@ -367,6 +376,66 @@ export class CatModel {
     this.proxy.rotation.x = Math.PI / 2;
     this.root.add(this.proxy);
     this.proxy.position.set(0, 0.2, 0);
+    // the tag: a split ring and a little enamel fish, hung from the plate at the throat
+    const tag = geo.userData.tag;
+    const bw = (o) => Object.entries(o).map(([b, w]) => [this.idx(b), w]);
+    this.charm = { p: V(...tag.p), n: V(...tag.n), w: bw(tag.w), q: V(...tag.q), qw: bw(tag.qw), s: V(), sv: V(), av: V(), ap: V(), live: false, clink: -1 };
+    const brass = new THREE.MeshStandardMaterial({ color: 0xc9a050, metalness: 0.7, roughness: 0.3, flatShading: true });
+    const enamel = new THREE.MeshPhysicalMaterial({ color: 0x2aa9b0, roughness: 0.3, clearcoat: 1, clearcoatRoughness: 0.08, flatShading: true });
+    const ink = new THREE.MeshStandardMaterial({ color: 0x0c1220, roughness: 0.3, flatShading: true });
+    brass.userData.keepGloss = ink.userData.keepGloss = true;
+    this.tag = new THREE.Group();
+    this.tag.add(new THREE.Mesh(new THREE.TorusGeometry(0.0026, 0.0006, 4, 8).rotateY(Math.PI / 2).translate(0, -0.0024, 0), brass));
+    const fish = new THREE.Mesh(fishGeometry(), [enamel, brass, ink]); fish.castShadow = true;
+    this.tag.add(fish);
+    this.root.add(this.tag);
+  }
+
+  // The tag hangs from the collar plate (skinned like the strap under it) where
+  // gravity puts it without entering the throat or the chest ruff below, and swings
+  // about that as a small damped pendulum driven by how the plate accelerates.
+  // A swing into the fur is stopped dead, and a hard one clinks against the plate.
+  updateCharm(dt) {
+    const C = this.charm, bs = this.bones, inv = this.skeleton.boneInverses, a = _ca.set(0, 0, 0), n = _cn.set(0, 0, 0), q = _cf.set(0, 0, 0);
+    for (const [i, w] of C.w) { _cm.multiplyMatrices(bs[i].matrixWorld, inv[i]); a.addScaledVector(_cv.copy(C.p).applyMatrix4(_cm), w); n.addScaledVector(_cv.copy(C.n).transformDirection(_cm), w); }
+    for (const [i, w] of C.qw) q.addScaledVector(_cv.copy(C.q).applyMatrix4(_cm.multiplyMatrices(bs[i].matrixWorld, inv[i])), w);
+    n.normalize();
+    // the slope from the plate down to the front of the chest: it may lie along that, not below it
+    const m = _cs.subVectors(q, a).cross(_cu.set(1, 0, 0).transformDirection(this.root.matrixWorld)).normalize();
+    if (m.dot(n) < 0) m.negate();
+    const keep = (u) => { for (let k = 0; k < 3; k++) { const d = u.dot(n); if (d < 0.12) u.addScaledVector(n, 0.12 - d).normalize(); const e = u.dot(m); if (e < 0.15) u.addScaledVector(m, 0.15 - e).normalize(); } return u; };
+    const r = keep(_cr.set(0, -1, 0)), L = 0.011, s = C.s, sv = C.sv;
+    if (!C.live || dt <= 0 || dt > 0.25 || a.distanceTo(C.ap) > 0.05) { C.live = true; s.set(0, 0, 0); sv.set(0, 0, 0); C.av.set(0, 0, 0); }
+    else {
+      const v = _cv.subVectors(a, C.ap).divideScalar(dt), acc = _cw.subVectors(v, C.av).divideScalar(dt).clampLength(0, 60);
+      C.av.copy(v);
+      // the shoulders roll a little under it with every stride
+      acc.addScaledVector(_cl.set(1, 0, 0).transformDirection(this.root.matrixWorld), Math.sin(this.gaitPhase) * 0.8 * clamp(this.speed / 0.12, 0, 1));
+      const steps = Math.min(12, Math.ceil(dt * 240)), h = dt / steps;
+      for (let k = 0; k < steps; k++) {   // s'' = -(g/L) s - c s' - a/L, across the hanging direction
+        sv.addScaledVector(s, -890 * h).addScaledVector(sv, -9 * h).addScaledVector(acc, -h / L).addScaledVector(r, -sv.dot(r));
+        s.addScaledVector(sv, h).addScaledVector(r, -s.dot(r)).clampLength(0, 1.4);
+      }
+    }
+    C.ap.copy(a);
+    const u = _cu.copy(r).add(s).normalize();
+    let knock = 0;
+    if (u.dot(n) < 0.1 || u.dot(m) < 0.13) {   // swung into the fur: stop it there, the inward swing spent
+      knock = Math.max(0, -sv.dot(n), -sv.dot(m)) * L;
+      keep(u); s.copy(u).sub(r);
+      sv.addScaledVector(n, -Math.min(0, sv.dot(n))).addScaledVector(m, -Math.min(0, sv.dot(m)));
+    }
+    // hang it: up the ring toward the plate, the fish's face turned out from the throat
+    const up = u.negate(), face = _cf.copy(n).addScaledVector(up, -n.dot(up)).normalize(), side = _cs.crossVectors(up, face);
+    _cm.makeBasis(side, up, face);
+    this.root.getWorldQuaternion(_cq).invert();
+    this.tag.quaternion.setFromRotationMatrix(_cm).premultiply(_cq);
+    this.tag.position.copy(this.root.worldToLocal(_cv.copy(a)));
+    const au = G.audio;
+    if (knock > 0.12 && G.time - C.clink > 0.3 && au && au.ctx && au.ctx.state === 'running' && this.root.visible) {
+      C.clink = G.time;
+      au.play('coin', { pos: a.clone(), vol: Math.min(0.1, 0.02 + knock * 0.15), rate: 1.7 + Math.random() * 0.3, ref: 0.3 });
+    }
   }
 
   defaultPose() {
@@ -525,6 +594,7 @@ export class CatModel {
     const shut = clamp(1 - this.eyeU.uLid.value / 0.88, 0, 1);
     for (const e of this.eyes) e.position.copy(e.userData.base).addScaledVector(e.userData.back, shut * 0.003);
     this.proxy.position.set(0, 0.19 - loaf * 0.08 - sit * 0.03, 0.02);
+    this.updateCharm(dt);
   }
 
   legIK(S, s, front, pawLocal, P) {
