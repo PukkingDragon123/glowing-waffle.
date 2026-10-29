@@ -20,6 +20,7 @@ import { hangPainting, settlePaintings } from './paintings.js';
 import * as R from './furnish.js';
 import { has, prop } from './props.js';
 import { Seat, Pushable } from './seats.js';
+import { dress } from './dressing.js';
 import { boxGeo, cylGeo, roundedBox } from '../gfx/geo.js';
 import { clamp, damp, rand } from '../core/util.js';
 import * as T from '../gfx/textures.js';
@@ -56,6 +57,7 @@ export class Apartment {
     this.bathroom(b);
     this.closet(b);
     this.doorsAndFrames(b);
+    dress(this, b);
     this.statics = b.build('apt');
     G.world.addOccluders(this.statics);
     this.zones();
