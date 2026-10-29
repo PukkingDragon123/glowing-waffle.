@@ -129,7 +129,7 @@ vec3 facade(vec2 f, float style, float seed, float litMod, vec3 wall, vec3 n, ve
   float bright = (0.55 + 0.9 * rnd) * mix(blind, 0.75, farK);
   // unresolved distance: blend the sparkle toward its expected value
   float litAvg = clamp(p, 0.0, 1.0) * 0.82;
-  lit = mix(lit, mix(lit, litAvg, 0.6), farK);
+  lit = mix(lit, litAvg, farK);
   c += wc * m * lit * bright * oNight * 1.05;
   return c;
 }
