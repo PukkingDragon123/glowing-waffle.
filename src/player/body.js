@@ -316,8 +316,8 @@ export class Body {
       const hp = r['thigh.' + S], kn = r['shin.' + S], an = r['foot.' + S], to = r['toe.' + S];
       P.push(cap(arr(hp), arr(kn), 0.078, 0.056, { bone: B('thigh.' + S), zone: Z.pants, k: 0.04 }));
       P.push(cap(arr(kn), [an.x, an.y + 0.05, an.z], 0.054, 0.044, { bone: B('shin.' + S), zone: Z.pants, k: 0.03 }));
-      P.push(cap([an.x, an.y + 0.06, an.z], [an.x, an.y + 0.01, an.z + 0.01], 0.034, 0.03, { bone: B('foot.' + S), zone: Z.skin, k: 0.02 }));
-      P.push(cap([an.x, an.y - 0.035, an.z + 0.035], [to.x, to.y, to.z + 0.02], 0.033, 0.026, { bone: B('foot.' + S), zone: Z.skin, k: 0.025 }));
+      P.push(cap([an.x, an.y + 0.06, an.z], [an.x, an.y + 0.01, an.z + 0.01], 0.038, 0.036, { bone: B('foot.' + S), zone: Z.skin, k: 0.02 }));
+      P.push(cap([an.x, an.y - 0.035, an.z + 0.035], [to.x, to.y, to.z + 0.02], 0.039, 0.033, { bone: B('foot.' + S), zone: Z.skin, k: 0.025 }));
       for (let t = 0; t < 5; t++) {
         const tz = to.z - 0.02 - (t === 0 ? 0.012 : 0), tx = to.x - s * 0.028 + s * t * 0.014;
         P.push(cap([tx, 0.02, to.z + 0.01], [tx, 0.014, tz - 0.012], t === 0 ? 0.0115 : 0.008, t === 0 ? 0.01 : 0.0065, { bone: B('toe.' + S), zone: Z.skin, k: 0.008 }));
