@@ -26,6 +26,12 @@ function animPose(name, p, t, spec, out) {
       if (fr) { out.x += (Math.random() - 0.5) * 0.01; out.y += (Math.random() - 0.5) * 0.01; }
       break;
     }
+    case 'holdLow': {
+      // the plate or box drops a little and tilts toward you while the other hand works
+      const k = env(0, 0.2) * (1 - env(0.85, 1));
+      out.y = -0.05 * k; out.z = 0.06 * k; out.rx = 0.35 * k; out.lean = 0.05 * k;
+      break;
+    }
     case 'drink': {
       const k = env(0, 0.3) * (1 - env(0.75, 1));
       out.x = -0.14 * k; out.y = 0.13 * k; out.z = 0.27 * k; out.rx = 1.15 * k; out.ry = 0.1 * k;
@@ -144,6 +150,7 @@ export class Player {
         if (!a.fired.has(i) && a.t >= ev[0]) { a.fired.add(i); try { ev[1](); } catch (e) { console.error(e); } }
       }
       animPose(a.spec.anim, p, G.time, a.spec, this.pose);
+      if (a.spec.tick) a.spec.tick(p);
       if (p >= 1) {
         for (const [i, ev] of (a.spec.at || []).entries()) if (!a.fired.has(i)) { a.fired.add(i); try { ev[1](); } catch (e) { console.error(e); } }
         if (a.spec.done) a.spec.done();

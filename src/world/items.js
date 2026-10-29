@@ -151,7 +151,24 @@ const B = {
     const g = new THREE.Group();
     const box = boxItem(0.34, 0.045, 0.34, plain(0xe0d4b8, 1), plain(0xe0d4b8, 1), mc('pizza', () => labelMat(L.pizza())), null);
     box.material = [plain(0xd8ccb0, 1), plain(0xd8ccb0, 1), mc('pizza', () => labelMat(L.pizza())), plain(0xd8ccb0, 1), plain(0xd8ccb0, 1), plain(0xd8ccb0, 1)];
-    g.add(box);
+    // the lid hinged open at the back, three cold slices left on greasy cardboard
+    box.scale.y = 0.12; box.position.y = -0.02;
+    const lid = box.clone(); lid.scale.y = 0.08; lid.position.set(0, 0.12, -0.19); lid.rotation.x = -1.35; g.add(box, lid);
+    const crust = mc('crust', () => new THREE.MeshStandardMaterial({ color: 0xc8893e, roughness: 0.8 }));
+    const top = mc('cheese', () => new THREE.MeshStandardMaterial({ color: 0xe8b850, roughness: 0.55 }));
+    const pep = mc('pep', () => new THREE.MeshStandardMaterial({ color: 0x9a2416, roughness: 0.6 }));
+    const slices = [];
+    for (let i = 0; i < 3; i++) {
+      const s = new THREE.Group();
+      const base = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.012, 3, 1, false, 0, Math.PI / 4), crust);
+      const ch = new THREE.Mesh(new THREE.CylinderGeometry(0.135, 0.135, 0.006, 3, 1, false, 0.02, Math.PI / 4 - 0.04), top); ch.position.y = 0.008;
+      s.add(base, ch);
+      for (let k = 0; k < 2; k++) { const p = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.004, 8), pep); const a = 0.25 + k * 0.3; p.position.set(Math.sin(a) * (0.05 + k * 0.04), 0.012, Math.cos(a) * (0.05 + k * 0.04)); s.add(p); }
+      s.position.set(0, 0.004, 0.0); s.rotation.y = Math.PI + i * (Math.PI / 4) + 0.2;
+      s.userData.home = { p: s.position.clone(), q: s.quaternion.clone() };
+      g.add(s); slices.push(s);
+    }
+    g.userData.slices = slices;
     return shadowy(g);
   },
   takeout() {
@@ -430,6 +447,16 @@ function foodUse(it, ctx) {
       if (it.state.left <= 0) emptyFood(it);
     }]] };
   }
+  if (it.type === 'pizza') {
+    const sl = it.mesh.userData.slices[it.state.left - 1], cam = G.camera, home = sl.userData.home, to = new THREE.Vector3();
+    const dur = G.story.day >= 4 ? 1.8 : 2.6;
+    return { anim: 'holdLow', dur, sound: 'chewSoft', tick: (p) => {
+      const k = clamp((p - 0.08) / 0.3, 0, 1), k2 = k * k * (3 - 2 * k);
+      to.set(0, -0.035, -0.13).applyMatrix4(cam.matrixWorld); sl.parent.worldToLocal(to);
+      sl.position.copy(home.p).lerp(to, k2); sl.position.y += Math.sin(k * Math.PI) * 0.05;
+      sl.rotation.x = -1.1 * k2; sl.visible = p < 0.82;
+    }, at: [[dur * 0.5, () => { G.player.hunger.eat(f.nut, { kind: 'pizza' }); }], [dur * 0.95, () => { it.state.left--; sl.position.copy(home.p); sl.rotation.set(0, sl.rotation.y, 0); if (it.state.left <= 0) emptyFood(it); it.refresh && it.refresh(); }]] };
+  }
   const anim = G.story.day >= 4 ? 'eatFrantic' : 'eat';
   const dur = G.story.day >= 4 ? 1.5 : 2.2;
   return { anim, dur, sound: f.crunch === 'crunch' ? 'chewCrunch' : f.crunch === 'wet' ? 'chewWet' : 'chewSoft', at: [[dur * 0.45, () => {
@@ -494,6 +521,7 @@ export class Item extends Interactable {
   biteVisual() {
     const f = this.def.food;
     if (!f) return;
+    if (this.mesh.userData.slices) this.mesh.userData.slices.forEach((s, i) => (s.visible = i < this.state.left));
     if (this.state.left !== undefined) { if (this.empty) this.mesh.traverse((c) => { if (c.isMesh && c.material && !Array.isArray(c.material)) c.material = c.material; }); return; }
     const k = clamp((this.bites ?? 1) / f.bites, 0.25, 1);
     this.mesh.scale.copy(this.baseScale).multiplyScalar(0.55 + 0.45 * k);
