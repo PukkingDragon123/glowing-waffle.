@@ -609,6 +609,20 @@ function alienNear() {
   return normalize(makeLoop(out, 0.3), 0.6);
 }
 function shipHum() { return drone(31, 10, 0.15); }
+// a helicopter: the blade slap of a two-blade rotor (10.75 a second), rumbling
+// downwash, the turbine's whine and the buzz of the tail rotor
+function rotor() {
+  const dur = 4, f = 10.75;
+  const lp = new Biquad('lp', 260, 0.9), lp2 = new Biquad('lp', 900, 0.7), bp = new Biquad('bp', 1800, 1.4);
+  return normalize(makeLoop(render(dur, (i, t) => {
+    const ph = (t * f) % 1, slap = Math.exp(-ph * 11) * (0.85 + 0.15 * Math.sin(TAU * 0.7 * t));
+    const thud = lp.p(white()) * (0.3 + 2.2 * slap) + Math.sin(TAU * 32 * t) * slap * 0.6;
+    const wash = lp2.p(white()) * 0.18;
+    const whine = Math.sin(TAU * (1130 + 6 * Math.sin(TAU * 0.4 * t)) * t) * 0.02 + Math.sin(TAU * 2265 * t) * 0.008 + bp.p(white()) * 0.05;
+    const tail = Math.sin(TAU * 61 * t) * 0.07 * (0.6 + 0.4 * Math.sin(TAU * f * 4.6 * t));
+    return thud + wash + whine + tail;
+  }), 0.2), 0.6);
+}
 function tapeHiss() { const hp = new Biquad('hp', 4000, 0.7); return normalize(makeLoop(render(3, () => hp.p(white())), 0.2), 0.1); }
 function elevatorDing() { return normalize(render(1.5, (i, t) => (Math.sin(TAU * 1046 * t) + 0.5 * Math.sin(TAU * 2093 * t)) * Math.exp(-t * 2.5)), 0.5); }
 function vending() { return normalize(makeLoop(render(3, (i, t) => Math.sin(TAU * 100 * t) * 0.3 + Math.sin(TAU * 200 * t) * 0.1 + (Math.random() - 0.5) * 0.05), 0.2), 0.3); }
@@ -671,10 +685,10 @@ export const GEN = {
   roarFar: () => V(2, () => roar(true)), roar: () => [roar(false)], droneLow: () => [drone(43, 8, 0.25)], droneVoid: () => [drone(36, 10, 0.4)], droneLab: () => [drone(55, 8, 0.35)],
   wind: () => [wind()], cityDay: () => [cityDay()], siren: () => [siren()], static: () => [staticNoise()], eas: () => [eas()], tinnitus: () => [tinnitus()], stinger: () => [stinger()],
   knocks: () => [knocks(3)], knock1: () => [knocks(1)], bodyFall: () => [bodyFall()], tear: () => [tear()], drip: drip, breaker: () => [breaker()], powerDown: () => [powerDown()],
-  hum60: () => [hum60()], fluoro: () => [fluoro()], scream: () => [scream()], tvBabble: () => [tvBabble()], alienNear: () => [alienNear()], shipHum: () => [shipHum()], tapeHiss: () => [tapeHiss()],
+  hum60: () => [hum60()], fluoro: () => [fluoro()], scream: () => [scream()], tvBabble: () => [tvBabble()], alienNear: () => [alienNear()], shipHum: () => [shipHum()], rotor: () => [rotor()], tapeHiss: () => [tapeHiss()],
   elevatorDing: () => [elevatorDing()], vending: () => [vending()], canDrop: () => [canDrop()], coin: () => [coin()], pickup, place, pocket: () => [rustle(0.2, 1600)], pageTurn: () => [pageTurn()],
   pain, radioTune: () => [radioTune()], alarmBeep: () => [alarmBeep()], sting2: () => [stinger()],
   fanHum: () => [fanHum()], radioMusic: () => [radioMusic()], microwaveHum: () => [microwaveHum()], kettleWhistle: () => [kettleWhistle()], fireBell: () => [fireBell()],
 };
 // sounds that loop when started with loop()
-export const LOOPS = new Set(['water', 'sizzle', 'brew', 'fridgeHum', 'dialTone', 'crtWhine', 'pcHum', 'lineStatic', 'purr', 'catEat', 'catLap', 'droneLow', 'droneVoid', 'droneLab', 'wind', 'cityDay', 'static', 'hum60', 'fluoro', 'tvBabble', 'alienNear', 'shipHum', 'tapeHiss', 'vending', 'breath', 'breathHeavy', 'fanHum', 'radioMusic', 'microwaveHum', 'kettleWhistle', 'fireBell']);
+export const LOOPS = new Set(['water', 'sizzle', 'brew', 'fridgeHum', 'dialTone', 'crtWhine', 'pcHum', 'lineStatic', 'purr', 'catEat', 'catLap', 'droneLow', 'droneVoid', 'droneLab', 'wind', 'cityDay', 'static', 'hum60', 'fluoro', 'tvBabble', 'alienNear', 'shipHum', 'rotor', 'tapeHiss', 'vending', 'breath', 'breathHeavy', 'fanHum', 'radioMusic', 'microwaveHum', 'kettleWhistle', 'fireBell']);

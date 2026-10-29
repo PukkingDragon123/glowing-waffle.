@@ -1,6 +1,8 @@
-// The filler city around the landmarks: the Financial District, Battery Park
-// City, Tribeca and the Village, Midtown, and Brooklyn low across the East
-// River, plus the land they stand on. Pre-war towers step back to copper
+// The filler city around the landmarks, seen from a fourth floor in Tribeca
+// looking south down West Broadway: the Financial District and Civic Center,
+// Battery Park City, Tribeca, SoHo and the Village behind us, Midtown far to
+// the north, Brooklyn across the East River and Jersey City across the
+// Hudson, plus the land they stand on. Pre-war towers step back to copper
 // pyramids, spires and lanterns; post-war slabs carry penthouses, masts and
 // beacons; low brick blocks get bulkheads and wooden water tanks. One
 // instanced draw for every box, one merged draw for every roof object.
@@ -9,13 +11,25 @@ import { RNG } from '../core/util.js';
 import { OUT, OUT_GLSL, FACADE_GLSL, Kit, solidMaterial } from './outdoor.js';
 
 const G0 = -14;
-// shorelines in (x, z): -z across the river, +x south
-export const MANHATTAN = [[-7400, -3050], [-5000, -2330], [-3500, -1930], [-2500, -1620], [-1600, -1390], [-900, -1250], [-420, -1150], [-60, -1120], [60, -1120], [60, -1162], [112, -1162], [112, -1120],
-  [300, -1112], [700, -1128], [1000, -1175], [1210, -1240], [1330, -1340], [1390, -1470], [1370, -1600], [1300, -1700], [1150, -1950], [900, -2250], [600, -2560], [250, -2810], [-200, -3060],
-  [-700, -3310], [-1200, -3620], [-1500, -3960], [-2200, -4120], [-3200, -4330], [-4500, -4720], [-6000, -5230], [-7400, -5600]];
-const BROOKLYN = [[6000, -1500], [3600, -1900], [2700, -2300], [2150, -2650], [1600, -2950], [900, -3380], [200, -3760], [-700, -4180], [-1600, -4560], [-3000, -4980], [-5000, -5650], [-7400, -6300], [-7400, -9500], [6000, -9500]];
-const JERSEY = [[-6000, -230], [-2500, -160], [-1200, -110], [-470, -70], [-440, -122], [-50, -122], [-46, -35], [252, -35], [256, -128], [520, -132], [548, 110], [900, 260], [1800, 600], [6000, 700], [6000, 6000], [-6000, 6000]];
-const GOV = Array.from({ length: 20 }, (_, i) => { const a = (i / 20) * Math.PI * 2; return [2520 + Math.cos(a) * 470 - Math.sin(a) * 90, -1880 + Math.sin(a) * 330]; });
+// ------------------------------------------------------------------ the frame
+// Real geography, turned so the window looks straight at the North Tower:
+// origin at West Broadway and Leonard St, -z down West Broadway (bearing 214.5),
+// +x to the right (west, toward the Hudson), +z north.
+const LAT0 = 40.7185, LON0 = -74.0068, SB = Math.sin(214.5 * Math.PI / 180), CB = Math.cos(214.5 * Math.PI / 180);
+export function geo(lat, lon) {
+  const E = (lon - LON0) * 84380, N = (lat - LAT0) * 111000;
+  return [E * CB - N * SB, -(E * SB + N * CB)];
+}
+const poly = (pts) => pts.map(([la, lo]) => geo(la, lo));
+// shorelines
+export const MANHATTAN = poly([[40.775, -73.996], [40.760, -74.0035], [40.750, -74.0085], [40.740, -74.0105], [40.730, -74.0110], [40.725, -74.0118], [40.720, -74.0132], [40.716, -74.0146],
+  [40.713, -74.0168], [40.708, -74.0185], [40.704, -74.0185], [40.7015, -74.0168], [40.7005, -74.0145], [40.7012, -74.0118], [40.7025, -74.0095], [40.7055, -74.0045], [40.7085, -74.0005],
+  [40.7115, -73.9970], [40.7105, -73.9900], [40.7125, -73.9775], [40.7210, -73.9725], [40.7300, -73.9715], [40.7400, -73.9735], [40.7500, -73.9675], [40.7600, -73.9580], [40.775, -73.946]]);
+export const BROOKLYN = poly([[40.770, -73.940], [40.750, -73.957], [40.735, -73.9605], [40.720, -73.9625], [40.710, -73.9700], [40.702, -73.9770], [40.704, -73.9900], [40.699, -73.9970],
+  [40.688, -74.0010], [40.678, -74.0150], [40.640, -74.0350], [40.600, -74.0350], [40.600, -73.800], [40.770, -73.800]]);
+export const JERSEY = poly([[40.790, -74.0100], [40.760, -74.0230], [40.745, -74.0250], [40.730, -74.0300], [40.720, -74.0335], [40.714, -74.0330], [40.708, -74.0350], [40.700, -74.0400],
+  [40.690, -74.0450], [40.660, -74.0700], [40.640, -74.1000], [40.640, -74.2500], [40.790, -74.2500]]);
+const GOV = Array.from({ length: 16 }, (_, i) => { const a = (i / 16) * Math.PI * 2; return geo(40.6895 + Math.sin(a) * 0.0035, -74.0168 + Math.cos(a) * 0.0052); });
 
 export function inside(poly, x, z) {
   let c = false;
@@ -25,6 +39,9 @@ export function inside(poly, x, z) {
   }
   return c;
 }
+export const isWater = (x, z) => !inside(MANHATTAN, x, z) && !inside(BROOKLYN, x, z) && !inside(JERSEY, x, z) && !inside(GOV, x, z);
+// ground kept for the street canyon built by street.js: [x0, x1, z0, z1]
+export const RESERVED = [[-58, 72, -628, 60], [-260, 260, -22, 3]];
 
 const BLD_VS = /* glsl */`
 attribute vec3 iSize; attribute vec4 iA; attribute vec3 iB;
@@ -42,12 +59,23 @@ const BLD_FS = /* glsl */`
 ${OUT_GLSL}
 ${FACADE_GLSL}
 varying vec3 vL; varying vec3 vS; varying vec4 vA; varying vec3 vB; varying vec3 vNo; varying vec3 vN; varying vec3 vW;
+// crisp masonry texels up close: running-bond brick or ashlar stone, 16 texels a metre
+vec3 masonry(vec3 base, vec2 f, float stone, float seed){
+  vec2 q = floor(f * 16.0);
+  vec2 unit = stone > 0.5 ? vec2(10.0, 6.0) : vec2(4.0, 2.0);
+  float row = floor(q.y / unit.y);
+  float qx = q.x + mod(row, 2.0) * unit.x * 0.5;
+  float mortar = max(step(mod(q.y, unit.y), 0.0), step(mod(qx, unit.x), 0.0));
+  vec3 c = base * (0.84 + 0.3 * h31(vec3(floor(qx / unit.x), row, seed)));
+  return mix(c, base * 0.6 + vec3(0.015), mortar * 0.75);
+}
 void main(){
   vec3 no = vNo, n = normalize(vN);
   float seed = vA.x, style = vA.w;
   vec3 base = vB, c;
   float yg = vW.y + 14.0;
-  float across = 0.0;
+  bool sx = abs(no.x) > 0.5;
+  float across = (sx ? vL.z : vL.x) + (sx ? vS.z : vS.x) * 0.5;
   if (no.y > 0.5) {
     // roof: tar and gravel inside a parapet rim
     vec2 e = vS.xz * 0.5 - abs(vL.xz);
@@ -55,11 +83,11 @@ void main(){
     vec3 alb = mix(vec3(0.055, 0.052, 0.05) * (0.7 + 0.6 * vn2(vL.xz * 0.25 + seed)), base * 0.75, rim);
     c = outLight(alb, n);
   } else {
-    bool sx = abs(no.x) > 0.5;
-    across = (sx ? vL.z : vL.x) + (sx ? vS.z : vS.x) * 0.5;
     // soot runs down from sills and the roofline; pollution darkens the lower floors
     float streak = vn2(vec2(across * 1.1 + seed * 7.0, yg * 0.018));
     float grime = (0.8 + 0.28 * vn2(vec2(across * 0.12, yg * 0.04) + seed)) * (1.0 - 0.2 * smoothstep(0.55, 0.9, streak)) * mix(0.82, 1.0, smoothstep(0.0, 40.0, yg));
+    float tx = max(fwidth(across), fwidth(yg)) * 16.0;
+    if (tx < 1.2 && (style < 1.5 || style > 5.5) && style < 7.5) base = mix(masonry(base, vec2(across, yg), step(0.5, style) * step(style, 1.5), seed), base, smoothstep(0.6, 1.2, tx));
     vec3 wall = outLight(base * grime, n);
     float wm;
     if (style > 7.5) c = wall;
@@ -79,24 +107,53 @@ void main(){
     }
     // sodium light from the streets climbing the lower floors
     c += base * vec3(1.0, 0.5, 0.18) * 0.07 * oNight * exp(-yg / 22.0) * (1.0 - oBlackout * 0.6);
+    c += base * lampPools(vW, n) * 0.6;
   }
-  // burning: charred, with windows glowing and flickering
+  // burning: a seat of fire that spreads with the days, shattered windows, soot climbing the face
   float burn = vA.z * oBurn;
   if (burn > 0.0 && no.y < 0.5) {
     vec2 g = vec2(across, yg) / vec2(3.0, 3.6);
     vec2 gi = floor(g), gf = abs(fract(g) - 0.5);
     float rnd = h31(vec3(gi, seed));
     float win = step(gf.x, 0.3) * step(gf.y, 0.28);
-    float fl = 0.6 + 0.4 * sin(oTime * 9.0 + rnd * 40.0) * sin(oTime * 5.3 + rnd * 12.0);
-    float fireWin = win * step(rnd, 0.55 * burn) * step(vL.y, vS.y * (0.35 + 0.65 * h21(vec2(seed, 1.0))));
-    c = mix(c, c * 0.22, burn * 0.8);
-    c += fireWin * vec3(1.8, 0.6, 0.12) * fl * 2.0;
+    vec2 seat = vec2(h21(vec2(seed, 3.0)) * (sx ? vS.z : vS.x), (vW.y - vL.y + 14.0) + vS.y * (0.2 + 0.55 * h21(vec2(seed, 1.0))));
+    vec2 dd = (vec2(across, yg) - seat) / vec2(6.0 + 26.0 * burn, 5.0 + 18.0 * burn);
+    float zone = smoothstep(1.0, 0.35, length(dd) + (vn2(g * 0.7 + seed) - 0.5) * 0.6);
+    float broken = win * step(rnd, burn * 0.45 + zone * 0.6);
+    float soot = max(zone, smoothstep(0.0, 1.5, dd.y) * smoothstep(3.0, 0.5, dd.y) * smoothstep(1.4, 0.3, abs(dd.x))) * (0.6 + 0.4 * vn2(vec2(across * 0.5, yg * 0.05)));
+    c = mix(c, vec3(0.006, 0.005, 0.005), broken * 0.85);
+    c *= 1.0 - 0.85 * soot * min(1.0, burn * 1.5);
+    float fl = 0.55 + 0.45 * sin(oTime * 9.0 + rnd * 40.0) * sin(oTime * 5.3 + rnd * 12.0);
+    c += win * step(rnd, 0.92) * zone * vec3(2.2, 0.7, 0.14) * fl * (0.7 + oNight);
+    c += vec3(0.8, 0.26, 0.05) * zone * (1.0 - win) * 0.2 * fl * (0.3 + oNight);
   }
   gl_FragColor = vec4(outFog(c, vW), 1.0);
 }`;
+let bldMat = null;
+// one InstancedMesh of facade boxes; list entries: {x, y, z, w, h, d, ry, seed, lit, burn, style, col}
+export function boxMesh(scene, list) {
+  const n = list.length;
+  const geo = new THREE.BoxGeometry(1, 1, 1); geo.translate(0, 0.5, 0);
+  bldMat = bldMat || new THREE.ShaderMaterial({ vertexShader: BLD_VS, fragmentShader: BLD_FS, uniforms: { ...OUT } });
+  const mesh = new THREE.InstancedMesh(geo, bldMat, n);
+  const A = new Float32Array(n * 4), B = new Float32Array(n * 3), S = new Float32Array(n * 3);
+  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0);
+  list.forEach((b, i) => {
+    m.compose(new THREE.Vector3(b.x, b.y, b.z), q.setFromAxisAngle(up, b.ry || 0), new THREE.Vector3(b.w, b.h, b.d));
+    mesh.setMatrixAt(i, m);
+    A.set([b.seed, b.lit ?? 1, b.burn ?? 0, b.style], i * 4); B.set([b.col.r, b.col.g, b.col.b], i * 3); S.set([b.w, b.h, b.d], i * 3);
+    b.index = i;
+  });
+  geo.setAttribute('iA', new THREE.InstancedBufferAttribute(A, 4));
+  geo.setAttribute('iB', new THREE.InstancedBufferAttribute(B, 3));
+  geo.setAttribute('iSize', new THREE.InstancedBufferAttribute(S, 3));
+  mesh.frustumCulled = false;
+  scene.add(mesh);
+  return mesh;
+}
 
 // palettes (sRGB hex, converted to linear by THREE.Color)
-const PAL = {
+export const PAL = {
   brick: [0x7a3a2a, 0x6a3426, 0x84452e, 0x5a3024, 0x8a5038, 0x6e4632],
   buff: [0xa88a68, 0x9c8264, 0xb09a78, 0x8e7a62],
   stone: [0xb0a490, 0xa49c8c, 0xbcb09a, 0x9a948a, 0x8c8a86],
@@ -106,6 +163,9 @@ const PAL = {
   black: [0x141416, 0x18181c],
 };
 const COPPER = [0x3e6e5a, 0x4a7a64, 0x2e3a36, 0x6a5a48, 0x3a3e42];
+const gauss = (x, z, [cx, cz], s) => Math.exp(-((x - cx) ** 2 + (z - cz) ** 2) / (2 * s * s));
+const C_FIDI = geo(40.7065, -74.0095), C_WTC = geo(40.7117, -74.0133), C_CIVIC = geo(40.7135, -74.0035), C_MID = geo(40.7545, -73.9830),
+  C_EXCH = geo(40.7160, -74.0335), C_NEWPORT = geo(40.7275, -74.0330), C_BKLYN = geo(40.6930, -73.9900), C_CHELSEA = geo(40.7420, -73.9950);
 
 export class Skyline {
   constructor(scene, landmarks, glows) {
@@ -117,9 +177,10 @@ export class Skyline {
     this.kit = new Kit();          // pyramids, spires, masts, tanks
     this.glows = glows;
     const keep = landmarks.keep;
-    this.clear = (x, z, r) => keep.every(([kx, kz, kr]) => Math.hypot(x - kx, z - kz) > kr + r);
+    this.clear = (x, z, r) => keep.every(([kx, kz, kr]) => Math.hypot(x - kx, z - kz) > kr + r) && RESERVED.every(([x0, x1, z0, z1]) => x + r < x0 || x - r > x1 || z + r < z0 || z - r > z1);
     this.districts();
-    this.buildBoxes();
+    this.mesh = boxMesh(scene, this.boxes);
+    this.mat = this.mesh.material;
     this.buildLand();
     const roofMesh = this.kit.mesh(solidMaterial());
     roofMesh.frustumCulled = false;
@@ -129,54 +190,52 @@ export class Skyline {
   // ------------------------------------------------------------ placement
   districts() {
     const rng = this.rng;
-    const gauss = (x, z, cx, cz, sx, sz) => Math.exp(-((x - cx) ** 2) / (2 * sx * sx) - ((z - cz) ** 2) / (2 * sz * sz));
-    const fits = (poly, x, z, r) => inside(poly, x - r, z - r) && inside(poly, x + r, z + r) && inside(poly, x - r, z + r) && inside(poly, x + r, z - r);
-    // Lower Manhattan: the Financial District peaks around Wall Street, Battery Park City along the river
-    for (let gx = -340; gx < 1400; gx += 50) for (let gz = -1120; gz > -2900; gz -= 50) {
-      const x = gx + rng.range(-10, 10), z = gz + rng.range(-10, 10);
-      const w = rng.range(24, 42), d = rng.range(24, 42), r = Math.max(w, d) * 0.6;
-      if (!fits(MANHATTAN, x, z, r) || !this.clear(x, z, r) || rng.next() < 0.14) continue;
-      if (x > 1150 && z > -1600) continue;                       // the Battery is a park
-      if (Math.abs(x - 20) < 110 && z > -1300 && z < -1220) continue;  // West Street
-      const bpc = z > -1330 && x > 230 && x < 1150;
-      if (bpc) { if (rng.next() < 0.45) this.tower(x, z, w, d, 55 + rng.next() * 85, 'res', 0.05); continue; }
-      const k = Math.max(gauss(x, z, 520, -1780, 380, 340), gauss(x, z, 200, -1560, 240, 220) * 0.7, gauss(x, z, 900, -1750, 260, 260) * 0.6);
-      const h = 16 + rng.next() ** 1.6 * (30 + 230 * k);
-      const ry = rng.pick([0, -0.26, 0.22, 0.48, -0.1]);
-      this.tower(x, z, w, d, h, h > 60 ? (rng.next() < 0.45 ? 'pre' : 'post') : 'low', ry, rng.next() < 0.5 ? rng.range(0.4, 1) : 0);
-    }
-    // Tribeca, SoHo, the Village, Chelsea: brick lofts and walk-ups, a few towers
-    for (let gx = -380; gx > -2900; gx -= 70) for (let gz = -1150; gz > -4400; gz -= 70) {
-      const x = gx + rng.range(-14, 14), z = gz + rng.range(-14, 14);
-      const w = rng.range(26, 50), d = rng.range(26, 50), r = Math.max(w, d) * 0.6;
-      if (!fits(MANHATTAN, x, z, r) || !this.clear(x, z, r) || rng.next() < 0.12) continue;
-      const tall = rng.next() < 0.06;
-      const h = tall ? rng.range(70, 140) : 12 + rng.next() ** 2 * 48;
-      this.tower(x, z, w, d, h, tall ? rng.pick(['pre', 'post', 'res']) : 'low', -0.26 + rng.range(-0.04, 0.04), rng.next() < 0.3 ? rng.range(0.3, 0.9) : 0);
-    }
-    // Midtown, far off to the north-east, on the grid
-    for (let gx = -2900; gx > -7000; gx -= 80) for (let gz = -1900; gz > -5200; gz -= 80) {
-      const x = gx + rng.range(-12, 12), z = gz + rng.range(-12, 12);
-      const w = rng.range(30, 56), d = rng.range(30, 56), r = Math.max(w, d) * 0.6;
-      if (!fits(MANHATTAN, x, z, r) || !this.clear(x, z, r) || rng.next() < 0.1) continue;
-      const k = gauss(x, z, -4400, -3300, 1100, 650);
-      const h = 18 + rng.next() ** 1.4 * (40 + 230 * k);
-      this.tower(x, z, w, d, h, h > 70 ? (rng.next() < 0.4 ? 'pre' : 'post') : 'low', -0.26, rng.next() < 0.3 ? rng.range(0.3, 0.8) : 0);
-    }
-    // Brooklyn: low and endless, Downtown Brooklyn's towers and the bank clock tower
-    for (let gx = 3800; gx > -3000; gx -= 115) for (let gz = -2300; gz > -6500; gz -= 115) {
-      const x = gx + rng.range(-20, 20), z = gz + rng.range(-20, 20);
-      const w = rng.range(30, 70), d = rng.range(30, 70), r = Math.max(w, d) * 0.6;
-      if (!fits(BROOKLYN, x, z, r) || rng.next() < 0.2) continue;
-      const k = gauss(x, z, 1500, -3650, 380, 380);
+    const fits = (P, x, z, r) => inside(P, x - r, z - r) && inside(P, x + r, z + r) && inside(P, x - r, z + r) && inside(P, x + r, z - r);
+    // walk a jittered grid over a region, one lot per cell
+    const region = (x0, x1, z0, z1, step, P, fn) => {
+      for (let gx = x0; gx < x1; gx += step) for (let gz = z0; gz < z1; gz += step) {
+        const x = gx + rng.range(-0.2, 0.2) * step, z = gz + rng.range(-0.2, 0.2) * step;
+        const w = rng.range(0.45, 0.82) * step, d = rng.range(0.45, 0.82) * step, r = Math.max(w, d) * 0.6;
+        if (!fits(P, x, z, r) || !this.clear(x, z, r)) continue;
+        fn(x, z, w, d);
+      }
+    };
+    // Lower Manhattan: Tribeca low around us, rising to the Financial District and the Civic Center
+    region(-1300, 1000, -2300, 400, 52, MANHATTAN, (x, z, w, d) => {
+      if (rng.next() < 0.12) return;
+      const fidi = gauss(x, z, C_FIDI, 380), wtc = gauss(x, z, C_WTC, 260), civic = gauss(x, z, C_CIVIC, 240);
+      const k = Math.max(fidi, wtc * 0.75, civic * 0.6);
+      const h = 14 + rng.next() ** 1.7 * (26 + 235 * k);
+      const bpc = gauss(x, z, geo(40.7095, -74.0165), 260) > 0.35;
+      if (bpc && rng.next() < 0.6) { this.tower(x, z, w, d, 50 + rng.next() * 90, 'res', 0.1 + rng.range(-0.05, 0.05)); return; }
+      this.tower(x, z, w, d, h, h > 60 ? (rng.next() < 0.45 ? 'pre' : 'post') : 'low', k > 0.3 ? rng.pick([0.1, -0.2, 0.35, 0.6]) : 0.1 + rng.range(-0.06, 0.06), rng.next() < 0.5 ? rng.range(0.4, 1) : 0);
+    });
+    // SoHo, the Village, Chelsea, Midtown: behind us, seen from the roof
+    region(-2600, 2600, 400, 7000, 105, MANHATTAN, (x, z, w, d) => {
+      if (rng.next() < 0.1) return;
+      const k = Math.max(gauss(x, z, C_MID, 1100), gauss(x, z, C_CHELSEA, 500) * 0.35);
+      const tall = rng.next() < 0.04;
+      const h = tall ? rng.range(70, 140) : 14 + rng.next() ** 1.5 * (28 + 230 * k);
+      this.tower(x, z, w, d, h, h > 70 ? (rng.next() < 0.4 ? 'pre' : 'post') : 'low', 0.1, rng.next() < 0.3 ? rng.range(0.3, 0.8) : 0);
+    });
+    // Brooklyn: low and endless, Downtown Brooklyn's towers
+    region(-6500, -500, -5000, 5000, 160, BROOKLYN, (x, z, w, d) => {
+      if (rng.next() < 0.2) return;
+      const k = gauss(x, z, C_BKLYN, 420);
       const tall = rng.next() < k * 0.6;
-      const h = tall ? rng.range(60, 130) : 9 + rng.next() ** 2 * 26;
-      this.tower(x, z, w, d, h, tall ? 'post' : 'bk', rng.range(-0.5, 0.5), 0);
-    }
-    this.tower(1820, -3900, 34, 34, 156, 'pre', 0.3, 0, { crown: 'dome' });
-    // chimneys that never stop: Con Ed's East River stacks, the Navy Yard incinerator, a Tribeca boiler house
+      this.tower(x, z, w, d, tall ? rng.range(60, 140) : 9 + rng.next() ** 2 * 26, tall ? 'post' : 'bk', rng.range(-0.5, 0.5), 0);
+    });
+    // Jersey City and Hoboken across the Hudson: Exchange Place and Newport towers
+    region(700, 5000, -4000, 3500, 150, JERSEY, (x, z, w, d) => {
+      if (rng.next() < 0.25) return;
+      const k = Math.max(gauss(x, z, C_EXCH, 260), gauss(x, z, C_NEWPORT, 320) * 0.8);
+      const tall = rng.next() < k * 0.8;
+      this.tower(x, z, w, d, tall ? rng.range(70, 165) : 9 + rng.next() ** 2 * 24, tall ? 'post' : 'bk', rng.range(-0.3, 0.3), 0);
+    });
+    // chimneys that never stop: Con Ed's East River stacks, the Navy Yard incinerator, a hospital boiler house
     this.stacks = [];
-    for (const [x, z, h, n, col, steam] of [[-2650, -4120, 150, 4, 0x6a3a2c, 1], [-380, -4380, 90, 2, 0x5a5650, 0], [-820, -1720, 64, 1, 0x5a3a2c, 0]]) {
+    for (const [la, lo, h, n, col, steam] of [[40.7280, -73.9740, 150, 4, 0x6a3a2c, 1], [40.7000, -73.9720, 90, 2, 0x5a5650, 0], [40.7100, -74.0050, 60, 1, 0x5a3a2c, 1]]) {
+      const [x, z] = geo(la, lo);
       for (let i = 0; i < n; i++) {
         const sx = x + i * 26, r = h * 0.045;
         this.kit.add(STACK, col, { x: sx, y: G0, z, sx: r, sy: h, sz: r });
@@ -184,11 +243,6 @@ export class Skyline {
         this.stacks.push({ p: new THREE.Vector3(sx, G0 + h, z), r, steam, t: rng.next() * 3 });
       }
       this.kit.add(BOX, col, { x: x + (n - 1) * 13, y: G0 + 14, z: z + 30, sx: n * 26 + 20, sy: 28, sz: 50 });
-    }
-    // the Jersey side south of us: Paulus Hook's old warehouses and walk-ups
-    for (let i = 0; i < 26; i++) {
-      const x = rng.range(280, 520), z = rng.range(-115, -40);
-      this.tower(x, z, rng.range(16, 30), rng.range(16, 30), 8 + rng.next() ** 2 * 26, 'low', rng.range(-0.05, 0.05), 0);
     }
   }
 
@@ -228,7 +282,6 @@ export class Skyline {
       if (cr === 'pyr') { const ph = Math.min(tw, td) * rng.range(0.7, 1.3); kit.add(PYR, cc, { x: cx, y: G0 + h, z: cz, sx: tw * 0.98, sy: ph, sz: td * 0.98, ry, glow: rng.next() < 0.4 ? 0.12 : 0 }); top = h + ph; }
       else if (cr === 'spire') { const sh = h * rng.range(0.12, 0.22); kit.add(SPIRE, 0x5a5a58, { x: cx, y: G0 + h, z: cz, sx: Math.min(tw, td) * 0.28, sy: sh, sz: Math.min(tw, td) * 0.28 }); top = h + sh; }
       else if (cr === 'step') { add(0, 0, tw * 0.7, 6, td * 0.7, h, style, col); add(0, 0, tw * 0.4, 6, td * 0.4, h + 6, style, col); top = h + 12; }
-      else if (cr === 'dome') { kit.add(DOME, 0x5a6a5c, { x: cx, y: G0 + h, z: cz, sx: tw * 0.5, sy: tw * 0.5, sz: td * 0.5, glow: 0.1 }); top = h + tw * 0.5; }
       else if (cr === 'lantern') { add(0, 0, tw * 0.45, 9, td * 0.45, h, 1, col); kit.add(PYR, cc, { x: cx, y: G0 + h + 9, z: cz, sx: tw * 0.45, sy: 7, sz: td * 0.45, ry, glow: 0.15 }); top = h + 16; }
       else add(0, 0, tw * 0.5, 5, td * 0.5, h, 8, 0x5a5652);
     } else if (kind === 'post') {
@@ -269,31 +322,10 @@ export class Skyline {
     this.roofs.push(new THREE.Vector3(x, y, z));
   }
 
-  // ------------------------------------------------------------ meshes
-  buildBoxes() {
-    const list = this.boxes, n = list.length;
-    const geo = new THREE.BoxGeometry(1, 1, 1); geo.translate(0, 0.5, 0);
-    const mat = this.mat = new THREE.ShaderMaterial({ vertexShader: BLD_VS, fragmentShader: BLD_FS, uniforms: { ...OUT } });
-    const mesh = this.mesh = new THREE.InstancedMesh(geo, mat, n);
-    const A = new Float32Array(n * 4), B = new Float32Array(n * 3), S = new Float32Array(n * 3);
-    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0);
-    list.forEach((b, i) => {
-      m.compose(new THREE.Vector3(b.x, b.y, b.z), q.setFromAxisAngle(up, b.ry), new THREE.Vector3(b.w, b.h, b.d));
-      mesh.setMatrixAt(i, m);
-      A.set([b.seed, b.lit, b.burn, b.style], i * 4); B.set([b.col.r, b.col.g, b.col.b], i * 3); S.set([b.w, b.h, b.d], i * 3);
-      b.index = i;
-    });
-    geo.setAttribute('iA', new THREE.InstancedBufferAttribute(A, 4));
-    geo.setAttribute('iB', new THREE.InstancedBufferAttribute(B, 3));
-    geo.setAttribute('iSize', new THREE.InstancedBufferAttribute(S, 3));
-    mesh.frustumCulled = false;
-    this.scene.add(mesh);
-  }
-
   buildLand() {
     const kit = this.kit;
-    const land = (poly, top, side, pat, depth = 1.6) => {
-      const sh = new THREE.Shape(poly.map(([x, z]) => new THREE.Vector2(x, -z)));
+    const land = (P, top, side, pat, depth = 1.6) => {
+      const sh = new THREE.Shape(P.map(([x, z]) => new THREE.Vector2(x, -z)));
       const g = new THREE.ExtrudeGeometry(sh, { depth, bevelEnabled: false, steps: 1, curveSegments: 1 });
       g.rotateX(-Math.PI / 2); g.translate(0, -14.02 - depth, 0);
       kit.add(g, top, { side, pat });
@@ -301,29 +333,24 @@ export class Skyline {
     land(MANHATTAN, 0x4a4742, 0x3a3630, 5);
     land(BROOKLYN, 0x4a4640, 0x3a3630, 5);
     land(GOV, 0x3a4630, 0x3a3630, 4);
-    land(JERSEY, 0x5a5650, 0x48443e, 2, 1.4);
-    // Manhattan's Hudson piers: Tribeca's and the big square Pier 40
-    for (const [x, w, l] of [[-520, 26, 170], [-700, 30, 210], [-1180, 24, 180], [-1520, 110, 240], [-1900, 28, 200]]) {
-      const zs = this.shoreZ(x);
-      kit.add(BOX, 0x56524c, { x, y: -14.6, z: zs + l / 2 - 5, sx: w, sy: 1.2, sz: l, side: 0x2e2a26, pat: 2 });
-      if (w > 60) kit.add(BOX, 0x6a5a4a, { x, y: -14 + 6, z: zs + l / 2 - 5, sx: w * 0.9, sy: 12, sz: l * 0.85 });
+    land(JERSEY, 0x4a4742, 0x3a3630, 5);
+    // Hudson piers off Tribeca and the Village, the big square Pier 40
+    for (const [la, lo, w, l] of [[40.7205, -74.0135, 28, 220], [40.7235, -74.0128, 26, 200], [40.7290, -74.0118, 110, 250], [40.7330, -74.0113, 26, 210], [40.7395, -74.0108, 30, 230]]) {
+      const [x, z] = geo(la, lo), ang = Math.atan2(-1, 0.2);
+      const dx = Math.cos(ang + 0.6), dz = Math.sin(ang + 0.6);
+      kit.add(BOX, 0x56524c, { x: x + dx * l * 0.45, y: -14.6, z: z + dz * l * 0.45, sx: l, sy: 1.2, sz: w, ry: -Math.atan2(dz, dx), side: 0x2e2a26, pat: 2 });
+      if (w > 60) kit.add(BOX, 0x6a5a4a, { x: x + dx * l * 0.45, y: -14 + 6, z: z + dz * l * 0.45, sx: l * 0.85, sy: 12, sz: w * 0.9, ry: -Math.atan2(dz, dx) });
     }
-    // Governors Island: Fort Jay's mound, brick barracks, trees
-    kit.add(new THREE.SphereGeometry(1, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2), 0x34442c, { x: 2420, y: -14, z: -1900, sx: 230, sy: 24, sz: 170 });
-    for (let i = 0; i < 9; i++) kit.add(BOX, 0x6a3a2a, { x: 2250 + (i % 3) * 90 + this.rng.range(-20, 20), y: -14 + 6, z: -1700 - Math.floor(i / 3) * 60, sx: 60, sy: 12, sz: 18, ry: 0.4 });
-  }
-  // the Manhattan bulkhead's z at a given x (west shore, north of the Battery)
-  shoreZ(x) {
-    const P = MANHATTAN;
-    for (let i = 0; i < 7; i++) { const [x0, z0] = P[i], [x1, z1] = P[i + 1]; if (x >= x0 && x <= x1) return z0 + ((x - x0) / (x1 - x0)) * (z1 - z0); }
-    return -1150;
+    // Governors Island: Fort Jay's mound and brick barracks
+    const [gx, gz] = geo(40.6895, -74.0168);
+    kit.add(new THREE.SphereGeometry(1, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2), 0x34442c, { x: gx, y: -14, z: gz, sx: 230, sy: 24, sz: 170 });
+    for (let i = 0; i < 9; i++) kit.add(BOX, 0x6a3a2a, { x: gx - 150 + (i % 3) * 90 + this.rng.range(-20, 20), y: -14 + 6, z: gz + 120 - Math.floor(i / 3) * 60, sx: 60, sy: 12, sz: 18, ry: 0.4 });
   }
 }
 
 const PYR = new THREE.CylinderGeometry(0, 0.7071, 1, 4, 1).rotateY(Math.PI / 4).translate(0, 0.5, 0);
 const HIP = new THREE.CylinderGeometry(0.28, 0.7071, 1, 4, 1).rotateY(Math.PI / 4).translate(0, 0.5, 0);
 const SPIRE = new THREE.ConeGeometry(1, 1, 6).translate(0, 0.5, 0);
-const DOME = new THREE.SphereGeometry(1, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2);
 const STACK = new THREE.CylinderGeometry(0.8, 1, 1, 10, 1).translate(0, 0.5, 0);
 const BOX = new THREE.BoxGeometry(1, 1, 1);
 const TANK_BARREL = new THREE.CylinderGeometry(1, 1.04, 1, 10, 1).translate(0, 0.5, 0);
@@ -334,3 +361,4 @@ const TANK_LEGS = (() => {
   k.add(BOX, 0, { y: 0.97, sx: 1.7, sy: 0.06, sz: 1.7 });
   const g = k.geometry(); g.deleteAttribute('color'); g.deleteAttribute('aux'); return g;
 })();
+export const TANK = { barrel: TANK_BARREL, hat: TANK_HAT, legs: TANK_LEGS };

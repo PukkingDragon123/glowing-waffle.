@@ -1,12 +1,12 @@
-// Lower Manhattan landmarks at true scale, as seen across the Hudson from
-// Exchange Place: the Twin Towers (column facade, mechanical-floor bands, the
+// Lower Manhattan landmarks at true scale, as seen from Tribeca down West
+// Broadway: the Twin Towers (column facade, mechanical-floor bands, the
 // North Tower's antenna), WTC 7 and the Verizon Building north of them, the
 // Marriott, the World Financial Center with the Winter Garden, One Liberty,
 // the Millenium Hilton, Chase Manhattan Plaza, the Woolworth Building, 40
 // Wall Street, 70 Pine, the windowless AT&T Long Lines, and uptown the Empire
 // State and the Chrysler.
-// Frame: -z is the view across the river (roughly east-south-east), +x is to
-// the right (south), -x is north. Ground is y = -14.
+// Frame: -z looks south down West Broadway from Tribeca, +x is to the right
+// (west), +z north. Ground is y = -14.
 import * as THREE from 'three';
 import { radial } from '../gfx/textures.js';
 import { OUT, OUT_GLSL } from './outdoor.js';
@@ -117,38 +117,42 @@ export class Landmarks {
     this.lights = [];
     this.keep = [];          // [x, z, r] the filler skyline stays clear of
     const W = (x, z) => V(x, GROUND, z);
-    // --- the Twin Towers: 63.4 m square, 417 m (North, with antenna) and 415 m (South).
-    //     From Jersey City the North Tower and its mast stand on the left.
-    const north = this.wtcTower(W(42, -1380), 417, 0, true);
-    const south = this.wtcTower(W(140, -1402), 415, 1, false);
+    // Positions come from real coordinates turned into the view down West Broadway (skyline.geo),
+    // with downtown drawn 14% nearer and the Woolworth and 7 WTC nudged so the towers loom at the end
+    // of the street the way they do in the classic photographs of it.
+    // --- the Twin Towers: 63.4 m square, 417 m (North, with antenna) and 415 m (South), on the Manhattan grid.
+    //     Looking south the North Tower and its mast stand nearer and to the right.
+    const north = this.wtcTower(W(21.1, -802.4), 417, 0, true, 0.096);
+    const south = this.wtcTower(W(-50.4, -880.6), 415, 1, false, 0.096);
     this.towers.push(north, south);
-    this.keep.push([42, -1380, 50], [140, -1402, 50]);
+    this.keep.push([21.1, -802.4, 50], [-50.4, -880.6, 50]);
     // --- around the plaza
-    this.slab(W(-126, -1440), 64, 186, 92, 0x6e3a30, 3.0, 3.7, 7, { ry: 0.08, sheen: 0.05 });   // 7 WTC, red granite
-    this.verizon(W(-92, -1345));                                                                  // Barclay-Vesey, buff brick setbacks
-    this.slab(W(150, -1326), 40, 82, 24, 0x9a9690, 2.8, 3.4, 8);                                  // Marriott (3 WTC)
-    this.slab(W(92, -1500), 90, 36, 50, 0x6c6a66, 3.0, 3.6, 9);                                   // 4/5 WTC
-    this.slab(W(196, -1575), 40, 170, 26, 0x141418, 2.2, 3.3, 10, { sheen: 0.12 });              // Millenium Hilton, black
-    this.slab(W(300, -1590), 84, 226, 50, 0x1c1c20, 3.0, 3.8, 11, { sheen: 0.1 });               // One Liberty Plaza
-    this.keep.push([-126, -1440, 60], [-92, -1345, 50], [150, -1326, 30], [92, -1500, 55], [196, -1575, 30], [300, -1590, 55]);
+    this.slab(W(67.1, -692.3), 92, 186, 64, 0x8a6a5e, 3.0, 3.7, 7, { ry: 0.1, sheen: 0.06 });     // 7 WTC, granite
+    this.verizon(W(159.1, -653.6));                                                               // Barclay-Vesey, buff brick setbacks
+    this.slab(W(13.8, -901.3), 40, 82, 24, 0x9a9690, 2.8, 3.4, 8, { ry: 0.096 });                 // Marriott (3 WTC)
+    this.slab(W(-135, -798.9), 90, 36, 50, 0x6c6a66, 3.0, 3.6, 9, { ry: 0.096 });                // 4/5 WTC
+    this.slab(W(94.6, -768), 50, 34, 40, 0x7a7670, 3.0, 3.6, 16, { ry: 0.096 });                // 6 WTC, the Custom House
+    this.slab(W(-223.6, -773.1), 40, 170, 26, 0x141418, 2.2, 3.3, 10, { sheen: 0.12, ry: 0.1 });   // Millenium Hilton, black
+    this.slab(W(-241.7, -876.3), 84, 226, 50, 0x1c1c20, 3.0, 3.8, 11, { sheen: 0.1, ry: 0.1 });   // One Liberty Plaza
+    this.keep.push([67.1, -692.3, 62], [159.1, -653.6, 50], [13.8, -901.3, 30], [-135, -798.9, 55], [94.6, -768, 35], [-223.6, -773.1, 30], [-241.7, -876.3, 55]);
     // --- World Financial Center: granite and glass with copper tops; the Winter Garden between 2 and 3
-    const wfc = [[210, -1215, 176, 'trunc'], [132, -1190, 197, 'dome'], [40, -1192, 225, 'pyramid'], [-42, -1222, 150, 'step']];
+    const wfc = [[141.9, -908.2, 176, 'trunc'], [226.2, -850.5, 197, 'dome'], [276.9, -711.2, 225, 'pyramid'], [338, -661.3, 150, 'step']];
     wfc.forEach(([x, z, h, top], i) => { this.wfcTower(W(x, z), h, top, 30 + i); this.keep.push([x, z, 40]); });
-    this.winterGarden(W(86, -1150));
-    this.keep.push([86, -1150, 40]);
-    // --- the old downtown
-    this.woolworth(W(-62, -1815));
-    this.slab(W(470, -1725), 88, 248, 38, 0x8c9196, 1.6, 3.7, 14, { winW: 0.55, sheen: 0.14 });   // Chase Manhattan Plaza, aluminium
-    this.slab(W(560, -1785), 42, 236, 42, 0x9a8f80, 2.4, 3.6, 12);                                // 40 Wall Street
-    this.pyramid(W(560, -1785), 40, 32, 222, 0x2e5e4c, 0.0);
-    this.spire(W(560, -1785), 254, 30, 0x2a3a34);
-    this.pine(W(655, -1890));                                                                     // 70 Pine
-    this.slab(W(-380, -1960), 58, 167, 58, 0x8a6e66, 3, 3.6, 15, { style: 2, ry: 0.26 });        // AT&T Long Lines, windowless
-    this.keep.push([-62, -1815, 50], [470, -1725, 60], [560, -1785, 35], [655, -1890, 35], [-380, -1960, 50]);
-    // --- uptown: Empire State and Chrysler, small, hazy, lit
-    this.esb(W(-3800, -2950));
-    this.chrysler(W(-4650, -3500));
-    this.keep.push([-3800, -2950, 90], [-4650, -3500, 50]);
+    this.winterGarden(W(266.6, -782.6));
+    this.keep.push([266.6, -782.6, 40]);
+    // --- the old downtown: the Woolworth's white Gothic tower in front of the towers, Wall Street to the left
+    this.woolworth(W(1.7, -653.6));
+    this.slab(W(-452.4, -940), 88, 248, 38, 0x8c9196, 1.6, 3.7, 14, { winW: 0.55, sheen: 0.14, ry: 0.1 });   // Chase Manhattan Plaza, aluminium
+    this.slab(W(-472.1, -1020), 42, 236, 42, 0x9a8f80, 2.4, 3.6, 12, { ry: 0.1 });                            // 40 Wall Street
+    this.pyramid(W(-472.1, -1020), 40, 32, 222, 0x2e5e4c, 0.0);
+    this.spire(W(-472.1, -1020), 254, 30, 0x2a3a34);
+    this.pine(W(-599.4, -1001));                                                                              // 70 Pine
+    this.slab(W(-279, -212), 58, 167, 58, 0x8a6e66, 3, 3.6, 15, { style: 2, ry: 0.1 });                     // AT&T Long Lines, windowless
+    this.keep.push([1.7, -653.6, 50], [-452.4, -940, 60], [-472.1, -1020, 35], [-599.4, -1001, 35], [-279, -212, 50]);
+    // --- uptown, behind us: Empire State and Chrysler, small, hazy, lit
+    this.esb(W(413, 3744));
+    this.chrysler(W(-96, 4524));
+    this.keep.push([413, 3744, 90], [-96, 4524, 50]);
     this.buildLights();
   }
 
@@ -173,7 +177,7 @@ export class Landmarks {
   add(g, mat, pos, dy = 0) { if (!g.attributes.aBox) tagBox(g, 1, 1, 1); const m = new THREE.Mesh(g, mat); m.position.copy(pos); m.position.y += dy; this.scene.add(m); return m; }
   box(w, h, d, mat, pos, dy = 0) { return this.add(boxGeo(w, h, d), mat, pos, dy); }
 
-  wtcTower(pos, h, i, antenna) {
+  wtcTower(pos, h, i, antenna, ry = 0) {
     const mat = this.material({ base: 0xa9abb0, glass: 0x10141a, pitch: 1.02, floorH: 3.66, winW: 0.46, h, style: 0, seed: 100 + i, sheen: 0.15 });
     // chamfered square plan
     const s = 31.7, c = 2.2;
@@ -183,6 +187,7 @@ export class Landmarks {
     g.rotateX(-Math.PI / 2);
     tagBox(g, 63.4, h, 63.4);
     const m = this.add(g, mat, pos);
+    m.rotation.y = ry;
     const t = { mesh: m, mat, pos: pos.clone(), h, extras: [] };
     // roof: hat truss rim + mechanical clutter
     const roofM = this.solid(0x55575b);
@@ -200,7 +205,8 @@ export class Landmarks {
       // the observation deck: a low parapet and the rooftop walkway
       t.extras.push(this.box(40, 4, 40, roofM, pos, h + 2.5));
     }
-    for (const [dx, dz] of [[-28, -28], [28, -28], [28, 28], [-28, 28]]) this.lights.push({ pos: pos.clone().add(V(dx, h + 4, dz)), col: 0xff3a20, size: 4, blink: 1.6, ph: i * 0.3, tower: t });
+    for (const e of t.extras) { e.rotation.y = ry; e.position.sub(pos).applyAxisAngle(V(0, 1, 0), ry).add(pos); }
+    for (const [dx, dz] of [[-28, -28], [28, -28], [28, 28], [-28, 28]]) this.lights.push({ pos: pos.clone().add(V(dx, h + 4, dz).applyAxisAngle(V(0, 1, 0), ry)), col: 0xff3a20, size: 4, blink: 1.6, ph: i * 0.3, tower: t });
     return t;
   }
 

@@ -1,16 +1,20 @@
 // The outside, rendered as a separate background pass with its own far plane:
 // a smog-heavy sky (sun, bruised clouds, stars, the city's sodium dome), two
-// moons, the Exchange Place waterfront, the Hudson with its boats and wakes,
-// the Manhattan skyline with the Twin Towers, fires/smoke, alien lights,
-// searchlights and the biomechanical ship. Also drives sun/ambient lighting
-// for the interior. -z looks across the river; +x is south.
+// moons, West Broadway below the window with its traffic and what the week
+// does to it, government helicopters, the Manhattan skyline with the Twin
+// Towers at the end of the street, the Hudson off to the side with its boats,
+// fires/smoke, alien lights, searchlights and the biomechanical ship. Also
+// drives sun/ambient lighting for the interior. -z looks south down West
+// Broadway; +x is west.
 import * as THREE from 'three';
 import { G } from '../core/globals.js';
 import { clamp, lerp, smoothstep, RNG } from '../core/util.js';
 import { makeCanvas, toTexture, radial } from '../gfx/textures.js';
 import { Landmarks } from './city.js';
-import { Skyline } from './skyline.js';
-import { Waterfront } from './waterfront.js';
+import { Skyline, isWater } from './skyline.js';
+import { Street } from './street.js';
+import { Havoc } from './havoc.js';
+import { Helicopters } from './helicopters.js';
 import { Harbor, MAX_WAKES } from './harbor.js';
 import { OUT, OUT_GLSL, Glows } from './outdoor.js';
 import { Ship } from './ship.js';
@@ -120,18 +124,6 @@ void main(){
   vec3 r = reflect(v, n); r.y = abs(r.y);
   float fres = 0.02 + 0.98 * pow(1.0 - max(dot(-v, n), 0.0), 5.0);
   vec3 refl = skyRefl(r);
-  // the skyline mirrored in the river: does the reflected ray meet the far shore's buildings?
-  if (r.z < -0.01 && p.z > -1150.0) {
-    float t = (-1260.0 - p.z) / r.z;
-    float xh = p.x + r.x * t, yh = p.y + r.y * t + 14.0;
-    float hb = 25.0 + 120.0 * vn2(vec2(xh * 0.011, 1.0)) * smoothstep(-2600.0, -300.0, xh) + 50.0 * vn2(vec2(xh * 0.05, 3.0));
-    hb += 220.0 * smoothstep(400.0, 0.0, abs(xh - 300.0)) * vn2(vec2(xh * 0.03, 7.0));
-    hb = max(hb, 417.0 * step(abs(xh - 42.0), 32.0) + 415.0 * step(abs(xh - 140.0), 32.0));
-    float hit = smoothstep(hb + 6.0, hb - 6.0, yh) * smoothstep(1500.0, 1250.0, xh);
-    vec3 bc = mix(cityRefl, oFogCol, clamp(1.0 - exp(-(t + 300.0) * oFogDen), 0.0, 1.0));
-    bc += vec3(1.0, 0.72, 0.4) * oNight * oLit * step(0.78, vn2(vec2(xh * 0.45, yh * 0.08))) * 0.9;
-    refl = mix(refl, bc, hit);
-  }
   vec3 body = deep * (oAmbSky * 1.6 + oSunCol * max(oSun.y, 0.0) * 0.5 + oAmbGnd);
   vec3 col = mix(body, refl, fres);
   // sun glitter, and the moon's glade at night
@@ -140,12 +132,12 @@ void main(){
   float mr = max(dot(r, moonDir), 0.0);
   col += vec3(0.5, 0.55, 0.65) * moonK * (pow(mr, 700.0) * 5.0 + pow(mr, 90.0) * 0.08) * (0.4 + h0);
   // city lights streak across the water toward us at night
-  float streak = step(0.72, vn2(vec2(p.x * 0.07, p.z * 0.5 + oTime * 0.6))) * oNight * smoothstep(-1500.0, -900.0, p.z) * smoothstep(-200.0, -700.0, p.z);
+  float streak = step(0.72, vn2(vec2(p.x * 0.07, p.z * 0.5 + oTime * 0.6))) * oNight * smoothstep(3000.0, 600.0, dist);
   col += streak * vec3(1.0, 0.68, 0.35) * 0.3 * (0.4 + h0) * oLit * 2.0;
   // foam
   vec3 fc = vec3(0.7, 0.71, 0.68) * (oSunCol * max(oSun.y, 0.1) * 0.7 + oAmbSky * 2.0 + oAmbGnd) + vec3(0.02, 0.012, 0.005) * oNight;
   col = mix(col, fc, clamp(foam, 0.0, 0.9));
-  col += fire * vec3(0.9, 0.3, 0.05) * smoothstep(-1500.0, -1150.0, p.z) * (0.12 + h0 * 0.25);
+  col += fire * vec3(0.9, 0.3, 0.05) * (0.12 + h0 * 0.25) * 0.6;
   // the blast's shock ring racing across the river
   if (shock.w > 0.0) { float sd = abs(length(p.xz - shock.xy) - shock.z); col += vec3(0.9, 0.85, 0.8) * smoothstep(40.0, 0.0, sd) * shock.w * 0.8; }
   gl_FragColor = vec4(outFog(col, p), 1.0);
@@ -154,19 +146,28 @@ void main(){
 // camera-facing quads in one draw: fire glows (additive) or smoke columns (blended, fogged)
 const BB_VS = /* glsl */`
 attribute vec3 iPos; attribute vec2 iSize; attribute vec4 iCol;
-varying vec2 vUv; varying vec4 vCol; varying vec3 vW;
-void main(){ vUv = position.xy * 2.0; vCol = iCol; vW = iPos; vec4 mv = viewMatrix * vec4(iPos, 1.0); mv.xy += position.xy * iSize; gl_Position = projectionMatrix * mv; }`;
+varying vec2 vUv; varying vec4 vCol; varying vec3 vW; varying vec3 vR; varying vec3 vU; varying vec3 vF;
+void main(){
+  vUv = position.xy * 2.0; vCol = iCol; vW = iPos;
+  vR = vec3(viewMatrix[0][0], viewMatrix[1][0], viewMatrix[2][0]); vU = vec3(viewMatrix[0][1], viewMatrix[1][1], viewMatrix[2][1]); vF = vec3(viewMatrix[0][2], viewMatrix[1][2], viewMatrix[2][2]);
+  vec4 mv = viewMatrix * vec4(iPos, 1.0); mv.xy += position.xy * iSize; gl_Position = projectionMatrix * mv;
+}`;
 const BB_FS = /* glsl */`
 ${OUT_GLSL}
 uniform float smoky;
-varying vec2 vUv; varying vec4 vCol; varying vec3 vW;
+varying vec2 vUv; varying vec4 vCol; varying vec3 vW; varying vec3 vR; varying vec3 vU; varying vec3 vF;
 void main(){
   float r = length(vUv);
   if (smoky > 0.5) {
-    float n = vn2(vUv * 2.5 + vW.xz * 0.01 + vec2(oTime * 0.05, 0.0));
-    float a = smoothstep(1.0, 0.15, r + (n - 0.5) * 0.6) * vCol.a;
+    // a ball of smoke: billowing edge, sunlit on one side, dark in its core, lit from below by the fire at night
+    float n = vn2(vUv * 2.2 + vW.xz * 0.01 + vec2(oTime * 0.04, -oTime * 0.03)) * 0.65 + vn2(vUv * 5.0 + vW.y * 0.02) * 0.35;
+    float a = smoothstep(1.0, 0.25, r + (n - 0.5) * 0.7) * vCol.a;
     if (a < 0.004) discard;
-    gl_FragColor = vec4(outFog(vCol.rgb * (0.7 + 0.6 * n), vW), a);
+    vec3 nrm = normalize(vR * vUv.x + vU * vUv.y + vF * sqrt(max(0.0, 1.0 - r * r)));
+    float sunK = max(dot(nrm, oSun), 0.0);
+    vec3 c = vCol.rgb * (0.45 + 0.7 * n) * (oAmbSky * 2.2 + oAmbGnd + oSunCol * sunK * 0.9);
+    c += vec3(0.9, 0.32, 0.06) * oBurn * oNight * smoothstep(0.4, -1.0, vUv.y) * 0.25;
+    gl_FragColor = vec4(outFog(c, vW), a);
   } else {
     float a = pow(max(1.0 - r, 0.0), 1.6) * vCol.a;
     if (a < 0.004) discard;
@@ -274,9 +275,11 @@ export class Sky {
     this.city = this.skyline.mesh; this.bldMat = this.skyline.mat; this.tanks = this.skyline.roofMesh;
     this.buildings = this.skyline.buildings;
     this.roofs = this.skyline.roofs;
-    this.waterfront = new Waterfront(this.scene, this.glows);
-    this.ground = this.waterfront.static;
-    this.lamps = this.waterfront.lamps;
+    this.street = new Street(this.scene, this.glows);
+    this.ground = this.street.static;
+    this.lamps = this.street.lamps;
+    this.havoc = new Havoc(this.scene, this.glows, this.street);
+    this.helis = new Helicopters(this.scene, this.glows);
     this.harbor = new Harbor(this.scene, this.glows);
   }
 
@@ -310,10 +313,12 @@ export class Sky {
   buildFX() {
     // fire glows + smoke columns over burning buildings, one instanced draw each
     this.fires = []; this.smokes = [];
-    const burning = this.buildings.filter((b) => b.burn > 0.5 && b.z < -1000 && b.z > -2600 && b.x > -1600).slice(0, 60);
+    const burning = [...this.street.buildings.filter((b) => b.burn > 0.5).slice(0, 10), ...this.buildings.filter((b) => b.burn > 0.5 && b.z < -400 && b.z > -1800 && Math.abs(b.x) < 900 && b.h > 25).slice(0, 50)];
     for (const b of burning) {
-      this.fires.push({ b, ph: Math.random() * 10 });
-      for (let k = 0; k < 3; k++) this.smokes.push({ b, k, ph: Math.random() * 10 });
+      // the fire glows on the face toward us
+      const d = new THREE.Vector2(-b.x, -b.z).normalize().multiplyScalar(Math.max(b.w, b.d) * 0.5 + 3);
+      this.fires.push({ b, ph: Math.random() * 10, ox: d.x, oz: d.y });
+      for (let k = 0; k < 5; k++) this.smokes.push({ b, k, ph: Math.random() * 10 });
     }
     this.fireBB = new Billboards(this.scene, this.fires.length, false);
     this.smokeBB = new Billboards(this.scene, this.smokes.length, true);
@@ -365,12 +370,13 @@ export class Sky {
   }
 
   // ---------------------------------------------------------- presets
-  // the sun over Jersey City on July 1st (lat 40.7, declination +23.1, EDT),
-  // in the view's frame: -z looks east-south-east across the river, +x is south-south-west
+  // the sun over Lower Manhattan on July 1st (lat 40.7, declination +23.1, EDT),
+  // in the view's frame: -z looks down West Broadway (bearing 214.5), +x is west-north-west
   static sunAt(hours) {
     const H = ((hours - 13) * 15) * Math.PI / 180, dec = 23.1 * Math.PI / 180, lat = 40.72 * Math.PI / 180;
     const E = -Math.cos(dec) * Math.sin(H), N = Math.cos(lat) * Math.sin(dec) - Math.sin(lat) * Math.cos(dec) * Math.cos(H), U = Math.sin(lat) * Math.sin(dec) + Math.cos(lat) * Math.cos(dec) * Math.cos(H);
-    return new THREE.Vector3(-0.242 * E - 0.97 * N, U, -(0.97 * E - 0.242 * N)).normalize();
+    const sb = Math.sin(214.5 * Math.PI / 180), cb = Math.cos(214.5 * Math.PI / 180);
+    return new THREE.Vector3(E * cb - N * sb, U, -(E * sb + N * cb)).normalize();
   }
   // day: 1..7, t: 0..1 through the waking day (07:00 .. 23:00)
   preset(day, t, menu = false) {
@@ -388,6 +394,7 @@ export class Sky {
     P.ship = day >= 5 ? (day - 4) / 3 : 0;
     P.litFrac = [0.5, 0.55, 0.5, 0.35, 0.25, 0.15, 0.08, 0][day] ?? 0.4;
     P.blackout = day >= 4 ? 0.6 : 0;
+    P.day = menu ? 7 : day;
     if (menu) Object.assign(P, { night: 1, smoke: 0.85, burn: 0.95, red: 0.6, moon2: 1, lights: 1, ship: 1, litFrac: 0.12, blackout: 0.7, cloud: 0.75, sunDir: new THREE.Vector3(0.3, -0.4, 0.8).normalize() });
     return P;
   }
@@ -396,7 +403,10 @@ export class Sky {
     const k = snap ? 1 : 0.02;
     for (const key of ['night', 'cloud', 'smoke', 'burn', 'red', 'moon2', 'lights', 'ship', 'litFrac', 'blackout']) if (P[key] !== undefined) p[key] = lerp(p[key], P[key], k);
     if (P.sunDir) { if (!p.sunDir) p.sunDir = P.sunDir.clone(); else p.sunDir.lerp(P.sunDir, snap ? 1 : 0.05).normalize(); }
+    if (P.day !== undefined) p.day = P.day;
   }
+  // for the menu's falling wreckage: river or street?
+  isWater(x, z) { return isWater(x, z); }
 
   update(dt, cam) {
     this.time += dt;
@@ -458,7 +468,10 @@ export class Sky {
     this.landmarks.update(t, sh);
     this.shipObj.update(dt, t, sh);
     this.debris.update(dt, sh);
-    this.waterfront.update(dt);
+    const day = p.day ?? 1;
+    this.street.update(dt, t, this.havoc.calm(day));
+    this.havoc.update(dt, t, p, day);
+    this.helis.update(dt, t, p, day, cam, this.debris);
     this.harbor.update(dt, t);
     // the stacks across the river breathe steam and smoke all day (the menu keeps the puffs for its own fires)
     if (!this.cinematic) for (const s of this.skyline.stacks) {
@@ -468,7 +481,8 @@ export class Sky {
       const c = s.steam ? C(0.6, 0.58, 0.56) : C(0.2, 0.18, 0.17);
       this.debris.puff(s.p.clone().add(new THREE.Vector3(0, s.r, 0)), new THREE.Vector3(-1 - Math.random(), 4 + Math.random() * 2, -0.5), s.r * 3, s.r * 1.4 + 2, 45, c, s.steam ? 0.42 : 0.36);
     }
-    if (wu.shock) { if (this.shock) { this.shock.r += dt * 340; wu.shock.value.set(this.shock.x, this.shock.z, this.shock.r, Math.max(0, 1 - this.shock.r / 2500)); } else wu.shock.value.w = 0; }
+    if (this.shock) { this.shock.r += dt * 340; wu.shock.value.set(this.shock.x, this.shock.z, this.shock.r, Math.max(0, 1 - this.shock.r / 2500)); } else wu.shock.value.w = 0;
+    OUT.oShock.value.copy(wu.shock.value);
     // moons (high over the harbour)
     const md1 = new THREE.Vector3(-0.35, 0.32, -1).normalize(), md2 = new THREE.Vector3(0.45, 0.2, -1).normalize();
     this.moon1.s.position.copy(cam.position).addScaledVector(md1, 5000);
@@ -482,14 +496,14 @@ export class Sky {
     // fires & smoke (hidden outright when out, so they cost no draws)
     this.fires.forEach((f, i) => {
       const b = f.b, o = p.burn * b.burn * (0.6 + 0.4 * Math.sin(t * 7 + f.ph) * Math.sin(t * 3.1 + f.ph)) * (0.4 + night * 0.6);
-      this.fireBB.set(i, b.x, b.y + b.h * 0.6, b.z + b.d / 2 + 5, b.w * 2.2, b.h * 0.9, 1.0, 0.4, 0.05, o);
+      this.fireBB.set(i, b.x + f.ox, b.y + b.h * 0.6, b.z + f.oz, Math.max(b.w, b.d) * 1.6, b.h * 0.9, 1.0, 0.4, 0.05, o);
     });
     this.fireBB.flush(p.burn > 0.01);
-    // dark oily smoke, drifting north on the wind, lit a little from below at night
-    const sc = C(0.032, 0.028, 0.024).lerp(C(0.05, 0.022, 0.01), night * p.burn);
+    // dark oily plumes boiling up off the roofs and leaning north-east on the wind, toward us
+    const sc = C(0.05, 0.045, 0.04);
     this.smokes.forEach((s, i) => {
-      const b = s.b, k = s.k, rise = (t * 6 + s.ph * 20) % 90, sz = 140 + k * 60 + rise * 0.6;
-      this.smokeBB.set(i, b.x + Math.sin(t * 0.1 + s.ph) * 30 - k * 25 - rise * 0.4, b.y + b.h + 40 + k * 90 + rise, b.z, sz, sz, sc.r, sc.g, sc.b, p.smoke * b.burn * 0.5 * Math.min(1, rise / 15, (90 - rise) / 20));
+      const b = s.b, u = ((t * 0.035 + s.ph * 0.1 + s.k / 5) % 1), rise = u * 260, sz = 30 + Math.sqrt(b.w * b.d) * 0.6 + rise * 0.7;
+      this.smokeBB.set(i, b.x + Math.sin(t * 0.1 + s.ph) * 8 - rise * 0.45, b.y + b.h + 10 + rise, b.z + rise * 0.6, sz, sz, sc.r, sc.g, sc.b, p.smoke * b.burn * 0.6 * Math.min(1, u * 8, (1 - u) * 3));
     });
     this.smokeBB.flush(p.smoke > 0.01);
     for (const m of this.motes) {
@@ -508,8 +522,8 @@ export class Sky {
     if (!this.cinematic) {
       this.ship.visible = p.ship > 0.01;
       if (this.ship.visible) {
-        this.ship.position.set(260, 1150 - p.ship * 380 + Math.sin(t * 0.05) * 20, -2400);
-        this.ship.rotation.set(0.06, -1.25 + Math.sin(t * 0.02) * 0.05, -0.04);
+        this.ship.position.set(-120, 1150 - p.ship * 380 + Math.sin(t * 0.05) * 20, -2600);
+        this.ship.rotation.set(0.06, -0.4 + Math.sin(t * 0.02) * 0.05, -0.04);
         this.shipLight.intensity = 0;
       }
     }

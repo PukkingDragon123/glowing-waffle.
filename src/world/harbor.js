@@ -5,6 +5,7 @@
 // water shader's wakes.
 import * as THREE from 'three';
 import { Kit, solidMaterial } from './outdoor.js';
+import { geo } from './skyline.js';
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
 const WL = -15;                    // waterline
@@ -100,18 +101,21 @@ export class Harbor {
       const moving = (u > dwell && u < dwell + travel) || u > 2 * dwell + travel;
       return { p, d: d.lengthSq() > 1e-6 ? d.normalize() : null, v: moving ? 12 * Math.sin(Math.PI * e) + 1 : 0 };
     };
-    const lane = (z, x0, x1, speed, t0, wob = 0) => (t) => {
-      const span = x1 - x0, u = (((t * speed + t0) % span) + span) % span;
-      const x = speed > 0 ? x0 + u : x1 - u;
-      return { p: new THREE.Vector2(x, z + Math.sin(x * 0.004) * wob), d: new THREE.Vector2(Math.sign(speed), Math.cos(x * 0.004) * wob * 0.004 * Math.sign(speed)).normalize(), v: Math.abs(speed) };
+    // a straight run between two points, looping, with a slow weave
+    const line = (a, b, speed, t0, wob = 0) => (t) => {
+      const d = b.clone().sub(a), L = d.length(); d.normalize();
+      const u = (((t * speed + t0) % L) + L) % L, n = new THREE.Vector2(-d.y, d.x), w = Math.sin(u * 0.004) * wob;
+      return { p: a.clone().addScaledVector(d, u).addScaledVector(n, w), d: d.clone().addScaledVector(n, Math.cos(u * 0.004) * wob * 0.004).normalize(), v: speed };
     };
-    const P = (x, z) => new THREE.Vector2(x, z);
+    const P = (la, lo) => new THREE.Vector2(...geo(la, lo));
     this.boats = [
-      mk(ferry(), shuttle(P(61, -62), P(70, -1085), P(40, -380), P(120, -800), 95, 30, 0)),
-      mk(ferry(), shuttle(P(-2600, -420), P(1500, -1020), P(-900, -560), P(600, -760), 300, 40, 170)),
-      mk(tugAndBarge(), lane(-640, -3200, 3000, -2.6, 1900, 30)),
-      mk(sightseer(), lane(-860, -3600, 2800, 5.5, 800, 40)),
-      mk(sailboat(), lane(-420, -1400, 900, 2.2, 600, 60)),
+      // NY Waterway: Exchange Place to the World Financial Center, and Hoboken down to Pier 11
+      mk(ferry(), shuttle(P(40.7150, -74.0318), P(40.7135, -74.0178), P(40.7148, -74.0270), P(40.7138, -74.0215), 95, 30, 0)),
+      mk(ferry(), shuttle(P(40.7360, -74.0270), P(40.7020, -74.0175), P(40.7250, -74.0235), P(40.7100, -74.0200), 300, 40, 170)),
+      // a tug pushing gravel up the Hudson, a Circle Line boat coming down, a sailboat off Battery Park City
+      mk(tugAndBarge(), line(P(40.6950, -74.0250), P(40.7700, -74.0120), 2.6, 1900, 30)),
+      mk(sightseer(), line(P(40.7650, -74.0130), P(40.6980, -74.0230), 5.5, 800, 40)),
+      mk(sailboat(), line(P(40.7240, -74.0210), P(40.7050, -74.0230), 2.2, 600, 60)),
     ];
     this.wakeA = Array.from({ length: MAX_WAKES }, () => new THREE.Vector4());
     this.wakeB = Array.from({ length: MAX_WAKES }, () => new THREE.Vector4());
