@@ -39,7 +39,7 @@ export class Menu {
     this.spill.castShadow = true; this.spill.shadow.mapSize.set(1024, 1024); this.spill.shadow.bias = -0.0006; this.spill.shadow.autoUpdate = false;
     this.fireGlow = new THREE.PointLight(0xff8a40, 0, 13, 1.3); this.fireGlow.position.set(7.4, 1.0, -2.6);
     G.scene.add(this.spill, this.spill.target, this.fireGlow);
-    if (document.fonts && document.fonts.load) document.fonts.load('700 64px Caveat').then(() => { this.fontReady = true; this.draw(); }).catch(() => {});
+    if (document.fonts && document.fonts.load) document.fonts.load('64px Alagard').then(() => { this.fontReady = true; this.draw(); }).catch(() => {});
     G.menu = this;
   }
 
@@ -114,13 +114,13 @@ export class Menu {
     const { ctx } = this.cv, W = 512, H = 576;
     ctx.clearRect(0, 0, W, H);
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    const font = this.fontReady ? '"Caveat"' : '"Segoe Print", "Bradley Hand", cursive';
+    const font = this.fontReady ? '"Alagard"' : '"Courier New", monospace';
     for (let i = 0; i < this.items.length; i++) {
       const it = this.items[i];
       const disabled = it.id === 'load' && !hasSave();
       const hov = i === this.hover && !disabled;
       ctx.save();
-      ctx.font = `700 ${hov ? 74 : 68}px ${font}`;
+      ctx.font = `${hov ? 80 : 64}px ${font}`;
       ctx.translate(W / 2 + Math.sin(i * 3.1) * 10, it.y * H); ctx.rotate(Math.sin(i * 1.7) * 0.05 - 0.02);
       // wiped through the grime by a fingertip: soft overlapping passes
       const a = disabled ? 0.08 : hov ? 0.3 : 0.17;

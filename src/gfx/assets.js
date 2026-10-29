@@ -3,12 +3,16 @@
 // file:// open, a stripped build) the world falls back to its procedural
 // furniture and textures.
 import * as THREE from 'three';
+import { downsample } from './textures.js';
+import { G } from '../core/globals.js';
 import { GLTFLoader } from 'three/addons/GLTFLoader.js';
 import { patchWorld } from '../core/engine.js';
 import { M } from './materials.js';
 
 export const ASSETS = { ok: false, manifest: null, models: {}, tex: {} };
 const base = () => (typeof window !== 'undefined' && window.BENGRIM_ASSETS) || 'assets/';
+
+const pixelTex = () => !G.settings || G.settings.v.pixelTex !== false;
 
 function prepModel(scene) {
   const seen = new Set();
@@ -21,6 +25,8 @@ function prepModel(scene) {
       m.roughness = 1; m.metalness = 0; m.envMapIntensity = 0;
       if (m.map) m.map.anisotropy = 4;
       if (m.normalMap) m.normalScale.multiplyScalar(0.7);
+      // pixel-art texels on the props too
+      if (pixelTex()) { if (m.map) m.map = downsample(m.map, 256); if (m.normalMap) m.normalMap = downsample(m.normalMap, 256); }
       m.userData.matte = true;
       // bend and breathe with the rest of the apartment
       patchWorld(m, { snap: true, warp: true, breath: false });
@@ -97,9 +103,11 @@ export function applySurfaces() {
   for (const [mat, [tex, tint, ns, scale]] of Object.entries(SURFACES)) {
     const m = M[mat], t = ASSETS.tex[tex];
     if (!m || !t || !t.diff) continue;
-    m.map = t.diff;
+    // ~128 texels a metre, shown nearest: crisp pixel-art texture over realistic light
+    const px = Math.min(512, Math.max(128, 2 ** Math.round(Math.log2(t.size[0] * scale * 128))));
+    m.map = pixelTex() ? downsample(t.diff, px) : t.diff;
     m.color.set(tint);
-    if (t.nor && ns > 0) { m.normalMap = t.nor; m.normalScale = new THREE.Vector2(ns, ns); } else m.normalMap = null;
+    if (t.nor && ns > 0) { m.normalMap = pixelTex() ? downsample(t.nor, px) : t.nor; m.normalScale = new THREE.Vector2(ns, ns); } else m.normalMap = null;
     m.roughnessMap = null; m.roughness = 1; m.metalness = 0;
     m.userData.ws = t.size[0] * scale;
     m.needsUpdate = true;

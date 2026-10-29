@@ -39,7 +39,7 @@ const COMPOSITE_FS = /* glsl */`
 uniform sampler2D tScene; uniform sampler2D tBloom; uniform sampler2D tBloom2; uniform sampler2D tPrev; uniform sampler2D tDepth;
 uniform float bloomStrength; uniform float exposure; uniform float saturation; uniform float contrast;
 uniform float ghost; uniform float brightness; uniform vec3 tint; uniform vec3 lift; uniform float time;
-uniform vec2 res; uniform float dither; uniform float flesh; uniform float ink; uniform float paint; uniform vec2 nearFar;
+uniform vec2 res; uniform float dither; uniform float flesh; uniform float ink; uniform float paint; uniform vec2 nearFar; uniform float ao; uniform float p11;
 varying vec2 vUv;
 vec3 aces(vec3 x) { const float a = 2.51, b = 0.03, c = 2.43, d = 0.59, e = 0.14; return clamp((x * (a * x + b)) / (x * (c * x + d) + e), 0.0, 1.0); }
 vec3 toSRGB(vec3 c) { return mix(c * 12.92, 1.055 * pow(max(c, vec3(0.0)), vec3(1.0 / 2.4)) - 0.055, step(0.0031308, c)); }
@@ -95,10 +95,32 @@ float inkLine(vec2 uv, vec2 px) {
   e = max(e, smoothstep(0.5, 0.95, length(vec2(gx, gy))) * 0.35);
   return e * (1.0 - smoothstep(18.0, 140.0, zNear) * 0.65);
 }
+// ambient occlusion from depth alone: each tap is compared with the tangent
+// plane through this pixel (inverse depth is affine on a plane), so flat floors
+// stay clean and only creases, corners and contact points darken
+float occlusion(vec2 uv, vec2 px) {
+  float c = invZ(uv), zc = 1.0 / c;
+  if (zc > 40.0) return 0.0;
+  float l = invZ(uv - vec2(px.x, 0.0)), r = invZ(uv + vec2(px.x, 0.0)), d = invZ(uv - vec2(0.0, px.y)), u = invZ(uv + vec2(0.0, px.y));
+  vec2 g = vec2(abs(r - c) < abs(c - l) ? r - c : c - l, abs(u - c) < abs(c - d) ? u - c : c - d) / px;
+  float rad = 0.3 * p11 * 0.5 / zc;
+  vec2 ar = vec2(res.y / res.x, 1.0);
+  float a0 = hash(gl_FragCoord.xy) * 6.2832, occ = 0.0;
+  for (int i = 0; i < 12; i++) {
+    float fi = float(i);
+    float rr = rad * (0.12 + 0.88 * fract(fi * 0.618034 + 0.27));
+    vec2 o = vec2(cos(a0 + fi * 2.39996), sin(a0 + fi * 2.39996)) * rr * ar;
+    float want = c + dot(g, o), got = invZ(uv + o);
+    float dz = 1.0 / max(want, 1e-5) - 1.0 / max(got, 1e-5);   // metres the tap sits in front of the plane
+    occ += smoothstep(0.008, 0.05, dz) * (1.0 - smoothstep(0.25, 0.6, dz));
+  }
+  return occ / 12.0;
+}
 void main() {
   vec2 px = 1.0 / res;
   vec3 c = texture2D(tScene, vUv).rgb;
   if (paint > 0.01) c = mix(c, painted(vUv, px * (0.8 + paint * 0.5)), min(1.0, paint * 1.4));
+  if (ao > 0.01) c *= 1.0 - min(0.85, occlusion(vUv, px) * ao * 1.4);
   c += (texture2D(tBloom, vUv).rgb * 0.6 + texture2D(tBloom2, vUv).rgb * 0.8) * bloomStrength;
   if (ink > 0.01) c = mix(c, vec3(0.012, 0.01, 0.009), inkLine(vUv, px) * min(1.0, ink * 1.15));
   c *= exposure;
@@ -108,6 +130,9 @@ void main() {
   c = mix(vec3(l), c, saturation);
   c = (c - 0.5) * contrast + 0.5;
   c = c * tint + lift + brightness;
+  // horror split tone: shadows sink toward a cold green-grey, highlights stay sallow
+  float sl = dot(c, vec3(0.299, 0.587, 0.114));
+  c += (1.0 - smoothstep(0.0, 0.55, sl)) * vec3(-0.018, 0.004, 0.006) + smoothstep(0.55, 1.0, sl) * vec3(0.012, 0.006, -0.014);
   // fleshy red pulse (late days)
   c = mix(c, c * vec3(1.15, 0.75, 0.7), flesh * (0.6 + 0.4 * sin(time * 2.1)));
   vec3 p = texture2D(tPrev, vUv).rgb;
@@ -252,7 +277,7 @@ export class Engine {
       bloom: 0.55, threshold: 0.9, exposure: 1.0, saturation: 0.86, contrast: 1.06,
       brightness: 0.0, tint: new THREE.Vector3(1.0, 0.98, 0.95), lift: new THREE.Vector3(0.012, 0.012, 0.02),
       ghost: 0, flesh: 0, dither: 0.9,
-      vhs: 0.7, grain: 0.6, chroma: 0.8, scan: 0.6, vignette: 0.45, wave: 0, doubleV: 0,
+      vhs: 0.7, grain: 0.6, chroma: 0.8, scan: 0.6, vignette: 0.62, wave: 0, doubleV: 0,
       white: 0, black: 0, red: 0, glitch: 0, tracking: 0.25, curvature: 0.015, noiseBurst: 0,
       blur: 0, tunnel: 0, whiteColor: new THREE.Vector3(1, 1, 1), shake: 0, faceSpot: new THREE.Vector4(0, 0, 0, 0),
     };
@@ -270,7 +295,7 @@ export class Engine {
       tScene: { value: null }, tBloom: { value: null }, tBloom2: { value: null }, tPrev: { value: null },
       bloomStrength: { value: 1 }, exposure: { value: 1 }, saturation: { value: 1 }, contrast: { value: 1 },
       ghost: { value: 0 }, brightness: { value: 0 }, tint: { value: new THREE.Vector3(1, 1, 1) }, lift: { value: new THREE.Vector3() },
-      time: { value: 0 }, res: { value: new THREE.Vector2() }, dither: { value: 1 }, flesh: { value: 0 }, ink: { value: 0.7 }, paint: { value: 0.6 },
+      time: { value: 0 }, res: { value: new THREE.Vector2() }, dither: { value: 1 }, flesh: { value: 0 }, ink: { value: 0.7 }, paint: { value: 0.6 }, ao: { value: 0.7 }, p11: { value: 1.5 },
       tDepth: { value: null }, nearFar: { value: new THREE.Vector2(0.03, 900) },
     });
     const fu = {
@@ -348,7 +373,7 @@ export class Engine {
     const out = this.pp ? this.rtL1 : this.rtL0;
     const prev = this.pp ? this.rtL0 : this.rtL1;
     cu.tScene.value = this.rtScene.texture; cu.tBloom.value = this.rtB1.texture; cu.tBloom2.value = this.rtB4.texture; cu.tPrev.value = prev.texture;
-    cu.ink.value = fx.ink ?? 0.7; cu.paint.value = fx.paint ?? 0.6;
+    cu.ink.value = fx.ink ?? 0.7; cu.paint.value = fx.paint ?? 0.6; cu.ao.value = fx.ao ?? 0.7; cu.p11.value = camera.projectionMatrix.elements[5];
     cu.tDepth.value = this.rtScene.depthTexture; cu.nearFar.value.set(camera.near, camera.far);
     cu.bloomStrength.value = fx.bloom; cu.exposure.value = fx.exposure; cu.saturation.value = fx.saturation;
     cu.contrast.value = fx.contrast; cu.ghost.value = fx.ghost; cu.brightness.value = fx.brightness;

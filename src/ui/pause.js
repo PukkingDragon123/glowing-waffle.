@@ -11,6 +11,8 @@ const ROWS = [
   ['fov', 'FIELD OF VIEW', 60, 90, 2],
   ['volume', 'VOLUME', 0, 10, 1],
   ['resolution', 'RESOLUTION', 'list'],
+  ['pixelTex', 'PIXEL TEXTURES (RELOAD)', 'bool'],
+  ['ao', 'AMBIENT OCCLUSION', 0, 10, 1],
   ['ink', 'INK LINES', 0, 10, 1],
   ['paint', 'PAINTERLY', 0, 10, 1],
   ['vhs', 'VHS EFFECT', 0, 10, 1],

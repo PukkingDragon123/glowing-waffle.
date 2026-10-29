@@ -127,7 +127,7 @@ export class Director {
     G.player.hunger.starveT = 0;
     G.uniforms.uWarp.value = [0, 0, 0, 0.04, 0.1, 0.18, 0.3, 0.55][day];
     G.uniforms.uBreath.value = day >= 7 ? 0.35 : day >= 6 ? 0.12 : 0;
-    G.fx.setGrade({ saturation: [0, 0.86, 0.82, 0.76, 0.7, 0.62, 0.55, 0.5][day], contrast: 1.06 + day * 0.012, tint: new THREE.Vector3(1, 0.98 - day * 0.012, 0.95 - day * 0.02) });
+    G.fx.setGrade({ saturation: [0, 0.72, 0.68, 0.63, 0.58, 0.52, 0.46, 0.42][day], contrast: 1.14 + day * 0.012, tint: new THREE.Vector3(1, 0.98 - day * 0.012, 0.95 - day * 0.02) });
     G.fx.clear('day'); G.fx.clear('bend');
     // the cat
     const cat = G.cat;

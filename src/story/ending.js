@@ -201,7 +201,7 @@ export class Ending {
   setMonitor(text) {
     const c = this.monCv.getContext('2d');
     c.fillStyle = '#020402'; c.fillRect(0, 0, 256, 128);
-    c.fillStyle = '#7dff9a'; c.font = '22px "Special Elite", "Courier New", monospace'; c.textBaseline = 'top';
+    c.fillStyle = '#7dff9a'; c.font = '32px "Alagard", "Courier New", monospace'; c.textBaseline = 'top';
     text.split('\n').forEach((l, i) => c.fillText(l, 16, 26 + i * 34));
     for (let y = 0; y < 128; y += 3) { c.fillStyle = 'rgba(0,0,0,0.35)'; c.fillRect(0, y, 256, 1); }
     this.monTex.needsUpdate = true;

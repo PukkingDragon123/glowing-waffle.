@@ -53,7 +53,7 @@ export class HUD {
     const seen = new Set();
     for (const a of actions) {
       if (!a.key || seen.has(a.key)) continue; seen.add(a.key);
-      const k = document.createElement('span'); k.className = 'key'; k.textContent = a.key === 'LMB' ? '◐' : a.key === 'RMB' ? '◑' : a.key;
+      const k = document.createElement('span'); k.className = 'key'; k.textContent = a.key;
       this.prompt.appendChild(k);
     }
     this.prompt.classList.add('on');
@@ -103,12 +103,17 @@ export class HUD {
     right.split('\n').forEach((t, i) => { if (i) r.appendChild(document.createElement('br')); r.appendChild(document.createTextNode(t)); });
     this.osd.append(l, r);
   }
-  // Chilla's Art-style task list, top left. items: [{text, done}]
+  // almost no UI: a new task surfaces for a few seconds, top left, then fades. items: [{text, done}]
   objective(items) {
     const el = document.getElementById('obj'); if (!el) return;
+    const open = (items || []).filter((it) => !it.done);
+    const key = open.map((it) => it.text).join('|');
+    if (key === this.objKey) return;
+    this.objKey = key;
     el.innerHTML = '';
-    for (const it of items || []) { const d = document.createElement('span'); d.className = 'o' + (it.done ? ' done' : ''); d.textContent = it.text; el.appendChild(d); }
-    el.classList.toggle('on', !!(items && items.length));
+    for (const it of open) { const d = document.createElement('span'); d.className = 'o'; d.textContent = it.text; el.appendChild(d); }
+    el.classList.toggle('on', open.length > 0);
+    this.objT = open.length ? 6 : 0;
   }
   setVisible(v) { document.getElementById('hud').style.display = v ? '' : 'none'; this.hidden = !v; }
   crosshair(v) { this.cross.classList.toggle('hidden', !v); }
@@ -116,6 +121,7 @@ export class HUD {
   update(dt) {
     for (const l of [...this.lines]) { l.t -= dt; if (l.t <= 0) this.kill(l); }
     if (this.invTimer > 0) { this.invTimer -= dt; if (this.invTimer <= 0) this.inv.classList.remove('on'); }
+    if (this.objT > 0 && (this.objT -= dt) <= 0) document.getElementById('obj').classList.remove('on');
     const c = this.choice;
     if (c) {
       const inp = G.input;

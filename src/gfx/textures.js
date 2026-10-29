@@ -15,6 +15,26 @@ export function makeCanvas(w, h) {
   return { c, ctx };
 }
 
+// Pixel-art texels: redraw a photographic texture at a fixed size, area-averaged
+// so it keeps its colours, then magnified nearest so each texel is a crisp
+// square up close (mipmapped far away). Keeps wrap, flip, uv channel, colour space.
+export function downsample(tex, size) {
+  const img = tex && tex.image;
+  if (!img || !img.width) return tex;
+  if (img.width <= size) { tex.magFilter = THREE.NearestFilter; tex.needsUpdate = true; return tex; }
+  const h = Math.max(4, Math.round(size * img.height / img.width));
+  const c = document.createElement('canvas'); c.width = size; c.height = h;
+  const ctx = c.getContext('2d');
+  ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(img, 0, 0, size, h);
+  const t = new THREE.CanvasTexture(c);
+  for (const k of ['wrapS', 'wrapT', 'flipY', 'colorSpace', 'channel']) t[k] = tex[k];
+  t.repeat.copy(tex.repeat); t.offset.copy(tex.offset); t.rotation = tex.rotation; t.center.copy(tex.center);
+  t.magFilter = THREE.NearestFilter; t.minFilter = THREE.LinearMipmapLinearFilter; t.anisotropy = 4;
+  t.needsUpdate = true;
+  return t;
+}
+
 export function toTexture(canvas, { srgb = true, nearest = false, repeat = true, mips = true } = {}) {
   const t = new THREE.CanvasTexture(canvas);
   t.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace;

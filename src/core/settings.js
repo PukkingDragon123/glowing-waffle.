@@ -1,6 +1,6 @@
 // Player settings, persisted per browser. Storage may be unavailable (private
 // windows, sandboxed previews) so every access is guarded.
-const KEY = 'bengrim_settings_v3';
+const KEY = 'bengrim_settings_v4';
 
 export const DEFAULTS = {
   sensitivity: 5,      // 1..10
@@ -9,9 +9,11 @@ export const DEFAULTS = {
   volume: 8,           // 0..10
   resolution: 900,     // internal render height: 480 | 720 | 900 | 1080
   vhs: 2,              // 0..10
-  grain: 2,            // 0..10
-  ink: 7,              // 0..10 black outline strength
-  paint: 4,            // 0..10 painterly brush filter
+  grain: 3,            // 0..10
+  ink: 2,              // 0..10 black outline strength
+  paint: 0,            // 0..10 painterly brush filter
+  pixelTex: true,      // crisp pixel-art texels on every surface (applies on reload)
+  ao: 7,               // 0..10 ambient occlusion in creases and corners
   wobble: false,       // ps1 vertex snapping
   brightness: 5,       // 0..10
   headBob: true,

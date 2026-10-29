@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { patchWorld } from '../core/engine.js';
 import * as T from './textures.js';
+import { G } from '../core/globals.js';
 
 export const M = {};
 
@@ -10,6 +11,14 @@ export const M = {};
 // showroom gloss. Pull authored roughness toward matte (mirrors/glass excepted).
 const GLOSSY = new Set(['mirror', 'glass', 'glassDirt', 'mirrorBack']);
 function matte(name, r, metal) { return GLOSSY.has(name) ? r : r + (1 - r) * (metal > 0.5 ? 0.3 : 0.5); }
+
+// pixel-art texels: crisp when magnified, still mipmapped far away
+export function pixelate(m) {
+  if (G.settings && G.settings.v.pixelTex === false) return;
+  for (const k of ['map', 'normalMap', 'roughnessMap', 'bumpMap', 'emissiveMap']) {
+    const t = m[k]; if (t && !t.userData.smooth && t.magFilter !== THREE.NearestFilter) { t.magFilter = THREE.NearestFilter; t.needsUpdate = true; }
+  }
+}
 
 // one pass over everything built so far (inline materials included)
 export function matteAll(root) {
@@ -19,6 +28,7 @@ export function matteAll(root) {
     for (const m of ms) {
       if (seen.has(m) || !m.isMeshStandardMaterial || m.isMeshPhysicalMaterial || m.userData.matte || m.userData.keepGloss || GLOSSY.has(m.name)) continue;
       seen.add(m); m.userData.matte = true;
+      pixelate(m);
       if (!M[m.name] || M[m.name] !== m) m.roughness = matte(m.name, m.roughness, m.metalness);
       m.envMapIntensity *= 0.5;
     }
