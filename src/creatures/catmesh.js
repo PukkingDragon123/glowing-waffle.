@@ -17,8 +17,8 @@ const mix = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[
 const ss = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 const L = (n, s) => n + (s < 0 ? '.L' : '.R');
 
-export const PART = { torso: 0, head: 1, fore: 2, hind: 3, tail: 4, ear: 5, jaw: 6, paw: 7 };
-export const MAT = { coat: 0, nose: 1, ear: 2, pad: 3, mouth: 4, lid: 5 };
+export const PART = { torso: 0, head: 1, fore: 2, hind: 3, tail: 4, ear: 5, jaw: 6, paw: 7, collar: 8 };
+export const MAT = { coat: 0, nose: 1, ear: 2, pad: 3, mouth: 4, lid: 5, collar: 6, metal: 7 };
 const FUR = 0.0052;   // coat depth at fur 1
 
 // The head is modelled at skull size and scaled about the head bone: cheek fur,
@@ -43,7 +43,7 @@ export const EAR = (() => {
 })();
 
 class Mesh {
-  constructor() { this.P = []; this.W = []; this.X = []; this.F = []; }
+  constructor() { this.P = []; this.W = []; this.X = []; this.F = []; this.post = []; }
   // a vertex: rest position, {bone: weight}, extras {fur, scap, lid}
   v(p, w, x = {}) { this.P.push(p); this.W.push(w); this.X.push(x); return this.P.length - 1; }
   // one facet; `ref` is a point inside the volume it bounds (see orient)
@@ -92,13 +92,17 @@ class Mesh {
   loft(R, part, mat, refs) { for (let k = 0; k < R.length - 1; k++) { const a = R[k], b = R[k + 1], n = a.length; for (let i = 0; i < n; i++) this.quad(a[i], a[(i + 1) % n], b[(i + 1) % n], b[i], part, mat, refs[k]); } }
   fan(R, c, part, mat, ref) { for (let i = 0; i < R.length; i++) this.tri(R[i], R[(i + 1) % R.length], c, part, mat, ref); }
 
+  normals() { const P = this.P, sn = P.map(() => [0, 0, 0]); for (const [a, b, c] of this.F) { const n = cross(sub(P[b], P[a]), sub(P[c], P[a])); for (const k of [a, b, c]) sn[k] = add(sn[k], n); } return sn; }
+
   build(boneIdx) {
     this.orient();
-    const P = this.P, F = this.F, N = F.length * 3;
-    const sn = P.map(() => [0, 0, 0]);
-    for (const [a, b, c] of F) { const n = cross(sub(P[b], P[a]), sub(P[c], P[a])); for (const k of [a, b, c]) sn[k] = add(sn[k], n); }
+    const P = this.P;
+    this.sn = this.normals();
     // the coat: the sculpt is the body under the fur; push each vertex out by its fur depth
-    for (let k = 0; k < P.length; k++) { const f = this.X[k].fur ?? 1; P[k] = add(P[k], mul(nrm(sn[k]), FUR * Math.min(f, 1.3) + (f > 0.2 ? 0.0018 : 0))); }
+    for (let k = 0; k < P.length; k++) { const f = this.X[k].fur ?? 1; P[k] = add(P[k], mul(nrm(this.sn[k]), FUR * Math.min(f, 1.3) + (f > 0.2 ? 0.0018 : 0))); }
+    // things worn over the coat are built on the finished surface
+    if (this.post.length) { for (const f of this.post) f(this); this.orient(); }
+    const F = this.F, N = F.length * 3, sn = this.normals();
     const pos = new Float32Array(N * 3), nor = new Float32Array(N * 3), aSn = new Float32Array(N * 4), aInfo = new Float32Array(N * 4), aLid = new Float32Array(N);
     const si = new Uint16Array(N * 4), sw = new Float32Array(N * 4);
     let o = 0;
@@ -147,6 +151,8 @@ function chainW(p, pts, owners, after, h = 0.35) {
   return w;
 }
 
+const blendW = (a, b, t) => { const w = {}; for (const [k, v] of Object.entries(a)) w[k] = (w[k] || 0) + v * (1 - t); for (const [k, v] of Object.entries(b)) w[k] = (w[k] || 0) + v * t; return w; };
+
 // ---------------------------------------------------------------- torso + neck
 // Each station: top midline [y, z], bottom midline [y, z], then four lateral
 // points [x, y] from the spine down to the belly. Lateral z follows the slope
@@ -171,29 +177,41 @@ const SCAP = [0, 0, 0, 0, 0, 0, 0, 0, 0.35, 1, 0.55, 0, 0, 0];   // how much eac
 
 function torso(M, R) {
   const spine = ['hips', 'spine1', 'spine2', 'chest', 'neck', 'head'].map((n) => R[n]);
-  const rings = [], refs = [];
+  const rings = [], refs = [], ws = [];
   STATIONS.forEach(([T, B, lat], si) => {
     const zAt = (y) => T[1] + (B[1] - T[1]) * Math.min(1, Math.max(0, (T[0] - y) / (T[0] - B[0])));
     const c = [0, (T[0] + B[0]) / 2, (T[1] + B[1]) / 2];
     let w = chainW(c, spine, ['hips', 'spine1', 'spine2', 'chest', 'neck'], 'head');
     if (si === STATIONS.length - 1) w = { neck: 0.55, head: 0.45 };
+    ws.push(w);
     const fur = (y) => 0.75 + 0.35 * ss(0.15, 0.24, y);
-    const top = M.v([0, T[0], T[1]], w, { fur: fur(T[0]) }), bot = M.v([0, B[0], B[1]], w, { fur: 0.85 });
+    // the throat keeps with the section below it, so it fills out under the chin instead of caving in when the head drops
+    const wy = (y) => (si >= 11 ? blendW(w, ws[si - 1], 0.6 * ss(0.3, 1, (T[0] - y) / (T[0] - B[0]))) : w);
+    const top = M.v([0, T[0], T[1]], w, { fur: fur(T[0]) }), bot = M.v([0, B[0], B[1]], wy(B[0]), { fur: 0.85 });
     // round the lower ribs: one more point between flank and belly, bulged outward
     const [a2, a3] = [lat[2], lat[3]], d = [a3[0] - a2[0], a3[1] - a2[1]], ob = [-d[1], d[0]];
     lat = [...lat.slice(0, 3), [(a2[0] + a3[0]) / 2 + ob[0] * 0.1, (a2[1] + a3[1]) / 2 + ob[1] * 0.1], a3];
     const R1 = [], L1 = [];
     lat.forEach(([x, y], k) => {
       const sc = k < 2 ? SCAP[si] * (k === 0 ? 0.8 : 1) : k === 2 ? SCAP[si] * 0.3 : 0;
-      R1.push(M.v([x, y, zAt(y)], w, { fur: fur(y), scap: sc })); L1.push(M.v([-x, y, zAt(y)], w, { fur: fur(y), scap: -sc }));
+      R1.push(M.v([x, y, zAt(y)], wy(y), { fur: fur(y), scap: sc })); L1.push(M.v([-x, y, zAt(y)], wy(y), { fur: fur(y), scap: -sc }));
     });
     rings.push([top, ...R1, bot, ...L1.reverse()]);
     refs.push(c);
   });
+  // the collar's line: three sections spliced into the neck (back edge, middle, front edge
+  // of the strap), each point on the neck's own facet edges; the coat dips a little under it
+  const [ra, rb] = [rings[12], rings[13]], cuts = [-1, 0, 1].map((side) => ra.map((ia, i) => {
+    const ib = rb[i], t = COLLAR.t + side * COLLAR.w / 2 / len(sub(M.P[ib], M.P[ia])), fa = M.X[ia].fur, fb = M.X[ib].fur;
+    return M.v(mix(M.P[ia], M.P[ib], t), blendW(M.W[ia], M.W[ib], t), { fur: (fa + (fb - fa) * t) * (side ? 0.85 : 0.7) });
+  }));
+  const cc = mix(refs[12], refs[13], COLLAR.t);
+  rings.splice(13, 0, ...cuts); refs.splice(13, 0, cc, cc, cc);
+  M.neck = { cuts, ctr: cc, brisket: rings[11][6] };
   M.loft(rings, PART.torso, MAT.coat, refs.map((c, k) => mix(c, refs[k + 1] || c, 0.5)));
   // rump closes under the tail; the neck closes inside the skull
   M.fan(rings[0], M.v([0, 0.207, 0.192], { hips: 1 }, { fur: 0.6 }), PART.torso, MAT.coat, [0, 0.207, 0.17]);
-  const e = STATIONS.length - 1;
+  const e = rings.length - 1;
   M.fan(rings[e], M.v([0, 0.268, -0.182], { head: 0.6, neck: 0.4 }), PART.torso, MAT.coat, mix(refs[e], refs[e - 1], 0.6));
 }
 
@@ -402,6 +420,82 @@ function ear(M, s) {
   for (let i = 0; i < 8; i++) M.tri(top[i], top[(i + 1) % 8], tip, PART.ear, matOf(i), i < 4 ? add(mid(3), mul(Z, -0.004)) : add(mid(3), mul(Z, 0.012)));
 }
 
+// ---------------------------------------------------------------- collar
+// A worn strap round the neck just behind the skull, buckled on the left, the end
+// tucked along the top, a riveted plate at the throat for the tag's ring. It is
+// built on the finished coat over the three neck sections spliced in for it, with
+// their exact bone weights, so it rides the neck in every pose and never sinks in.
+const COLLAR = { t: 0.4, w: 0.0105 };
+function collar(M) {
+  const { cuts, ctr, brisket } = M.neck, P = M.P, W = M.W, n = cuts[0].length;
+  // a point on the band: s around the neck (fractional section index), side -1 back edge .. 1 front edge, off above the coat
+  const at = (s, side, off) => {
+    const i0 = ((Math.floor(s) % n) + n) % n, i1 = (i0 + 1) % n, f = s - Math.floor(s), [ra, rb, u] = side < 0 ? [cuts[0], cuts[1], side + 1] : [cuts[1], cuts[2], side];
+    const one = (i) => { const a = ra[i], b = rb[i], nn = nrm(mix(nrm(M.sn[a]), nrm(M.sn[b]), u)); return [add(mix(P[a], P[b], u), mul(nn, off)), blendW(W[a], W[b], u), nn]; };
+    const [p0, w0, n0] = one(i0), [p1, w1, n1] = one(i1);
+    return { p: mix(p0, p1, f), w: blendW(w0, w1, f), n: nrm(mix(n0, n1, f)) };
+  };
+  // the strap: its edges tuck into the fur, its face is a little crowned; lid carries the across-band coordinate
+  const R = [[-1, -0.0012], [-1, 0.0014], [0, 0.0019], [1, 0.0014], [1, -0.0012]].map(([side, off]) =>
+    Array.from({ length: n }, (_, i) => { const q = at(i, side, off); return M.v(q.p, q.w, { fur: 1, lid: -1.5 - side * 0.5 }); }));
+  M.loft(R, PART.collar, MAT.collar, R.map(() => ctr));
+  // a small flat piece in the band's frame at s: corners [along, across, up] in metres
+  const frame = (s, h0) => {
+    const c = at(s, 0, h0), u = nrm(sub(at(s + 0.25, 0, h0).p, at(s - 0.25, 0, h0).p)), v0 = sub(at(s, 1, h0).p, at(s, -1, h0).p), v = nrm(sub(v0, mul(u, dot(v0, u))));
+    return { c, put: (q) => add(c.p, add(add(mul(u, q[0]), mul(v, q[1])), mul(c.n, q[2]))) };
+  };
+  const rect = (hu, hv, h) => [[-hu, -hv, h], [hu, -hv, h], [hu, hv, h], [-hu, hv, h]];
+  // buckle on the left side: a brass frame standing on the strap, and its prong
+  const B = frame(9.5, 0.0019), bv = (pts) => pts.map((q) => M.v(B.put(q), B.c.w, { fur: 1 })), bin = B.put([0, 0, -0.004]);
+  const ob = bv(rect(0.0056, 0.0068, -0.0004)), ot = bv(rect(0.0056, 0.0068, 0.0016)), it = bv(rect(0.0034, 0.0046, 0.0016)), ib = bv(rect(0.0034, 0.0046, 0.0002));
+  M.loft([ob, ot, it, ib], PART.collar, MAT.metal, [bin, bin, bin]);
+  const pr = bv([[-0.0034, -0.0006, 0.0011], [0.0008, -0.0006, 0.0011], [0.0008, 0.0006, 0.0011], [-0.0034, 0.0006, 0.0011]]);
+  M.quad(pr[0], pr[1], pr[2], pr[3], PART.collar, MAT.metal, bin);
+  // the strap's free end lies along the band past the buckle, worn round at the tip
+  const tip = [10.0, 10.45, 10.9].map((s) => [at(s, -0.8, 0.0027), at(s, 0.8, 0.0027)].map((q) => M.v(q.p, q.w, { fur: 1, lid: -1.5 })));
+  const end = at(11.25, 0, 0.0027), ev = M.v(end.p, end.w, { fur: 1, lid: -1.5 });
+  for (let k = 0; k < 2; k++) M.quad(tip[k][0], tip[k + 1][0], tip[k + 1][1], tip[k][1], PART.collar, MAT.collar, ctr);
+  M.tri(tip[2][0], ev, tip[2][1], PART.collar, MAT.collar, ctr);
+  // riveted plate at the throat; the tag's split ring hangs from it
+  const D = frame(6, 0.0019), dv = (pts) => pts.map((q) => M.v(D.put(q), D.c.w, { fur: 1 })), din = D.put([0, 0, -0.004]);
+  const dt = dv(rect(0.0024, 0.0019, 0.0011)), db = dv(rect(0.0024, 0.0019, -0.0003));
+  M.loft([db, dt], PART.collar, MAT.metal, [din]);
+  M.fan(dt, M.v(D.put([0, 0, 0.0013]), D.c.w, { fur: 1 }), PART.collar, MAT.metal, din);
+  M.tag = { p: D.put([0, 0, 0.0012]), n: D.c.n, w: D.c.w, q: P[brisket], qw: W[brisket] };   // q: the front of the chest below, for the tag to rest on
+}
+
+// The tag: a little fish with a brass rim round domed enamel, an eye and a gill,
+// the same both sides. Hangs from the origin: -y down the ring, x nose to tail, z the face.
+export function fishGeometry(u = 0.011) {
+  const body = [[0.6, -0.42], [0.35, -0.2], [0, -0.1], [-0.45, -0.12], [-0.85, -0.3], [-1.05, -0.62], [-0.85, -0.92], [-0.45, -1.1], [0, -1.14], [0.35, -1.02], [0.6, -0.8]];
+  const fins = [[1.02, -1.1], [0.86, -0.62], [1.02, -0.12]];   // tail: lower lobe, notch, upper lobe
+  const bc = [-0.22, -0.62], tc = [0.78, -0.62], dy = -0.32;     // body and tail centres; the ring sits above the back
+  const nb = body.length, rim = [...body, ...fins], n = rim.length;
+  const inner = rim.map((q, i) => { const c = i >= nb ? tc : bc, k = i >= nb ? 0.7 : 0.8; return [c[0] + (q[0] - c[0]) * k, c[1] + (q[1] - c[1]) * k]; });
+  const G = [[], [], []];   // enamel, brass, eye
+  const P3 = (q, z) => [q[0] * u, (q[1] + dy) * u, z * u];
+  const tri = (g, a, b, c, back) => { if (back) G[g].push(...a, ...c, ...b); else G[g].push(...a, ...b, ...c); };
+  for (const zs of [1, -1]) {
+    const back = zs < 0, o = (q) => P3(q, 0.06 * zs), i = (q) => P3(q, 0.09 * zs);
+    for (let k = 0; k < n; k++) { const k1 = (k + 1) % n; tri(1, o(rim[k]), o(rim[k1]), i(inner[k1]), back); tri(1, o(rim[k]), i(inner[k1]), i(inner[k]), back); }   // brass bezel
+    for (let k = 0; k < nb - 1; k++) tri(0, P3(bc, 0.17 * zs), i(inner[k]), i(inner[k + 1]), back);
+    tri(0, P3(bc, 0.17 * zs), i(inner[nb - 1]), i(inner[0]), back);
+    const tl = [inner[nb - 1], ...inner.slice(nb), inner[0]];
+    for (let k = 0; k < tl.length - 1; k++) tri(0, P3(tc, 0.12 * zs), i(tl[k]), i(tl[k + 1]), back);
+    // eye: a little hexagon; gill: a thin brass crescent behind it
+    const ec = [-0.64, -0.5], ring = (k) => [ec[0] + Math.cos(k / 6 * Math.PI * 2) * 0.1, ec[1] + Math.sin(k / 6 * Math.PI * 2) * 0.1];
+    for (let k = 0; k < 6; k++) tri(2, P3(ec, 0.17 * zs), P3(ring(k), 0.155 * zs), P3(ring(k + 1), 0.155 * zs), back);
+    const gl = [[-0.36, -0.34], [-0.28, -0.62], [-0.36, -0.9]], gr = gl.map((q) => [q[0] + 0.07, q[1]]);
+    for (let k = 0; k < 2; k++) { tri(1, P3(gl[k], 0.165 * zs), P3(gl[k + 1], 0.165 * zs), P3(gr[k + 1], 0.165 * zs), back); tri(1, P3(gl[k], 0.165 * zs), P3(gr[k + 1], 0.165 * zs), P3(gr[k], 0.165 * zs), back); }
+  }
+  for (let k = 0; k < n; k++) { const k1 = (k + 1) % n, a = P3(rim[k], 0.06), b = P3(rim[k1], 0.06), c = P3(rim[k1], -0.06), d = P3(rim[k], -0.06); tri(1, a, d, c); tri(1, a, c, b); }   // the edge
+  const g = new THREE.BufferGeometry(), e = G[0].length / 3, m = G[1].length / 3;
+  g.setAttribute('position', new THREE.Float32BufferAttribute([...G[0], ...G[1], ...G[2]], 3));
+  g.addGroup(0, e, 0); g.addGroup(e, m, 1); g.addGroup(e + m, G[2].length / 3, 2);
+  g.computeVertexNormals();
+  return g;
+}
+
 export function buildCatGeometry(rest, boneIdx) {
   const R = {}; for (const [k, v] of Object.entries(rest)) R[k] = [v.x, v.y, v.z];
   const M = new Mesh();
@@ -409,5 +503,9 @@ export function buildCatGeometry(rest, boneIdx) {
   head(M);
   for (const s of [-1, 1]) { foreleg(M, R, s); hindleg(M, R, s); ear(M, s); }
   tail(M, R);
-  return M.build(boneIdx);
+  M.post.push(collar);
+  const g = M.build(boneIdx);
+  g.userData.tag = M.tag;
+  return g;
 }
+
