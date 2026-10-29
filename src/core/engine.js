@@ -97,24 +97,25 @@ float inkLine(vec2 uv, vec2 px) {
 }
 // ambient occlusion from depth alone: each tap is compared with the tangent
 // plane through this pixel (inverse depth is affine on a plane), so flat floors
-// stay clean and only creases, corners and contact points darken
+// stay clean and only creases, corners and contact points darken. Unrolled, with
+// no early exit, so it stays cheap even on software GL.
 float occlusion(vec2 uv, vec2 px) {
   float c = invZ(uv), zc = 1.0 / c;
-  if (zc > 40.0) return 0.0;
   float l = invZ(uv - vec2(px.x, 0.0)), r = invZ(uv + vec2(px.x, 0.0)), d = invZ(uv - vec2(0.0, px.y)), u = invZ(uv + vec2(0.0, px.y));
   vec2 g = vec2(abs(r - c) < abs(c - l) ? r - c : c - l, abs(u - c) < abs(c - d) ? u - c : c - d) / px;
-  float rad = 0.3 * p11 * 0.5 / zc;
+  float rad = min(0.3 * p11 * 0.5 / zc, 0.06);
+  // a 4x4 interleaved turn instead of white noise: neighbouring pixels reuse texels
+  vec2 q = mod(floor(gl_FragCoord.xy), 4.0);
+  float a0 = (q.x * 4.0 + mod(q.y * 2.0 + q.x, 4.0)) * 0.3927;
+  mat2 R = mat2(cos(a0), sin(a0), -sin(a0), cos(a0)) * rad;
   vec2 ar = vec2(res.y / res.x, 1.0);
-  float a0 = hash(gl_FragCoord.xy) * 6.2832, occ = 0.0;
-  for (int i = 0; i < 12; i++) {
-    float fi = float(i);
-    float rr = rad * (0.12 + 0.88 * fract(fi * 0.618034 + 0.27));
-    vec2 o = vec2(cos(a0 + fi * 2.39996), sin(a0 + fi * 2.39996)) * rr * ar;
-    float want = c + dot(g, o), got = invZ(uv + o);
-    float dz = 1.0 / max(want, 1e-5) - 1.0 / max(got, 1e-5);   // metres the tap sits in front of the plane
-    occ += smoothstep(0.008, 0.05, dz) * (1.0 - smoothstep(0.25, 0.6, dz));
-  }
-  return occ / 12.0;
+  float occ = 0.0;
+  // eight taps on a Vogel spiral, turned per pixel
+  #define TAP(k) { vec2 o = (R * k) * ar; float want = c + dot(g, o); float dz = 1.0 / max(want, 1e-4) - 1.0 / max(invZ(uv + o), 1e-4); occ += smoothstep(0.008, 0.05, dz) * (1.0 - smoothstep(0.25, 0.6, dz)); }
+  TAP(vec2(0.125, 0.0)) TAP(vec2(-0.22, 0.2)) TAP(vec2(0.04, -0.42)) TAP(vec2(0.36, 0.33))
+  TAP(vec2(-0.6, -0.12)) TAP(vec2(0.52, -0.5)) TAP(vec2(-0.2, 0.8)) TAP(vec2(-0.55, -0.78))
+  #undef TAP
+  return occ / 8.0 * (1.0 - step(40.0, zc));
 }
 void main() {
   vec2 px = 1.0 / res;
