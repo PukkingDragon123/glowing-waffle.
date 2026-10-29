@@ -333,48 +333,8 @@ export class Cat {
     if (this.eatLoop) this.eatLoop.set({ pos: this.headPos() });
   }
 
-  // Mochi's face won't resolve. Since the light, the picture smears and wraps
-  // around itself wherever her face should be.
-  faceSmear(dt) {
-    const fx = G.engine.fx.faceSpot;
-    const day = G.story.day;
-    const on = this.present && (G.state === 'menu' || (G.state === 'play' && (day >= 2 || (G.director && G.director.flags.blinded))));
-    if (!on) { fx.w = 0; return; }
-    const cam = G.camera;
-    const head = this.model.by.head.localToWorld(V(0, -0.012, -0.03));
-    const toH = head.clone().sub(cam.position);
-    const dist = toH.length();
-    const fwd = V(0, 0, -1).applyQuaternion(cam.quaternion);
-    let w = 0;
-    if (toH.dot(fwd) > 0.05 && dist < 14) {
-      const ndc = head.clone().project(cam);
-      const hit = G.physics.raycast(cam.position, head, GROUP.STATIC);
-      const blocked = hit && hit.distance < dist - 0.15;
-      if (!blocked && Math.abs(ndc.x) < 1.3 && Math.abs(ndc.y) < 1.3) {
-        w = [0, 0.82, 0.88, 0.92, 0.96, 1, 1, 1][day] ?? 1;
-        const R = (0.085 / (2 * dist * Math.tan((cam.fov * Math.PI) / 360))) * 1.45;
-        // staring makes it worse
-        const center = Math.hypot(ndc.x, ndc.y) < 0.35;
-        this.stareT = center ? (this.stareT || 0) + dt : Math.max(0, (this.stareT || 0) - dt);
-        const grow = 1 + Math.min(0.6, this.stareT * 0.08);
-        fx.set(ndc.x * 0.5 + 0.5, ndc.y * 0.5 + 0.5, Math.min(0.6, R * grow), w);
-        if (center && dist < 3.2) this.noticeFace(day);
-        return;
-      }
-    }
-    fx.w = 0;
-  }
-  noticeFace(day) {
-    const k = 'face' + day;
-    if (this.noticed === k || G.director?.cutscene) return;
-    this.noticed = k;
-    const L = [null, ['Mochi...? Why can\'t I see your face?', "It's my eyes. It's just the light. It'll pass."],
-      ['Her face is still... smeared. Like a chewed-up tape.'], ["I keep blinking. Her face won't come back."],
-      ["I don't remember what she looks like. I've had her six years."], ['Is that even Mochi under there?'],
-      ["Good. I don't want to see her face. I don't want to see her look at me."], ['...']][day] || [];
-    L.forEach((t, i) => setTimeout(() => G.hud.inner(t), 600 + i * 3800));
-    G.audio && G.audio.play('tinnitus', { vol: 0.2 });
-  }
+  // her face always reads clearly: the old smear stays off
+  faceSmear() { G.engine.fx.faceSpot.w = 0; }
 
   trackHead(dt) {
     const M = this.model;
