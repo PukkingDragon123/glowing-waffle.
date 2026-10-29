@@ -12,7 +12,7 @@ export class FX {
     this.layers = new Map();   // source -> {key: value}
     this.pulses = [];          // {key, amt, t, dur}
     this.cur = {}; for (const k of KEYS) this.cur[k] = 0;
-    this.grade = { saturation: 0.72, contrast: 1.14, exposure: 0.92, tint: new THREE.Vector3(1, 0.97, 0.92) };
+    this.grade = { saturation: 0.62, contrast: 1.2, exposure: 0.84, tint: new THREE.Vector3(0.95, 0.98, 0.9) };
     this.gradeTarget = { ...this.grade, tint: this.grade.tint.clone() };
     this.fade = 0;             // fade to black 0..1 (scripted)
     this.fadeTarget = 0; this.fadeSpeed = 1.5;

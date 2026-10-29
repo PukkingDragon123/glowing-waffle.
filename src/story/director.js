@@ -127,7 +127,8 @@ export class Director {
     G.player.hunger.starveT = 0;
     G.uniforms.uWarp.value = [0, 0, 0, 0.04, 0.1, 0.18, 0.3, 0.55][day];
     G.uniforms.uBreath.value = day >= 7 ? 0.35 : day >= 6 ? 0.12 : 0;
-    G.fx.setGrade({ saturation: [0, 0.72, 0.68, 0.63, 0.58, 0.52, 0.46, 0.42][day], contrast: 1.14 + day * 0.012, tint: new THREE.Vector3(1, 0.98 - day * 0.012, 0.95 - day * 0.02) });
+    // sallow, sickly light from the first morning, draining further each day
+    G.fx.setGrade({ saturation: [0, 0.62, 0.58, 0.54, 0.5, 0.46, 0.42, 0.38][day], contrast: 1.2 + day * 0.012, exposure: 0.84 - day * 0.01, tint: new THREE.Vector3(0.95 - day * 0.004, 0.98 - day * 0.01, 0.9 - day * 0.015) });
     G.fx.clear('day'); G.fx.clear('bend');
     // the cat
     const cat = G.cat;
