@@ -229,7 +229,7 @@ export class Sky {
     this.scene = new THREE.Scene();
     this.cam = new THREE.PerspectiveCamera(72, 1, 1, 12000);
     this.p = { // live parameters (blended toward targets)
-      dayT: 0.1, night: 0, cloud: 0.35, smoke: 0, burn: 0, red: 0, moon2: 0, lights: 0, ship: 0, litFrac: 0.4, blackout: 0, sunBoost: 1,
+      dayT: 0.1, night: 0, cloud: 0, smoke: 0, burn: 0, red: 0, moon2: 0, lights: 0, ship: 0, litFrac: 0.4, blackout: 0, sunBoost: 1,
     };
     this.time = 0;
     const sky = this.skyMat = new THREE.ShaderMaterial({
@@ -387,7 +387,7 @@ export class Sky {
     P.hours = hours;
     P.sunDir = Sky.sunAt(hours);
     P.night = 1 - smoothstep(-0.1, 0.12, P.sunDir.y);
-    P.cloud = [0, 0.35, 0.45, 0.6, 0.7, 0.8, 0.9, 0.95][day] ?? 0.5;
+    P.cloud = 0;   // a clear, smoggy sky: no cloud deck
     P.smoke = [0, 0, 0.05, 0.25, 0.45, 0.75, 0.9, 1][day] ?? 0;
     P.burn = [0, 0, 0, 0.2, 0.5, 0.85, 1, 1][day] ?? 0;
     P.red = [0, 0, 0, 0.12, 0.35, 0.55, 0.75, 1][day] ?? 0;
@@ -397,7 +397,7 @@ export class Sky {
     P.litFrac = [0.5, 0.55, 0.5, 0.35, 0.25, 0.15, 0.08, 0][day] ?? 0.4;
     P.blackout = day >= 4 ? 0.6 : 0;
     P.day = menu ? 7 : day;
-    if (menu) Object.assign(P, { night: 1, smoke: 0.85, burn: 0.95, red: 0.6, moon2: 1, lights: 1, ship: 1, litFrac: 0.12, blackout: 0.7, cloud: 0.75, sunDir: new THREE.Vector3(0.3, -0.4, 0.8).normalize() });
+    if (menu) Object.assign(P, { night: 1, smoke: 0.85, burn: 0.95, red: 0.6, moon2: 1, lights: 1, ship: 1, litFrac: 0.12, blackout: 0.7, cloud: 0, sunDir: new THREE.Vector3(0.3, -0.4, 0.8).normalize() });
     return P;
   }
   apply(P, snap = false) {

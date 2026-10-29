@@ -145,7 +145,7 @@ export class Director {
     G.peace && G.peace.startDay(day);
     this.wakeInBed();
     writeSave({ day, story: G.story });
-    await G.tasks.wait(fromDeath ? 2.5 : 1.6);
+    await G.tasks.wait(fromDeath ? 1.6 : 0.6);
     G.fx.fadeTo(0, 0.6);
     this.alarmStart();
     this.cutscene = true;

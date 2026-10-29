@@ -114,9 +114,9 @@ export class HUD {
     if (key === this.objKey) return;
     this.objKey = key;
     el.innerHTML = '';
-    for (const it of open) { const d = document.createElement('span'); d.className = 'o'; d.textContent = it.text; el.appendChild(d); }
+    // the current task, plus the next one dimmed: always on screen so you know what to do
+    for (const it of open.slice(0, 2)) { const d = document.createElement('span'); d.className = 'o'; d.textContent = it.text; el.appendChild(d); }
     el.classList.toggle('on', open.length > 0);
-    this.objT = open.length ? 6 : 0;
   }
   setVisible(v) { document.getElementById('hud').style.display = v ? '' : 'none'; this.hidden = !v; }
   crosshair(v) { this.cross.classList.toggle('hidden', !v); }
@@ -124,7 +124,7 @@ export class HUD {
   update(dt) {
     for (const l of [...this.lines]) { l.t -= dt; if (l.t <= 0) this.kill(l); }
     if (this.invTimer > 0) { this.invTimer -= dt; if (this.invTimer <= 0) this.inv.classList.remove('on'); }
-    if (this.objT > 0 && (this.objT -= dt) <= 0) document.getElementById('obj').classList.remove('on');
+    document.body.classList.toggle('cinema', !!(G.director && G.director.cutscene && G.state === 'play'));
     const c = this.choice;
     if (c) {
       const inp = G.input;
