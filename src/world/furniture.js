@@ -47,6 +47,8 @@ export function frontDoor(b, x, y0, z, w, h, mat, side = 'L', o = {}) {
   const hinge = wpos(b, ...hingeLocal);
   const closedYaw = worldYaw(b, side === 'L' ? 0 : Math.PI);
   const openDir = side === 'L' ? -1 : 1;
+  // an 'R' panel is turned half round, so its outer face is local -z
+  const fz = side === 'L' ? 1 : -1;
   const door = new Door({
     hinge, width: w, height: h, thick: t, closedYaw, openDir, maxAngle: o.max ?? 1.9,
     mat, kind: o.kind || 'cabinet', label: o.label || 'cabinet', knob: false, locked: o.locked,
@@ -62,11 +64,11 @@ export function frontDoor(b, x, y0, z, w, h, mat, side = 'L', o = {}) {
       if (o.handle !== false) {
         const len = o.handleLen ?? 0.1;
         const hm = new THREE.Mesh(barPull(fridgeDoor ? len : Math.max(0.08, len), fridgeDoor ? 0.009 : 0.005), o.handleMat || M.chrome);
-        hm.rotation.z = Math.PI / 2;
-        hm.position.set(w - (fridgeDoor ? 0.05 : 0.035), o.handleY ?? (h - 0.09), t / 2);
+        hm.rotation.set(fz > 0 ? 0 : Math.PI, 0, Math.PI / 2);
+        hm.position.set(w - (fridgeDoor ? 0.05 : 0.035), o.handleY ?? (h - 0.09), fz * t / 2);
         panel.add(hm);
       }
-      if (o.decorate) o.decorate(panel, d);
+      if (o.decorate) o.decorate(panel, d, fz);
     },
   });
   return door;
@@ -216,20 +218,20 @@ export function fridge(b, x, z, ry) {
   // doors: hinge on the right (+x) side
   const mkDoor = (y0, hh, label, kind) => frontDoor(b, 0, y0, d / 2, w - 0.004, hh, M.enamel, 'R', {
     thick: 0.06, kind: 'fridge', label, max: 1.95, handleMat: M.chrome, handleLen: hh * 0.35, handleY: y0 < 1 ? hh - 0.32 : 0.18,
-    decorate: (panel) => {
+    decorate: (panel, d, fz) => {
       // door shelves on the inside
       if (y0 < 1) {
         for (const yy of [0.28, 0.62, 0.92]) {
           const s = new THREE.Mesh(boxGeo(w - 0.12, 0.08, 0.09, 0.5), M.porcelain);
-          s.position.set(w / 2, yy, -0.075);
+          s.position.set(w / 2, yy, -fz * 0.075);
           panel.add(s);
         }
       }
       // magnets / note on the front
       if (y0 < 1 && M.fridgeNote) {
         const note = new THREE.Mesh(new THREE.PlaneGeometry(0.12, 0.12), M.fridgeNote);
-        note.position.set(w * 0.45, 0.62, 0.031);
-        note.rotation.z = 0.06;
+        note.position.set(w * 0.45, 0.62, fz * 0.031);
+        note.rotation.set(0, fz > 0 ? 0 : Math.PI, 0.06);
         panel.add(note);
         out.noteMesh = note;
       }
