@@ -43,7 +43,7 @@ At night something hunts by light. Turn the lamps off, switch off the monitor, s
 
 - three.js r170. Post-processing adds depth-only ambient occlusion (eight taps tested against the tangent plane, so flat floors stay clean), bloom, ACES, a cold split tone, dithering, VHS tracking, chroma bleed, grain, vignette and curvature. Photographic textures are resampled to about 128 texels a metre and magnified nearest. A camera-relative "liminal" bend can stretch the space ahead, curve it and roll it.
 - cannon-es physics for props, doors, drawers and the player.
-- Mochi is an SDF-sculpted, skinned cat with 24-shell strand fur. The fur has agouti banding, a comb direction, clumping and Kajiya-Kay sheen. She has cupped translucent ears, glossy corneas, slit pupils, whiskers, a tongue and fangs, plus procedural gaits and a utility AI.
+- Mochi is a faceted low-poly cat built on real feline anatomy: lofted cross-sections for a deep keeled ribcage, tucked waist, shoulder blades that ride up when she walks, elbows, wrists with carpal pads, high hocks and split toes, plus a hand-placed head with brow ridge, cheekbones, whisker pads and a hinged jaw. She is one flat-shaded skinned mesh (about 3,200 triangles) with the tabby painted per facet, glossy slit-pupil eyes with real eyelids, whiskers, a tongue and fangs, procedural gaits and a utility AI.
 - Your body is a skinned SDF mesh with IK arms and legs and finger poses. It mutates through shader uniforms: belly, veins, bruising, blood, the split.
 - Procedural Web Audio: every sound effect is synthesized at load. Voices come from a formant speech synthesizer with letter-to-sound rules.
 - Glass 98 is an immediate-mode Windows 98-style desktop drawn on a 640×480 canvas and shown through a curved CRT shader.
