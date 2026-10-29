@@ -11,7 +11,7 @@ You wake up, turn off the alarm, make coffee, cook eggs, feed Mochi, and take th
 
 There is no loading screen, only three dots and Mochi running in the dark. When she stops and sits, click or press any key. The menu is the apartment wall, seen from across the room: the window, Manhattan across the river, and the ship coming down over it. Choose **new game**, **load game** (resumes at the last dawn) or **settings**.
 
-The whole game is graded in noir by default. Red is the only colour it keeps. You can switch noir off in the pause menu. On screen you only get Alex talking to themself and the current objective.
+The look is realistic horror with crisp pixel-art textures: smooth, shadowed lighting and ambient occlusion over surfaces whose texels stay sharp up close, under a sallow, desaturated grade that drains a little more every day, with grain, a heavy vignette and faint VHS wear. There is almost no UI. You get Alex talking to themself, a new task that surfaces for a few seconds and then fades, and a small dot only when you look at something you can use. All text is set in Alagard, a pixel font. Pixel textures, ambient occlusion, ink lines, VHS and grain can all be changed in the pause menu.
 
 | Key | Action |
 | --- | --- |
@@ -41,14 +41,15 @@ At night something hunts by light. Turn the lamps off, switch off the monitor, s
 
 ## Tech
 
-- three.js r170 rendered at a low internal resolution. Post-processing adds bloom, ACES, dithering, VHS tracking, chroma bleed, grain and curvature. A camera-relative "liminal" bend can stretch the space ahead, curve it and roll it.
+- three.js r170. Post-processing adds depth-only ambient occlusion (eight taps tested against the tangent plane, so flat floors stay clean), bloom, ACES, a cold split tone, dithering, VHS tracking, chroma bleed, grain, vignette and curvature. Photographic textures are resampled to about 128 texels a metre and magnified nearest. A camera-relative "liminal" bend can stretch the space ahead, curve it and roll it.
 - cannon-es physics for props, doors, drawers and the player.
 - Mochi is an SDF-sculpted, skinned cat with 24-shell strand fur. The fur has agouti banding, a comb direction, clumping and Kajiya-Kay sheen. She has cupped translucent ears, glossy corneas, slit pupils, whiskers, a tongue and fangs, plus procedural gaits and a utility AI.
 - Your body is a skinned SDF mesh with IK arms and legs and finger poses. It mutates through shader uniforms: belly, veins, bruising, blood, the split.
 - Procedural Web Audio: every sound effect is synthesized at load. Voices come from a formant speech synthesizer with letter-to-sound rules.
 - Glass 98 is an immediate-mode Windows 98-style desktop drawn on a 640×480 canvas and shown through a curved CRT shader.
-- Verlet cloth for the curtains and the shower curtain. The bathroom mirror is a planar reflection with oblique clipping and a frame-delay ring buffer.
+- Verlet cloth for the pinch-pleated curtains, which glow with daylight behind them, and the shower curtain. The bathroom mirror is a planar reflection with oblique clipping and a frame-delay ring buffer.
 - The view from the window is Exchange Place in 1999 at true scale. Below it are the street, the riverside walkway with its lamps, benches, trees and iron railing, late-90s traffic with yellow cabs, the PATH entrance, the ferry slip and the old waterfront buildings. On the Hudson, ferries, a tug with its barge, a sightseeing boat and a sailboat leave wakes. Across the river stand the Twin Towers and the other modelled Lower Manhattan landmarks, thousands of instanced filler buildings with setbacks, crowns, masts, water tanks and procedural brick, stone and glass facades lit at night, Midtown, Brooklyn, and stacks that never stop smoking. The sun follows the real July 1st path, over a smoggy sky with self-shadowed clouds, low haze and a sodium glow at night. The sci-fi ship has triplanar hull panels. When it falls, it breaks into rigid parts with gravity, drag and bounce, plus instanced debris, billboard smoke, fire and a shock ring on the water.
+- The fourth floor is rotting: brass plates and peepholes on every door, 4D chained shut from the outside, a leak over 4C with stains, peeling paper and a live drip, dead and flickering tubes, an EXIT sign on emergency power, a switchback stairwell that sinks into darkness, a grimy trash room and an empty 4A with one chair.
 - The furniture is low poly but never boxy. It uses Shaker doors, lathe-turned legs and knobs, bar pulls, castors, eased cabinet boards with shelf lips and a cornice, a draped quilt, and a woodgrain CRT TV with a VCR and rabbit ears.
 - The paintings are real public-domain works with the faces smeared out (see Credits). They hang in swept, mitred moulding frames on matte, varnish-aged canvas, with weave, craquelure and impasto in the normal map.
 
@@ -72,5 +73,7 @@ The paintings come from The Metropolitan Museum of Art's Open Access programme (
 - John Singer Sargent, *Madame X (Virginie Amélie Avegno Gautreau)*, 1883–84 (object 12127)
 - Thomas Eakins, *The Thinker: Portrait of Louis N. Kenton*, 1900 (object 10827)
 - Rembrandt van Rijn, *Aristotle with a Bust of Homer*, 1653 (object 437394)
+
+The UI font is Alagard by Hewett Tsoi (Pix3M), embedded in `css/style.css` (source file in `assets/fonts/`).
 
 Third-party licenses are in `vendor/LICENSE-*.txt`.
