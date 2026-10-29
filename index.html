@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>bengrim</title>
 <link rel="stylesheet" href="css/style.css">
 <script type="importmap">
@@ -37,9 +37,13 @@
   </div>
 </div>
 <div id="boot">
-  <div class="dots" aria-label="loading"><i></i><i></i><i></i></div>
-  <div class="hint" id="boot-hint">click</div>
-  <div class="warn">headphones · body horror, blood, flashing lights · keyboard and mouse</div>
+  <div class="load" role="progressbar" aria-label="loading">
+    <div class="lines"><span style="--i:0">It is Thursday, July 1st.</span><span style="--i:1">It is always Thursday, July 1st.</span><span style="--i:2">The alarm is set for 6:40. It always is.</span><span style="--i:3">Mochi hasn't eaten. Neither have you.</span><span style="--i:4">Three calls today. The same three.</span><span style="--i:5">Don't stand near the glass.</span><span style="--i:6">The hallway was shorter yesterday.</span><span style="--i:7">There is only one floor.</span></div>
+    <div class="bar"><i id="boot-bar"></i></div>
+    <div class="stage"><span id="boot-stage">waking up</span><span id="boot-pct">0%</span></div>
+  </div>
+  <div class="hint" id="boot-hint">click to begin</div>
+  <div class="warn" id="boot-warn">headphones · body horror, blood, flashing lights · keyboard and mouse</div>
 </div>
 <script type="module" src="src/main.js"></script>
 </body>

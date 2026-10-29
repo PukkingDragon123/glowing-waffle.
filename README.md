@@ -9,7 +9,7 @@ You wake up, turn off the alarm, make coffee, cook eggs, feed Mochi, and take th
 - **Browser:** open `dist/bengrim.html` (a single file; three.js and cannon-es load from jsDelivr).
 - **From source:** serve the repo root over HTTP (for example `python3 -m http.server`) and open `index.html`. Modules load from `src/` with the vendored libraries in `vendor/`.
 
-There is no loading screen, only three dots and Mochi running in the dark. When she stops and sits, click or press any key. The menu is the apartment wall, seen from across the room: the window, Manhattan across the river, and the ship coming down over it. Choose **new game**, **load game** (resumes at the last dawn) or **settings**.
+While it loads, Mochi runs in the dark over a thin line that fills with the real work (bytes downloaded, each part of the world built, each shader compiled), with the stage in small text and a line of the day drifting past. When she stops and sits, click, press any key or tap. Then the dark reaches for her: pale arms come out of the black from the sides, up through the floor and from behind, and she runs. That is the menu. Choose **new game**, **load game** (resumes at the last dawn) or **settings**. (`?window` brings back the old menu on the apartment window.)
 
 The look is realistic horror with crisp pixel-art textures: smooth, shadowed lighting and ambient occlusion over surfaces whose texels stay sharp up close, under a sallow, desaturated grade that drains a little more every day, with grain, a heavy vignette and faint VHS wear. There is almost no UI. You get Alex talking to themself, a new task that surfaces for a few seconds and then fades, and a small dot only when you look at something you can use. All text is set in Alagard, a pixel font. Pixel textures, ambient occlusion, ink lines, VHS and grain can all be changed in the pause menu.
 
@@ -24,6 +24,18 @@ The look is realistic horror with crisp pixel-art textures: smooth, shadowed lig
 | Q / 1 / 2 | pocket / take from pocket |
 | G | drop |
 | Esc | pause, or stand up from the desk |
+
+On a phone or tablet the game plays by touch, in portrait or landscape:
+
+| Touch | Action |
+| --- | --- |
+| left thumb | a floating stick: walk; push it to the rim to run |
+| right side | drag to look |
+| tap | use whatever is under the dot (E) |
+| buttons | appear on the right only when there is something to do: use, eat / drink, drag (hold it, and swipe it to swing a door or steer what you carry), throw, rotate, drop, pocket, stand up; crouch, pocket slots and pause sit small in the top corner, and they all fade when left alone |
+| at the desk | tap the screen to click there, hold to drag, two fingers to scroll; **keyboard** opens the phone's keyboard for typing, **stand up** leaves |
+
+Phones start at a lower internal resolution with lighter ambient occlusion (both in settings).
 
 At the computer the mouse and keyboard drive Glass 98. The four apps are Blueberry Support, Internet Voyager, Inbox and My Computer. Dial in, set yourself **Available**, answer the phone, and use the Knowledge Base and the Account tools to fix the problem.
 

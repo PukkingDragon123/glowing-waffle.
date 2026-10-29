@@ -27,6 +27,11 @@ const CONTROLS = [
   ['LEFT MOUSE', 'drag doors, drawers, objects'], ['R / WHEEL', 'rotate / distance while dragging'], ['RIGHT MOUSE', 'throw'], ['Q', 'put in pocket'], ['1 / 2', 'take from pocket'],
   ['G', 'drop'], ['ESC', 'pause / stand up from the desk'],
 ];
+const TOUCH = [
+  ['LEFT THUMB', 'move (push to the rim to run)'], ['RIGHT SIDE', 'drag to look'], ['TAP', 'use what is under the dot'],
+  ['BUTTONS', 'appear when there is something to do; hold one to drag a door or carry, swipe it to steer'],
+  ['DESK', 'tap to click, hold to drag, two fingers to scroll'], ['II', 'pause'],
+];
 
 export class Pause {
   constructor() {
@@ -78,6 +83,7 @@ export class Pause {
       const plus = document.createElement('button'); plus.textContent = '>'; plus.dataset.k = k; plus.dataset.d = 1;
       const span = document.createElement('span');
       span.textContent = a === 'bool' ? (v[k] ? 'ON' : 'OFF') : a === 'list' ? v[k] + 'p' : String(v[k]);
+      if (k === 'sensitivity' && G.input.touch) l.textContent = 'LOOK SENSITIVITY';
       val.append(minus, span, plus);
       row.append(l, val);
       this.panel.appendChild(row);
@@ -86,7 +92,7 @@ export class Pause {
   showControls() {
     this.panel.innerHTML = '';
     const g = document.createElement('div'); g.className = 'ctl';
-    for (const [k, d] of CONTROLS) { const a = document.createElement('div'); a.textContent = k; const b = document.createElement('div'); b.textContent = d; g.append(a, b); }
+    for (const [k, d] of G.input.touch ? TOUCH : CONTROLS) { const a = document.createElement('div'); a.textContent = k; const b = document.createElement('div'); b.textContent = d; g.append(a, b); }
     this.panel.appendChild(g);
   }
   adjust(k, d) {

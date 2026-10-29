@@ -44,6 +44,7 @@ export class HUD {
   clearSubs() { for (const l of [...this.lines]) this.kill(l); }
 
   setPrompt(actions) {
+    this.actions = actions;   // the touch buttons read these
     const key = actions ? actions.map((a) => a.key + a.label).join('|') : '';
     if (key === this.promptKey) return;
     this.promptKey = key;
@@ -76,6 +77,8 @@ export class HUD {
     if (this.choice) this.choice.resolve(null);
     this.choicesEl.innerHTML = '';
     const els = options.map((o, i) => { const d = document.createElement('div'); d.className = 'c' + (i === 0 ? ' sel' : ''); d.textContent = `${i + 1}. ${o.label}`; this.choicesEl.appendChild(d); return d; });
+    // tap or click an option directly
+    els.forEach((d, i) => d.addEventListener('click', () => { if (this.choice && this.choice.els === els) this.choice.resolve(options[i].value); }));
     return new Promise((resolve) => {
       this.choice = { options, els, sel: 0, resolve: (v) => { this.choicesEl.innerHTML = ''; this.choice = null; resolve(v); }, timeout, def, t: 0 };
     });

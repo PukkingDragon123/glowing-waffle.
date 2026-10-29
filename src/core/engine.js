@@ -4,6 +4,7 @@
 //  vignette, fades; screen res)
 import * as THREE from 'three';
 import { G } from './globals.js';
+import { COARSE } from './settings.js';
 
 const QUAD_VS = /* glsl */`
 varying vec2 vUv;
@@ -112,8 +113,14 @@ float occlusion(vec2 uv, vec2 px) {
   float occ = 0.0;
   // eight taps on a Vogel spiral, turned per pixel
   #define TAP(k) { vec2 o = (R * k) * ar; float want = c + dot(g, o); float dz = 1.0 / max(want, 1e-4) - 1.0 / max(invZ(uv + o), 1e-4); occ += smoothstep(0.008, 0.05, dz) * (1.0 - smoothstep(0.25, 0.6, dz)); }
+  #ifdef AO_LITE
+  // phones: four taps spread over the same spiral
+  TAP(vec2(0.125, 0.0)) TAP(vec2(0.04, -0.42)) TAP(vec2(-0.6, -0.12)) TAP(vec2(-0.2, 0.8))
+  occ *= 2.0;
+  #else
   TAP(vec2(0.125, 0.0)) TAP(vec2(-0.22, 0.2)) TAP(vec2(0.04, -0.42)) TAP(vec2(0.36, 0.33))
   TAP(vec2(-0.6, -0.12)) TAP(vec2(0.52, -0.5)) TAP(vec2(-0.2, 0.8)) TAP(vec2(-0.55, -0.78))
+  #endif
   #undef TAP
   return occ / 8.0 * (1.0 - step(40.0, zc));
 }
@@ -305,6 +312,7 @@ export class Engine {
     };
     for (const k of ['vhs', 'grain', 'chroma', 'scan', 'vignette', 'wave', 'doubleV', 'white', 'black', 'red', 'glitch', 'tracking', 'curvature', 'noiseBurst', 'blur', 'tunnel', 'shake']) fu[k] = { value: 0 };
     this.mFinal = mk(FINAL_FS, fu);
+    if (COARSE) this.mComp.defines = { AO_LITE: 1 };
 
     this.rtScene = null;
     this.resize();
@@ -314,7 +322,7 @@ export class Engine {
   setLowHeight(h) { this.lowH = h; this.resize(); }
 
   resize() {
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const dpr = Math.min(window.devicePixelRatio || 1, COARSE ? 1.5 : 2);   // phones: the final pass is per screen pixel
     const W = Math.max(2, Math.floor(window.innerWidth * dpr));
     const H = Math.max(2, Math.floor(window.innerHeight * dpr));
     this.renderer.setSize(W, H, false);

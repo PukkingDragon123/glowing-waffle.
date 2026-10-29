@@ -104,6 +104,7 @@ export class Controller {
       if (inp.isDown('KeyS') || inp.isDown('ArrowDown')) mz -= 1;
       if (inp.isDown('KeyA') || inp.isDown('ArrowLeft')) mx -= 1;
       if (inp.isDown('KeyD') || inp.isDown('ArrowRight')) mx += 1;
+      mx = clamp(mx + inp.axis.x, -1, 1); mz = clamp(mz + inp.axis.y, -1, 1);   // the touch stick
       if (inp.pressed('KeyC') || inp.pressed('ControlRight')) this.setCrouch(!this.crouched);
     }
     this.moveInput.set(mx, mz);
