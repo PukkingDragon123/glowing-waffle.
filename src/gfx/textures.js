@@ -321,6 +321,8 @@ export function patchwork({ seed = 9, size = 256, worldSize = 1 } = {}) {
     const rng = new RNG(seed);
     // faded calico, gingham and solids; a cream sashing and running stitches
     const pal = [[164, 62, 52], [70, 86, 128], [184, 160, 100], [84, 116, 82], [196, 184, 160], [122, 70, 92], [104, 92, 70], [196, 120, 84]];
+    // washed a hundred times: every colour pulled toward a dingy grey
+    for (const c of pal) { const g = (c[0] + c[1] + c[2]) / 3; for (let k = 0; k < 3; k++) c[k] = c[k] * 0.62 + g * 0.3; }
     const cells = [];
     for (let i = 0; i < 64; i++) cells.push({ c: rng.pick(pal), d: rng.pick(pal), pat: rng.int(0, 4) });
     const C = size / 8;
