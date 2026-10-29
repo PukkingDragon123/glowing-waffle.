@@ -97,7 +97,7 @@ export class Menu {
     const sill = cat.perches.find((p) => p.name === 'sill2');
     cat.perch = sill; cat.pos.copy(sill.pos); cat.pos.y = 0; cat.h = sill.pos.y; cat.yaw = 0;
     cat.fear = 0.2;
-    cat.stareAt = V(-60, 300, -1400);
+    cat.stareAt = V(60, 300, -1400);
     cat.scripted = (ct) => { ct.path = null; ct.yaw = 0.05; ct.model.set({ sit: 1, tailUp: 0.0, tailCurve: 0.6, tailSway: 0.04, earL: 0.1, earR: -0.1 }); };
   }
   catBolts() {
@@ -232,7 +232,7 @@ export class Menu {
     ship.reset();
     ship.u.damage.value = 0.35; ship.u.power.value = 1;
     // out of the east, straight at us, low over Manhattan into the North Tower
-    this.flight = { p0: V(260, 1250, -4600), p1: V(90, 760, -2500), p2: V(-38, 290, -1415), dur: 14 };
+    this.flight = { p0: V(-260, 1250, -4600), p1: V(-90, 760, -2500), p2: V(38, 290, -1415), dur: 14 };
     sky.ship.position.copy(this.flight.p0);
     sky.ship.visible = true;
     this.shipVel = V();
@@ -258,9 +258,9 @@ export class Menu {
     const sky = G.sky;
     sky.setTower(0, 0.02); sky.setTower(1, 0.03);
     sky.landmarks.setFire(0, 1, 2); sky.landmarks.setFire(1, 1, 4);
-    sky.ship.position.set(30, -14 + 30, -1330); sky.ship.rotation.set(0.25, 1.9, 0.5);
+    sky.ship.position.set(-30, -14 + 30, -1330); sky.ship.rotation.set(0.25, -1.9, -0.5);
     sky.shipObj.u.damage.value = 1; sky.shipObj.u.power.value = 0.15;
-    for (let i = 0; i < 10; i++) sky.debris.fire(V(-80 + Math.random() * 160, -14 + Math.random() * 40, -1420 + Math.random() * 120), 80 + Math.random() * 90, 1e6);
+    for (let i = 0; i < 10; i++) sky.debris.fire(V(-40 + Math.random() * 230, -14 + Math.random() * 40, -1420 + Math.random() * 120), 80 + Math.random() * 90, 1e6);
     this.phase = 'after'; this.impacted = true; this.shockArrived = true; this.alpha = 1;
   }
 
@@ -279,7 +279,7 @@ export class Menu {
       if (ahead.distanceToSquared(p) > 1) {
         const m = new THREE.Matrix4().lookAt(ahead, p, V(0, 1, 0));
         const q = new THREE.Quaternion().setFromRotationMatrix(m);
-        const roll = new THREE.Quaternion().setFromAxisAngle(V(0, 0, 1), Math.sin(t * 0.6) * 0.12 + k * 0.35 + (Math.random() - 0.5) * 0.02 * k);
+        const roll = new THREE.Quaternion().setFromAxisAngle(V(0, 0, 1), -(Math.sin(t * 0.6) * 0.12 + k * 0.35) + (Math.random() - 0.5) * 0.02 * k);
         sky.ship.quaternion.copy(q.multiply(roll));
       }
       ship.vel = this.shipVel.clone();
@@ -331,7 +331,7 @@ export class Menu {
         this.catBolts();
       }
       // smouldering columns from the site
-      if (Math.random() < dt * 6) deb.puff(V(-80 + (Math.random() - 0.5) * 140, -14 + Math.random() * 60, -1420 + (Math.random() - 0.5) * 120), V(0, 10 + Math.random() * 8, 0), 60, 30, 45, new THREE.Color(0.14, 0.12, 0.11), 0.5);
+      if (Math.random() < dt * 6) deb.puff(V(90 + (Math.random() - 0.5) * 180, -14 + Math.random() * 60, -1420 + (Math.random() - 0.5) * 120), V(0, 10 + Math.random() * 8, 0), 60, 30, 45, new THREE.Color(0.14, 0.12, 0.11), 0.5);
       if (Math.random() < dt * 0.15) sky.skyMat.uniforms.flash.value = 1;
     }
     if (t > 22 || !this.intro) this.alpha = Math.min(1, this.alpha + dt * 0.5);
@@ -354,7 +354,7 @@ export class Menu {
     const bow = ship.parts.find((q) => q.name === 'bow'); if (bow) bow.vel.multiplyScalar(0.08);
     for (const q of ship.parts) if (q.name !== 'bow') q.vel.multiplyScalar(0.22);
     // the ring shears off and goes skipping across the Hudson toward Jersey
-    const ring = ship.parts.find((q) => q.name === 'ring'); if (ring) { ring.vel.set(-15, 25, 95); ring.ang.set(0.1, 0.02, 0.9); }
+    const ring = ship.parts.find((q) => q.name === 'ring'); if (ring) { ring.vel.set(15, 25, 95); ring.ang.set(0.1, 0.02, 0.9); }
     ship.u.power.value = 0.25; ship.u.damage.value = 1;
     for (const f of this.attachedFires) f.max = f.life + 25;
     if (this.hum) { this.hum.stop(1); this.hum = null; }

@@ -1,147 +1,205 @@
 // The outside, rendered as a separate background pass with its own far plane:
-// sky shader (sun, clouds, stars), two moons, Jersey City waterfront, the
-// Hudson, the Manhattan skyline with the Twin Towers, fires/smoke, alien
-// lights, searchlights and the biomechanical ship. Also drives sun/ambient
-// lighting for the interior. -z is east (toward Manhattan).
+// a smog-heavy sky (sun, bruised clouds, stars, the city's sodium dome), two
+// moons, the Exchange Place waterfront, the Hudson with its boats and wakes,
+// the Manhattan skyline with the Twin Towers, fires/smoke, alien lights,
+// searchlights and the biomechanical ship. Also drives sun/ambient lighting
+// for the interior. -z looks across the river; +x is south.
 import * as THREE from 'three';
-import { mergeGeometries } from 'three/addons/BufferGeometryUtils.js';
 import { G } from '../core/globals.js';
-import { clamp, lerp, smoothstep, RNG, damp } from '../core/util.js';
+import { clamp, lerp, smoothstep, RNG } from '../core/util.js';
 import { makeCanvas, toTexture, radial } from '../gfx/textures.js';
 import { Landmarks } from './city.js';
+import { Skyline } from './skyline.js';
+import { Waterfront } from './waterfront.js';
+import { Harbor, MAX_WAKES } from './harbor.js';
+import { OUT, OUT_GLSL, Glows } from './outdoor.js';
 import { Ship } from './ship.js';
 import { Debris } from './debris.js';
 
 const SKY_VS = `varying vec3 vDir; void main(){ vDir = position; vec4 p = projectionMatrix * modelViewMatrix * vec4(position, 1.0); gl_Position = p.xyww; }`;
 const SKY_FS = /* glsl */`
 uniform vec3 sunDir; uniform vec3 zenith; uniform vec3 horizon; uniform vec3 groundCol; uniform vec3 sunCol;
-uniform float time; uniform float cloudCover; uniform vec3 cloudCol; uniform float stars; uniform float sunVis; uniform float smoke; uniform vec3 smokeCol;
-uniform float lights; uniform float burnGlow; uniform float flash;
+uniform float time; uniform float cloudCover; uniform vec3 cloudLit; uniform vec3 cloudDark; uniform float stars; uniform float sunVis; uniform float smoke; uniform vec3 smokeCol;
+uniform float lights; uniform float burnGlow; uniform float flash; uniform vec3 smogCol; uniform float smog; uniform vec3 glowCol; uniform vec3 beltCol;
 varying vec3 vDir;
 float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 float noise(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3.0-2.0*f); return mix(mix(hash(i), hash(i+vec2(1,0)), f.x), mix(hash(i+vec2(0,1)), hash(i+vec2(1,1)), f.x), f.y); }
 float fbm(vec2 p){ float s = 0.0, a = 0.5; for (int i = 0; i < 5; i++){ s += a * noise(p); p = p * 2.03 + 17.1; a *= 0.5; } return s; }
+float fbm3(vec2 p){ float s = 0.0, a = 0.5; for (int i = 0; i < 3; i++){ s += a * noise(p); p = p * 2.07 + 5.3; a *= 0.5; } return s; }
 void main(){
   vec3 d = normalize(vDir);
-  float h = d.y;
-  vec3 col = mix(horizon, zenith, pow(clamp(h, 0.0, 1.0), 0.45));
-  col = mix(col, groundCol, smoothstep(0.0, -0.08, h));
-  float s = max(dot(d, normalize(sunDir)), 0.0);
-  col += sunCol * (pow(s, 900.0) * 40.0 + pow(s, 60.0) * 0.6 + pow(s, 6.0) * 0.25) * sunVis;
-  if (h > 0.005) {
-    vec2 p = d.xz / (h + 0.08) * 0.9 + vec2(time * 0.004, time * 0.0015);
-    float c = fbm(p * 1.6);
-    float cov = smoothstep(1.0 - cloudCover, 1.05 - cloudCover * 0.4, c);
-    vec3 cc = cloudCol * (0.75 + 0.35 * fbm(p * 4.0 + 3.0)) + sunCol * pow(s, 8.0) * 0.5 * sunVis;
+  float h = d.y, hh = max(h, 0.0);
+  vec3 col = mix(horizon, zenith, pow(smoothstep(0.0, 1.0, hh), 0.4));
+  // the smog layer lies on the horizon like a stain
+  col = mix(col, smogCol, smog * exp(-hh * 9.0));
+  // twilight: a bruised belt opposite the sun, the earth's shadow under it
+  vec2 sd = normalize(sunDir.xz + vec2(1e-4));
+  float anti = clamp(-dot(normalize(d.xz + vec2(1e-4)), sd), 0.0, 1.0);
+  col += beltCol * smoothstep(0.0, 0.06, h) * smoothstep(0.34, 0.07, h) * (0.3 + 0.7 * anti);
+  col *= 1.0 - min(1.0, length(beltCol) * 1.6) * 0.5 * smoothstep(0.07, 0.0, h) * anti;
+  // sun: disc, halo, and the broad glare a dirty sky makes of it
+  vec3 sdir = normalize(sunDir);
+  float s = max(dot(d, sdir), 0.0);
+  col += sunCol * sunVis * (smoothstep(0.99955, 0.99975, s) * 30.0 + pow(s, 900.0) * 4.0 + pow(s, 60.0) * 0.4 + pow(s, 10.0) * 0.07);
+  // the city's sodium dome on the horizon, the fires under it
+  float east = smoothstep(0.3, -0.8, d.z);
+  col += glowCol * exp(-hh * 6.0) * (0.45 + 0.55 * east);
+  col += vec3(0.22, 0.08, 0.025) * burnGlow * east * exp(-hh * 8.0);
+  if (h > 0.0) {
+    // clouds: a warped layer, self-shadowed away from the sun, thinning to streaks at the horizon
+    vec2 p = d.xz / (h + 0.07) * 0.7 + vec2(time * 0.006, time * 0.0022);
+    vec2 w = vec2(fbm3(p * 0.8 + 4.0), fbm3(p * 0.8 + 9.0)) - 0.5;
+    float n = fbm(p * 1.3 + w * 1.4);
+    float c0 = 1.0 - cloudCover * 0.92;
+    float cov = smoothstep(c0, c0 + 0.13, n);
+    float n2 = fbm((p + sd * 0.14) * 1.3 + w * 1.4);
+    float lit = clamp(0.5 + (n - n2) * 5.0, 0.0, 1.0);
+    vec3 cc = mix(cloudDark, cloudLit, lit * (0.75 + 0.25 * fbm3(p * 5.0)));
+    cc += sunCol * sunVis * pow(s, 8.0) * (1.0 - cov * 0.8) * 1.4;
     // the burning city lights the bellies of the clouds from below, strongest over Manhattan
-    float east = smoothstep(0.2, -0.9, d.z);
-    cc += vec3(0.9, 0.32, 0.1) * burnGlow * east * (0.35 + 0.65 * (1.0 - fbm(p * 2.2 + 9.0))) * smoothstep(0.6, 0.02, h);
+    cc += vec3(0.5, 0.16, 0.04) * burnGlow * east * (0.3 + 0.7 * (1.0 - lit)) * smoothstep(0.6, 0.02, h);
     // energy discharges inside the cloud deck
-    cc += vec3(0.7, 0.9, 1.0) * flash * smoothstep(0.4, 0.8, fbm(p * 0.9 + 21.0)) * 2.5;
-    col = mix(col, cc, cov * smoothstep(0.0, 0.12, h) * 0.95);
-    // light dome over the city at night
-    col += vec3(0.32, 0.18, 0.09) * burnGlow * east * exp(-h * 9.0) * 0.6;
+    cc += vec3(0.7, 0.9, 1.0) * flash * smoothstep(0.4, 0.8, fbm3(p * 0.9 + 21.0)) * 2.5;
+    col = mix(col, cc, cov * smoothstep(0.0, 0.1, h) * 0.97);
     // alien aurora: tall curtains of green light, folding slowly
     if (lights > 0.0) {
       float ax = d.x / (h + 0.25);
-      float fold = fbm(vec2(ax * 1.4 + time * 0.03, time * 0.02));
+      float fold = fbm3(vec2(ax * 1.4 + time * 0.03, time * 0.02));
       float curtain = smoothstep(0.55, 0.0, abs(fract(ax * 0.9 + fold * 1.6) - 0.5)) * smoothstep(0.08, 0.3, h) * smoothstep(0.85, 0.4, h);
-      float rays = 0.6 + 0.4 * fbm(vec2(ax * 18.0, h * 2.0 - time * 0.2));
+      float rays = 0.6 + 0.4 * fbm3(vec2(ax * 18.0, h * 2.0 - time * 0.2));
       col += vec3(0.15, 0.85, 0.5) * curtain * rays * lights * 0.35 * (1.0 - cov * 0.7);
     }
-    // smoke haze from the burning city, thick low on the horizon
-    float sm = fbm(vec2(d.x * 6.0 + time * 0.01, h * 18.0 - time * 0.02));
+    // smoke from the burning city, thick and low
+    float sm = fbm3(vec2(d.x * 6.0 + time * 0.01, h * 18.0 - time * 0.02));
     col = mix(col, smokeCol * (0.6 + sm * 0.6), smoke * smoothstep(0.45, 0.0, h) * (0.4 + sm * 0.6));
-    // stars
+    // a few stars get through the light pollution
     vec2 sp = d.xz / (h + 0.3) * 220.0;
-    float st = step(0.9975, hash(floor(sp))) * stars * smoothstep(0.05, 0.3, h);
-    col += st * (0.6 + 0.4 * sin(time * 3.0 + hash(floor(sp)) * 40.0));
+    float st = step(0.9982, hash(floor(sp))) * stars * smoothstep(0.08, 0.4, h) * (1.0 - cov);
+    col += st * (0.5 + 0.4 * sin(time * 3.0 + hash(floor(sp)) * 40.0));
   }
+  col = mix(col, groundCol, smoothstep(0.0, -0.06, h));
   gl_FragColor = vec4(col, 1.0);
 }`;
 
-// Buildings: procedural windows computed from local position + instance size
-const BLD_VS = /* glsl */`
-attribute vec4 iData; // x: seed, y: lit fraction mod, z: burn, w: tint
-attribute vec3 iSize;
-varying vec3 vLocal; varying vec3 vSize; varying vec4 vData; varying vec3 vN; varying vec3 vWorld;
-void main(){
-  vLocal = position * iSize; vSize = iSize; vData = iData; vN = normal;
-  vec4 wp = modelMatrix * instanceMatrix * vec4(position, 1.0);
-  vWorld = wp.xyz;
-  gl_Position = projectionMatrix * viewMatrix * wp;
-}`;
-const BLD_FS = /* glsl */`
-uniform float night; uniform float litFrac; uniform float time; uniform vec3 fogCol; uniform float fogDensity; uniform vec3 sunDir; uniform vec3 dayCol; uniform float burnAmt; uniform float blackout;
-varying vec3 vLocal; varying vec3 vSize; varying vec4 vData; varying vec3 vN; varying vec3 vWorld;
-float hash(vec3 p){ return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
-void main(){
-  vec3 n = normalize(vN);
-  // facade coords
-  vec2 f = abs(n.x) > 0.5 ? vec2(vLocal.z, vLocal.y) : abs(n.z) > 0.5 ? vec2(vLocal.x, vLocal.y) : vec2(vLocal.x, vLocal.z);
-  vec2 cell = vec2(3.2, 3.6) * (0.85 + vData.w * 0.3);
-  vec2 g = f / cell;
-  vec2 gi = floor(g), gf = fract(g);
-  float win = step(0.22, gf.x) * step(gf.x, 0.78) * step(0.25, gf.y) * step(gf.y, 0.8);
-  if (abs(n.y) > 0.5) win = 0.0;
-  float rnd = hash(vec3(gi, vData.x + n.x * 3.0 + n.z * 7.0));
-  float lit = step(rnd, litFrac * vData.y * (1.0 - blackout * step(0.5, fract(vData.x * 7.3))));
-  vec3 base = mix(vec3(0.42, 0.40, 0.38), vec3(0.55, 0.5, 0.44), vData.w);
-  float light = clamp(dot(n, normalize(sunDir)) * 0.6 + 0.5, 0.15, 1.0);
-  vec3 col = base * dayCol * light;
-  vec3 glass = mix(vec3(0.18, 0.22, 0.28), dayCol * 0.8, 0.4 + 0.3 * rnd);
-  col = mix(col, glass * light, win * (1.0 - night * 0.6));
-  // night: dark facades, warm windows
-  vec3 wcol = mix(vec3(1.0, 0.78, 0.45), vec3(0.75, 0.85, 1.0), step(0.8, rnd)) * (0.8 + 0.4 * rnd);
-  col = mix(col, col * 0.12, night);
-  col += win * lit * wcol * night * 1.6;
-  // burning: charred with glowing orange windows that flicker
-  float burn = vData.z * burnAmt;
-  if (burn > 0.0) {
-    float fl = 0.6 + 0.4 * sin(time * 9.0 + rnd * 40.0) * sin(time * 5.3 + rnd * 12.0);
-    float fireWin = win * step(rnd, 0.55 * burn) * step(f.y, vSize.y * (0.4 + 0.6 * rnd));
-    col = mix(col, col * 0.25, burn * 0.8);
-    col += fireWin * vec3(1.8, 0.6, 0.12) * fl * 2.0;
-  }
-  float dist = length(vWorld - cameraPosition);
-  float fog = 1.0 - exp(-dist * fogDensity);
-  col = mix(col, fogCol, clamp(fog, 0.0, 1.0));
-  gl_FragColor = vec4(col, 1.0);
-}`;
-
+// the Hudson: murky body, chop, the sky and the skyline mirrored in it, wakes
 const WATER_FS = /* glsl */`
-uniform vec3 skyCol; uniform vec3 deep; uniform float time; uniform float night; uniform vec3 fogCol; uniform float fogDensity; uniform vec3 sunDir; uniform vec3 sunCol; uniform float fire; uniform vec4 shock;
+${OUT_GLSL}
+uniform vec3 deep; uniform float fire; uniform vec4 shock; uniform vec4 wakeA[${MAX_WAKES}]; uniform vec4 wakeB[${MAX_WAKES}];
+uniform vec3 moonDir; uniform float moonK; uniform vec3 cityRefl;
 varying vec3 vWorld;
-float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
-float noise(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3.0-2.0*f); return mix(mix(hash(i), hash(i+vec2(1,0)), f.x), mix(hash(i+vec2(0,1)), hash(i+vec2(1,1)), f.x), f.y); }
+float wh(vec2 p){
+  return vn2(p * 0.09 + vec2(oTime * 0.05, oTime * 0.02)) * 0.6 + vn2(p * 0.31 - vec2(oTime * 0.1, -oTime * 0.04)) * 0.3 + vn2(p * 1.1 + vec2(oTime * 0.22, oTime * 0.13)) * 0.14;
+}
 void main(){
-  vec3 v = normalize(vWorld - cameraPosition);
-  float w = noise(vWorld.xz * 0.05 + vec2(time * 0.2, time * 0.05)) * 0.5 + noise(vWorld.xz * 0.2 - time * 0.3) * 0.5;
-  float fres = pow(1.0 - max(-v.y, 0.0), 4.0);
-  vec3 col = mix(deep, skyCol, 0.25 + fres * 0.6);
-  // sun glint / city light streaks
-  vec3 r = reflect(v, vec3(0.0, 1.0, 0.0));
-  float sg = pow(max(dot(r, normalize(sunDir)), 0.0), 200.0) * (0.5 + w);
-  col += sunCol * sg * 3.0 * (1.0 - night);
-  float streak = step(0.75, noise(vec2(vWorld.x * 0.08, vWorld.z * 0.6 + time))) * night * smoothstep(-1600.0, -1100.0, vWorld.z);
-  col += streak * vec3(1.0, 0.75, 0.4) * 0.35 * (0.5 + w);
-  col *= 1.0 - night * 0.45;
-  col += fire * vec3(0.9, 0.3, 0.05) * smoothstep(-1500.0, -1150.0, vWorld.z) * (0.12 + w * 0.25);
+  vec3 p = vWorld;
+  vec3 tc = cameraPosition - p; float dist = length(tc); vec3 v = -tc / dist;
+  // chop, calmer with distance so it doesn't shimmer
+  float e = 0.3 + dist * 0.002;
+  float h0 = wh(p.xz), hx = wh(p.xz + vec2(e, 0.0)), hz = wh(p.xz + vec2(0.0, e));
+  float amp = 1.2 / (1.0 + dist * 0.003);
+  vec3 n = normalize(vec3(-(hx - h0) / e * amp, 1.0, -(hz - h0) / e * amp));
+  // wakes: Kelvin arms, a churned centre trail and the bow wave
+  float foam = 0.0; vec2 wn = vec2(0.0);
+  for (int i = 0; i < ${MAX_WAKES}; i++) {
+    vec4 a = wakeA[i], b = wakeB[i];
+    if (b.x < 0.3) continue;
+    vec2 d = p.xz - a.xy;
+    float along = -dot(d, a.zw) - b.y * 0.5;
+    if (along < -b.y - 6.0 || along > 900.0) continue;
+    float side = dot(d, vec2(-a.w, a.z));
+    float al = max(along, 0.0), sp = clamp(b.x / 10.0, 0.0, 1.5);
+    float arm = abs(abs(side) - (b.z * 0.5 + al * 0.34));
+    float aw = 1.2 + al * 0.05;
+    float k1 = exp(-arm * arm / (aw * aw)) * exp(-al / (240.0 * sp + 30.0)) * sp;
+    float trail = exp(-side * side / (b.z * b.z * 0.2 + al * 1.4)) * exp(-al / (130.0 * sp + 15.0)) * sp;
+    float hull = exp(-pow(max(abs(side) - b.z * 0.5, 0.0), 2.0) * 0.4) * smoothstep(-b.y - 6.0, -b.y + 3.0, along) * step(along, 0.0) * sp;
+    wn += vec2(-a.w, a.z) * sign(side) * k1 * sin(arm * 2.0 - al * 0.35) * 0.3;
+    foam += k1 * 0.3 * (0.6 + 0.4 * vn2(p.xz * 0.9 + oTime)) + trail * (0.45 + 0.55 * vn2(p.xz * 0.6 + a.zw * oTime * 3.0)) * 0.9 + hull * 0.8;
+  }
+  n = normalize(n + vec3(wn.x, 0.0, wn.y));
+  vec3 r = reflect(v, n); r.y = abs(r.y);
+  float fres = 0.02 + 0.98 * pow(1.0 - max(dot(-v, n), 0.0), 5.0);
+  vec3 refl = skyRefl(r);
+  // the skyline mirrored in the river: does the reflected ray meet the far shore's buildings?
+  if (r.z < -0.01 && p.z > -1150.0) {
+    float t = (-1260.0 - p.z) / r.z;
+    float xh = p.x + r.x * t, yh = p.y + r.y * t + 14.0;
+    float hb = 25.0 + 120.0 * vn2(vec2(xh * 0.011, 1.0)) * smoothstep(-2600.0, -300.0, xh) + 50.0 * vn2(vec2(xh * 0.05, 3.0));
+    hb += 220.0 * smoothstep(400.0, 0.0, abs(xh - 300.0)) * vn2(vec2(xh * 0.03, 7.0));
+    hb = max(hb, 417.0 * step(abs(xh - 42.0), 32.0) + 415.0 * step(abs(xh - 140.0), 32.0));
+    float hit = smoothstep(hb + 6.0, hb - 6.0, yh) * smoothstep(1500.0, 1250.0, xh);
+    vec3 bc = mix(cityRefl, oFogCol, clamp(1.0 - exp(-(t + 300.0) * oFogDen), 0.0, 1.0));
+    bc += vec3(1.0, 0.72, 0.4) * oNight * oLit * step(0.78, vn2(vec2(xh * 0.45, yh * 0.08))) * 0.9;
+    refl = mix(refl, bc, hit);
+  }
+  vec3 body = deep * (oAmbSky * 1.6 + oSunCol * max(oSun.y, 0.0) * 0.5 + oAmbGnd);
+  vec3 col = mix(body, refl, fres);
+  // sun glitter, and the moon's glade at night
+  float sr = max(dot(r, oSun), 0.0);
+  col += oGlare * (pow(sr, 400.0) * 12.0 + pow(sr, 40.0) * 0.35) * (0.6 + 0.8 * h0);
+  float mr = max(dot(r, moonDir), 0.0);
+  col += vec3(0.5, 0.55, 0.65) * moonK * (pow(mr, 700.0) * 5.0 + pow(mr, 90.0) * 0.08) * (0.4 + h0);
+  // city lights streak across the water toward us at night
+  float streak = step(0.72, vn2(vec2(p.x * 0.07, p.z * 0.5 + oTime * 0.6))) * oNight * smoothstep(-1500.0, -900.0, p.z) * smoothstep(-200.0, -700.0, p.z);
+  col += streak * vec3(1.0, 0.68, 0.35) * 0.3 * (0.4 + h0) * oLit * 2.0;
+  // foam
+  vec3 fc = vec3(0.7, 0.71, 0.68) * (oSunCol * max(oSun.y, 0.1) * 0.7 + oAmbSky * 2.0 + oAmbGnd) + vec3(0.02, 0.012, 0.005) * oNight;
+  col = mix(col, fc, clamp(foam, 0.0, 0.9));
+  col += fire * vec3(0.9, 0.3, 0.05) * smoothstep(-1500.0, -1150.0, p.z) * (0.12 + h0 * 0.25);
   // the blast's shock ring racing across the river
-  if (shock.w > 0.0) { float sd = abs(length(vWorld.xz - shock.xy) - shock.z); col += vec3(0.9, 0.85, 0.8) * smoothstep(40.0, 0.0, sd) * shock.w * 0.8; }
-  float dist = length(vWorld - cameraPosition);
-  col = mix(col, fogCol, clamp(1.0 - exp(-dist * fogDensity), 0.0, 1.0));
-  gl_FragColor = vec4(col, 1.0);
+  if (shock.w > 0.0) { float sd = abs(length(p.xz - shock.xy) - shock.z); col += vec3(0.9, 0.85, 0.8) * smoothstep(40.0, 0.0, sd) * shock.w * 0.8; }
+  gl_FragColor = vec4(outFog(col, p), 1.0);
 }`;
+
+// camera-facing quads in one draw: fire glows (additive) or smoke columns (blended, fogged)
+const BB_VS = /* glsl */`
+attribute vec3 iPos; attribute vec2 iSize; attribute vec4 iCol;
+varying vec2 vUv; varying vec4 vCol; varying vec3 vW;
+void main(){ vUv = position.xy * 2.0; vCol = iCol; vW = iPos; vec4 mv = viewMatrix * vec4(iPos, 1.0); mv.xy += position.xy * iSize; gl_Position = projectionMatrix * mv; }`;
+const BB_FS = /* glsl */`
+${OUT_GLSL}
+uniform float smoky;
+varying vec2 vUv; varying vec4 vCol; varying vec3 vW;
+void main(){
+  float r = length(vUv);
+  if (smoky > 0.5) {
+    float n = vn2(vUv * 2.5 + vW.xz * 0.01 + vec2(oTime * 0.05, 0.0));
+    float a = smoothstep(1.0, 0.15, r + (n - 0.5) * 0.6) * vCol.a;
+    if (a < 0.004) discard;
+    gl_FragColor = vec4(outFog(vCol.rgb * (0.7 + 0.6 * n), vW), a);
+  } else {
+    float a = pow(max(1.0 - r, 0.0), 1.6) * vCol.a;
+    if (a < 0.004) discard;
+    gl_FragColor = vec4(vCol.rgb * a, 1.0);
+  }
+}`;
+class Billboards {
+  constructor(scene, n, smoky) {
+    const g = new THREE.InstancedBufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array([-0.5, -0.5, 0, 0.5, -0.5, 0, 0.5, 0.5, 0, -0.5, 0.5, 0]), 3));
+    g.setIndex([0, 1, 2, 0, 2, 3]);
+    const at = (k) => { const a = new THREE.InstancedBufferAttribute(new Float32Array(Math.max(1, n) * k), k); a.setUsage(THREE.DynamicDrawUsage); return a; };
+    this.p = at(3); this.s = at(2); this.c = at(4);
+    g.setAttribute('iPos', this.p); g.setAttribute('iSize', this.s); g.setAttribute('iCol', this.c);
+    g.instanceCount = n;
+    const m = new THREE.ShaderMaterial({ vertexShader: BB_VS, fragmentShader: BB_FS, uniforms: { ...OUT, smoky: { value: smoky ? 1 : 0 } }, transparent: true, depthWrite: false, blending: smoky ? THREE.NormalBlending : THREE.AdditiveBlending });
+    this.mesh = new THREE.Mesh(g, m); this.mesh.frustumCulled = false; this.mesh.renderOrder = smoky ? 3 : 2;
+    scene.add(this.mesh);
+  }
+  set(i, x, y, z, sx, sy, r, g, b, a) { this.p.setXYZ(i, x, y, z); this.s.setXY(i, sx, sy); this.c.setXYZW(i, r, g, b, a); }
+  flush(any) { this.mesh.visible = any; if (any) this.p.needsUpdate = this.s.needsUpdate = this.c.needsUpdate = true; }
+}
 
 function moonTexture(red) {
   const { c, ctx } = makeCanvas(128, 128);
   const g = ctx.createRadialGradient(64, 64, 10, 64, 64, 62);
-  g.addColorStop(0, red ? '#f0c8b0' : '#f4f2e8'); g.addColorStop(0.85, red ? '#c88a70' : '#d8d6cc'); g.addColorStop(1, red ? '#8a4a3a' : '#a8a69c');
+  g.addColorStop(0, red ? '#f0c8b0' : '#f0eee4'); g.addColorStop(0.85, red ? '#c88a70' : '#d4d2c8'); g.addColorStop(1, red ? '#8a4a3a' : '#a4a298');
   ctx.fillStyle = g; ctx.beginPath(); ctx.arc(64, 64, 62, 0, Math.PI * 2); ctx.fill();
   const rng = new RNG(red ? 7 : 3);
+  // maria first, then craters
+  for (let i = 0; i < 7; i++) { ctx.fillStyle = `rgba(${red ? '110,50,40' : '128,126,118'},0.35)`; ctx.beginPath(); ctx.ellipse(30 + rng.range(0, 60), 30 + rng.range(0, 60), rng.range(8, 20), rng.range(6, 16), rng.range(0, 3), 0, Math.PI * 2); ctx.fill(); }
   for (let i = 0; i < 40; i++) {
-    const a = rng.range(0, Math.PI * 2), d = Math.sqrt(rng.next()) * 52, r = rng.range(2, i < 6 ? 16 : 6);
+    const a = rng.range(0, Math.PI * 2), d = Math.sqrt(rng.next()) * 52, r = rng.range(2, i < 6 ? 12 : 5);
     const x = 64 + Math.cos(a) * d, y = 64 + Math.sin(a) * d;
     ctx.fillStyle = `rgba(${red ? '90,40,30' : '120,118,110'},${rng.range(0.2, 0.5)})`;
     ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
@@ -149,16 +207,24 @@ function moonTexture(red) {
   if (red) { // a dark "iris" — the second moon looks like an eye
     ctx.fillStyle = 'rgba(60,10,10,0.55)'; ctx.beginPath(); ctx.ellipse(64, 64, 9, 22, 0, 0, Math.PI * 2); ctx.fill();
   }
-  const t = toTexture(c, { nearest: false, repeat: false });
-  return t;
+  return toTexture(c, { nearest: false, repeat: false });
 }
 
-function mergeTankGeo(parts) { return mergeGeometries(parts.map((g) => (g.index ? g.toNonIndexed() : g)), false); }
+const C = (r, g, b) => new THREE.Color(r, g, b);
+// the outdoor palette (linear). Day is hot, hazy and smog-stained; night is sodium and soot.
+const PAL = {
+  dayZen: C(0.042, 0.078, 0.19), dayHor: C(0.27, 0.25, 0.21), daySmog: C(0.25, 0.18, 0.1),
+  goldZen: C(0.08, 0.07, 0.11), goldHor: C(0.5, 0.3, 0.16),
+  twiZen: C(0.018, 0.018, 0.04), twiHor: C(0.12, 0.07, 0.07),
+  nightZen: C(0.003, 0.004, 0.009), nightHor: C(0.03, 0.021, 0.014), nightSmog: C(0.05, 0.028, 0.012),
+  redZen: C(0.16, 0.04, 0.03), redHor: C(0.5, 0.17, 0.07),
+  belt: C(0.2, 0.09, 0.12), sodium: C(0.075, 0.04, 0.014),
+};
 
 export class Sky {
   constructor() {
     this.scene = new THREE.Scene();
-    this.cam = new THREE.PerspectiveCamera(72, 1, 1, 9000);
+    this.cam = new THREE.PerspectiveCamera(72, 1, 1, 12000);
     this.p = { // live parameters (blended toward targets)
       dayT: 0.1, night: 0, cloud: 0.35, smoke: 0, burn: 0, red: 0, moon2: 0, lights: 0, ship: 0, litFrac: 0.4, blackout: 0, sunBoost: 1,
     };
@@ -167,13 +233,15 @@ export class Sky {
       vertexShader: SKY_VS, fragmentShader: SKY_FS, side: THREE.BackSide, depthWrite: false,
       uniforms: {
         sunDir: { value: new THREE.Vector3(0, 0.2, -1) }, zenith: { value: new THREE.Color() }, horizon: { value: new THREE.Color() }, groundCol: { value: new THREE.Color(0x222428) },
-        sunCol: { value: new THREE.Color(1, 0.9, 0.7) }, time: { value: 0 }, cloudCover: { value: 0.4 }, cloudCol: { value: new THREE.Color(1, 1, 1) }, stars: { value: 0 }, sunVis: { value: 1 },
+        sunCol: { value: new THREE.Color(1, 0.9, 0.7) }, time: { value: 0 }, cloudCover: { value: 0.4 }, cloudLit: { value: new THREE.Color(1, 1, 1) }, cloudDark: { value: new THREE.Color(0.3, 0.3, 0.3) }, stars: { value: 0 }, sunVis: { value: 1 },
         smoke: { value: 0 }, smokeCol: { value: new THREE.Color(0.2, 0.15, 0.12) }, lights: { value: 0 }, burnGlow: { value: 0 }, flash: { value: 0 },
+        smogCol: { value: new THREE.Color() }, smog: { value: 0.4 }, glowCol: { value: new THREE.Color() }, beltCol: { value: new THREE.Color() },
       },
     });
-    this.dome = new THREE.Mesh(new THREE.SphereGeometry(8000, 32, 16), sky);
+    this.dome = new THREE.Mesh(new THREE.SphereGeometry(10000, 32, 16), sky);
     this.dome.frustumCulled = false;
     this.scene.add(this.dome);
+    this.glows = new Glows(this.scene, 700);
     this.buildCity();
     this.buildWater();
     this.buildMoons();
@@ -201,107 +269,29 @@ export class Sky {
   }
 
   buildCity() {
-    const rng = new RNG(1999);
-    const list = [];
-    const add = (x, z, w, d, h, o = {}) => list.push({ x, z, w, d, h, seed: rng.range(0, 100), lit: o.lit ?? rng.range(0.6, 1.3), burn: o.burn ?? 0, tint: rng.next(), y: o.y ?? -14, name: o.name });
-    // landmarks are modelled separately; keep the filler clear of them
-    const keep = [[-42, -1380, 80], [-118, -1450, 80], [-24, -1312, 45], [-95, -1395, 30], [-60, -1490, 55], [-175, -1500, 35], [-190, -1560, 45],
-      [-210, -1210, 40], [-130, -1180, 40], [-40, -1185, 40], [40, -1215, 40], [420, -1820, 50], [-520, -1980, 35], [-610, -2050, 30], [3800, -2950, 90], [4650, -3500, 50]];
-    const clear = (x, z, w) => keep.every(([kx, kz, r]) => Math.hypot(x - kx, z - kz) > r + w * 0.6);
-    this.roofs = [];
-    const tower = (x, z, w, d, h, o) => {
-      if (!clear(x, z, Math.max(w, d))) return;
-      add(x, z, w, d, h, o);
-      // older towers step back near the top; mid-rise roofs carry water tanks
-      if (h > 110 && rng.next() < 0.45) add(x, z, w * 0.7, d * 0.7, h * rng.range(0.15, 0.3), { y: -14 + h, burn: o.burn });
-      if (h > 40 && h < 140 && rng.next() < 0.35) this.roofs.push(new THREE.Vector3(x + rng.range(-w, w) * 0.3, -14 + h, z + rng.range(-d, d) * 0.3));
-    };
-    // Lower Manhattan: shoreline at z ~ -1150, densest around the Financial District
-    for (let i = 0; i < 620; i++) {
-      const x = rng.range(-1100, 2600), z = rng.range(-1250, -2900);
-      if (x < -900 && z > -1600) continue;            // the Battery is a park
-      const core = Math.exp(-((x + 250) ** 2) / (2 * 420 ** 2)) * Math.exp(-((z + 1800) ** 2) / (2 * 500 ** 2));
-      const h = 18 + rng.next() ** 2 * 150 * (0.35 + core * 1.6);
-      tower(x, z, rng.range(22, 55), rng.range(22, 55), h, { burn: rng.next() < 0.5 ? rng.range(0.4, 1) : 0 });
-    }
-    // Midtown, far off to the north-east
-    for (let i = 0; i < 260; i++) {
-      const x = rng.range(2900, 5600), z = rng.range(-2500, -3900);
-      const h = 40 + rng.next() ** 1.6 * 230;
-      tower(x, z, rng.range(25, 60), rng.range(25, 60), h, { burn: rng.next() < 0.3 ? rng.range(0.3, 0.8) : 0 });
-    }
-    // Jersey City waterfront (near): low/mid rise around our building, both sides
-    for (let i = 0; i < 160; i++) {
-      const x = rng.range(-700, 700);
-      const z = rng.range(-30, 300);
-      if (Math.abs(x) < 45 && z < 120) continue; // our block / street
-      const h = 8 + rng.next() ** 1.5 * 50;
-      add(x, z, rng.range(14, 40), rng.range(14, 40), h, { burn: rng.next() < 0.35 ? rng.range(0.3, 1) : 0 });
-    }
-    // a couple of near neighbours framing the view
-    add(-40, -10, 28, 30, 32); add(42, -6, 26, 26, 26);
-    const geo = new THREE.BoxGeometry(1, 1, 1);
-    geo.translate(0, 0.5, 0);
-    const n = list.length;
-    const mat = this.bldMat = new THREE.ShaderMaterial({
-      vertexShader: BLD_VS, fragmentShader: BLD_FS,
-      uniforms: { night: { value: 0 }, litFrac: { value: 0.4 }, time: { value: 0 }, fogCol: { value: new THREE.Color() }, fogDensity: { value: 0.00035 }, sunDir: { value: new THREE.Vector3() }, dayCol: { value: new THREE.Color(1, 1, 1) }, burnAmt: { value: 0 }, blackout: { value: 0 } },
-    });
-    const mesh = this.city = new THREE.InstancedMesh(geo, mat, n);
-    const data = new Float32Array(n * 4), size = new Float32Array(n * 3);
-    const m = new THREE.Matrix4();
-    list.forEach((b, i) => {
-      m.compose(new THREE.Vector3(b.x, b.y, b.z), new THREE.Quaternion(), new THREE.Vector3(b.w, b.h, b.d));
-      mesh.setMatrixAt(i, m);
-      data.set([b.seed, b.lit, b.burn, b.tint], i * 4);
-      size.set([b.w, b.h, b.d], i * 3);
-      b.index = i;
-    });
-    geo.setAttribute('iData', new THREE.InstancedBufferAttribute(data, 4));
-    geo.setAttribute('iSize', new THREE.InstancedBufferAttribute(size, 3));
-    mesh.frustumCulled = false;
-    this.scene.add(mesh);
-    this.buildings = list;
-    // rooftop water tanks: a barrel on stilts with a cone hat
-    {
-      const parts = [new THREE.CylinderGeometry(3.2, 3.4, 6, 8).translate(0, 7, 0), new THREE.ConeGeometry(3.6, 2.4, 8).translate(0, 11.2, 0)];
-      for (const [dx, dz] of [[-2, -2], [2, -2], [2, 2], [-2, 2]]) parts.push(new THREE.CylinderGeometry(0.25, 0.25, 4, 3).translate(dx, 2, dz));
-      const tg = mergeTankGeo(parts);
-      const tm = new THREE.InstancedMesh(tg, new THREE.MeshLambertMaterial({ color: 0x3a3028, fog: false }), this.roofs.length);
-      const mm = new THREE.Matrix4();
-      this.roofs.forEach((p, i) => { mm.makeTranslation(p.x, p.y, p.z); tm.setMatrixAt(i, mm); });
-      this.scene.add(tm); this.tanks = tm;
-    }
-    this.landmarks = new Landmarks(this.scene);
-    // street + promenade below our window
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(3000, 440), new THREE.MeshBasicMaterial({ color: 0x1d1d1f }));
-    ground.rotation.x = -Math.PI / 2; ground.position.set(0, -13.9, 186);
-    // promenade railing edge
-    const edge = new THREE.Mesh(new THREE.BoxGeometry(3000, 1.2, 0.4), new THREE.MeshBasicMaterial({ color: 0x0c0c0d }));
-    edge.position.set(0, -13.3, -34); this.scene.add(edge);
-    this.scene.add(ground); this.ground = ground;
-    // streetlights (sprites)
-    const lampMat = new THREE.SpriteMaterial({ map: radial({ size: 64, inner: 'rgba(255,210,140,1)', outer: 'rgba(255,170,90,0)' }), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true });
-    this.lamps = [];
-    for (let i = -12; i <= 12; i++) {
-      const s = new THREE.Sprite(lampMat); s.position.set(i * 24, -6, -38); s.scale.set(5, 5, 1); this.scene.add(s); this.lamps.push(s);
-      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.2, 8, 4), new THREE.MeshBasicMaterial({ color: 0x101012 })); pole.position.set(i * 24, -10, -38); this.scene.add(pole);
-    }
-    this.lampMat = lampMat;
-    // parked cars
-    const carMat = new THREE.MeshBasicMaterial({ color: 0x18181c });
-    for (let i = 0; i < 14; i++) { const c = new THREE.Mesh(new THREE.BoxGeometry(4.4, 1.5, 1.9), carMat); c.position.set(-160 + i * 23 + rng.range(-4, 4), -13.1, -30 + (i % 2) * 2); this.scene.add(c); }
+    this.landmarks = new Landmarks(this.scene, this.glows);
+    this.skyline = new Skyline(this.scene, this.landmarks, this.glows);
+    this.city = this.skyline.mesh; this.bldMat = this.skyline.mat; this.tanks = this.skyline.roofMesh;
+    this.buildings = this.skyline.buildings;
+    this.roofs = this.skyline.roofs;
+    this.waterfront = new Waterfront(this.scene, this.glows);
+    this.ground = this.waterfront.static;
+    this.lamps = this.waterfront.lamps;
+    this.harbor = new Harbor(this.scene, this.glows);
   }
 
   buildWater() {
+    const wa = this.harbor.wakeA, wb = this.harbor.wakeB;
     const mat = this.waterMat = new THREE.ShaderMaterial({
       vertexShader: `varying vec3 vWorld; void main(){ vec4 w = modelMatrix * vec4(position,1.0); vWorld = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }`,
       fragmentShader: WATER_FS,
-      uniforms: { skyCol: { value: new THREE.Color() }, deep: { value: new THREE.Color(0x0e1a20) }, time: { value: 0 }, night: { value: 0 }, fogCol: { value: new THREE.Color() }, fogDensity: { value: 0.00035 }, sunDir: { value: new THREE.Vector3() }, sunCol: { value: new THREE.Color() }, fire: { value: 0 }, shock: { value: new THREE.Vector4(0, 0, 0, 0) } },
+      uniforms: { ...OUT, deep: { value: new THREE.Color(0.05, 0.075, 0.06) }, fire: { value: 0 }, shock: { value: new THREE.Vector4(0, 0, 0, 0) }, wakeA: { value: wa }, wakeB: { value: wb }, moonDir: { value: new THREE.Vector3(-0.35, 0.32, -1).normalize() }, moonK: { value: 0 }, cityRefl: { value: new THREE.Color(0.1, 0.1, 0.1) } },
     });
-    const w = new THREE.Mesh(new THREE.PlaneGeometry(6000, 1250), mat);
-    w.rotation.x = -Math.PI / 2; w.position.set(0, -15, -660);
-    this.scene.add(w);
+    // the Hudson and the Upper Bay, out to the haze
+    const w = new THREE.Mesh(new THREE.PlaneGeometry(24000, 16000), mat);
+    w.rotation.x = -Math.PI / 2; w.position.set(0, -15, -4000);
+    w.frustumCulled = false;
+    this.scene.add(w); this.water = w;
   }
 
   buildMoons() {
@@ -318,21 +308,15 @@ export class Sky {
   }
 
   buildFX() {
-    // fire glows + smoke columns (sprites) over burning buildings
-    const fireMap = radial({ size: 64, inner: 'rgba(255,170,60,1)', outer: 'rgba(255,60,0,0)' });
-    const smokeMap = radial({ size: 64, inner: 'rgba(40,34,30,0.9)', outer: 'rgba(40,34,30,0)' });
+    // fire glows + smoke columns over burning buildings, one instanced draw each
     this.fires = []; this.smokes = [];
-    const burning = this.buildings.filter((b) => b.burn > 0.5 && b.z < -1000).slice(0, 60);
+    const burning = this.buildings.filter((b) => b.burn > 0.5 && b.z < -1000 && b.z > -2600 && b.x > -1600).slice(0, 60);
     for (const b of burning) {
-      const f = new THREE.Sprite(new THREE.SpriteMaterial({ map: fireMap, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0 }));
-      f.position.set(b.x, b.y + b.h * 0.6, b.z + b.d / 2 + 5); f.scale.set(b.w * 2.2, b.h * 0.9, 1);
-      this.scene.add(f); this.fires.push({ s: f, b, ph: Math.random() * 10 });
-      for (let k = 0; k < 3; k++) {
-        const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: smokeMap, depthWrite: false, transparent: true, opacity: 0 }));
-        s.position.set(b.x, b.y + b.h + 40 + k * 90, b.z); s.scale.set(140 + k * 60, 140 + k * 60, 1);
-        this.scene.add(s); this.smokes.push({ s, b, k, ph: Math.random() * 10 });
-      }
+      this.fires.push({ b, ph: Math.random() * 10 });
+      for (let k = 0; k < 3; k++) this.smokes.push({ b, k, ph: Math.random() * 10 });
     }
+    this.fireBB = new Billboards(this.scene, this.fires.length, false);
+    this.smokeBB = new Billboards(this.scene, this.smokes.length, true);
     // alien lights: little bright motes drifting in formations
     const moteMap = radial({ size: 32, inner: 'rgba(190,255,230,1)', outer: 'rgba(80,255,180,0)' });
     this.motes = [];
@@ -372,6 +356,7 @@ export class Sky {
     this.blasts = [];
     for (let i = 0; i < 24; i++) {
       const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: fireMap, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0, fog: false }));
+      s.visible = false;
       this.scene.add(s); this.blasts.push({ s, t: -1, v: new THREE.Vector3(), life: 1 });
     }
     const hemi = new THREE.HemisphereLight(0x606870, 0x101010, 1.2);
@@ -380,16 +365,20 @@ export class Sky {
   }
 
   // ---------------------------------------------------------- presets
+  // the sun over Jersey City on July 1st (lat 40.7, declination +23.1, EDT),
+  // in the view's frame: -z looks east-south-east across the river, +x is south-south-west
+  static sunAt(hours) {
+    const H = ((hours - 13) * 15) * Math.PI / 180, dec = 23.1 * Math.PI / 180, lat = 40.72 * Math.PI / 180;
+    const E = -Math.cos(dec) * Math.sin(H), N = Math.cos(lat) * Math.sin(dec) - Math.sin(lat) * Math.cos(dec) * Math.cos(H), U = Math.sin(lat) * Math.sin(dec) + Math.cos(lat) * Math.cos(dec) * Math.cos(H);
+    return new THREE.Vector3(-0.242 * E - 0.97 * N, U, -(0.97 * E - 0.242 * N)).normalize();
+  }
   // day: 1..7, t: 0..1 through the waking day (07:00 .. 23:00)
   preset(day, t, menu = false) {
     const P = {};
-    // sun path: rises in the east (-z), climbs, sets west behind us (+z)
     const hours = 7 + t * 16;
     P.hours = hours;
-    const sunA = ((hours - 6) / 14) * Math.PI; // 6:00 -> 0, 20:00 -> PI
-    P.sunDir = new THREE.Vector3(0.25, Math.sin(sunA) * 0.85, -Math.cos(sunA)).normalize();
-    const dayAmt = clamp(smoothstep(-0.06, 0.18, P.sunDir.y), 0, 1);
-    P.night = 1 - dayAmt;
+    P.sunDir = Sky.sunAt(hours);
+    P.night = 1 - smoothstep(-0.1, 0.12, P.sunDir.y);
     P.cloud = [0, 0.35, 0.45, 0.6, 0.7, 0.8, 0.9, 0.95][day] ?? 0.5;
     P.smoke = [0, 0, 0.05, 0.25, 0.45, 0.75, 0.9, 1][day] ?? 0;
     P.burn = [0, 0, 0, 0.2, 0.5, 0.85, 1, 1][day] ?? 0;
@@ -414,67 +403,104 @@ export class Sky {
     const p = this.p;
     const t = this.time;
     const night = p.night, red = p.red;
-    // colours
-    const dayZen = new THREE.Color(0.22, 0.42, 0.78), dayHor = new THREE.Color(0.68, 0.76, 0.86);
-    const sunsetHor = new THREE.Color(0.95, 0.55, 0.3);
-    const nightZen = new THREE.Color(0.01, 0.012, 0.025), nightHor = new THREE.Color(0.05, 0.05, 0.07);
-    const redZen = new THREE.Color(0.25, 0.06, 0.04), redHor = new THREE.Color(0.7, 0.25, 0.1);
-    const lowSun = clamp(1 - Math.abs(p.sunDir.y) * 4, 0, 1) * (1 - night * 0.6);
-    const zen = dayZen.clone().lerp(nightZen, night).lerp(redZen.clone().multiplyScalar(1 - night * 0.6), red * 0.7);
-    const hor = dayHor.clone().lerp(sunsetHor, lowSun * 0.7).lerp(nightHor, night).lerp(redHor.clone().multiplyScalar(1 - night * 0.5), red * 0.6);
-    if (p.burn > 0.3) hor.lerp(new THREE.Color(0.35, 0.12, 0.05), p.burn * night * 0.6);
+    const e = p.sunDir.y;
+    // ---- the outdoor palette for this moment
+    const dayK = smoothstep(-0.12, 0.22, e);
+    const gold = smoothstep(0.3, 0.06, e) * smoothstep(-0.05, 0.03, e);
+    const twi = smoothstep(0.04, -0.03, e) * smoothstep(-0.22, -0.07, e);
+    const zen = PAL.nightZen.clone().lerp(PAL.dayZen, dayK).lerp(PAL.goldZen, gold * 0.5).lerp(PAL.twiZen, twi * 0.6);
+    const hor = PAL.nightHor.clone().lerp(PAL.dayHor, dayK).lerp(PAL.goldHor, gold * 0.6).lerp(PAL.twiHor, twi * 0.7);
+    zen.lerp(PAL.redZen.clone().multiplyScalar(1 - night * 0.7), red * 0.6);
+    hor.lerp(PAL.redHor.clone().multiplyScalar(1 - night * 0.6), red * 0.55);
+    if (p.burn > 0.3) hor.lerp(C(0.16, 0.055, 0.022), p.burn * night * 0.6);
+    const smoky = 1 - p.smoke * 0.55;
+    const sunUp = smoothstep(-0.03, 0.05, e);
+    const sunCol = C(1.35, 1.18, 0.92).lerp(C(1.5, 0.62, 0.24), smoothstep(0.32, 0.02, e)).lerp(C(1.3, 0.55, 0.32), red * 0.5)
+      .multiplyScalar(sunUp * smoky * (1 - p.cloud * 0.3) * p.sunBoost * this.sunVis);
     const u = this.skyMat.uniforms;
     u.zenith.value.copy(zen); u.horizon.value.copy(hor); u.sunDir.value.copy(p.sunDir);
-    u.sunCol.value.setRGB(1, 0.85 - lowSun * 0.3, 0.65 - lowSun * 0.4).multiplyScalar(p.sunBoost);
-    u.time.value = t; u.cloudCover.value = p.cloud; u.stars.value = night * (1 - p.smoke * 0.7);
-    u.cloudCol.value.copy(hor).lerp(new THREE.Color(1, 1, 1), (1 - night) * 0.6).multiplyScalar(1 - night * 0.7);
-    u.sunVis.value = (1 - night) * (1 - p.smoke * 0.5);
-    u.smoke.value = p.smoke; u.smokeCol.value.setRGB(0.16 + red * 0.2, 0.12, 0.1).multiplyScalar(1 - night * 0.4);
-    // buildings
-    const bu = this.bldMat.uniforms;
-    bu.night.value = night; bu.litFrac.value = p.litFrac; bu.time.value = t; bu.fogCol.value.copy(hor); bu.sunDir.value.copy(p.sunDir);
-    bu.dayCol.value.setRGB(1, 0.95, 0.9).lerp(new THREE.Color(1, 0.6, 0.4), red * 0.5); bu.burnAmt.value = p.burn; bu.blackout.value = p.blackout;
-    bu.fogDensity.value = 0.00011 + p.smoke * 0.00026;
+    u.sunCol.value.copy(sunCol).multiplyScalar(1.2);
+    u.time.value = t; u.cloudCover.value = p.cloud; u.stars.value = night * (1 - p.smoke * 0.8) * 0.7;
+    u.sunVis.value = sunUp * smoky;
+    u.smog.value = 0.38 + p.smoke * 0.4;
+    u.smogCol.value.copy(PAL.nightSmog).lerp(PAL.daySmog, dayK).lerp(PAL.goldHor.clone().multiplyScalar(0.6), gold * 0.5);
+    const glow = PAL.sodium.clone().multiplyScalar(night * (1 - p.blackout * 0.55));
+    u.glowCol.value.copy(glow);
+    u.beltCol.value.copy(PAL.belt).multiplyScalar(smoothstep(0.12, 0.0, e) * smoothstep(-0.14, -0.02, e) * (1 - p.cloud * 0.5));
+    // bruised clouds: sickly lit tops, purple-grey bellies; at night lit orange from the streets
+    u.cloudLit.value.copy(hor).multiplyScalar(0.95).add(sunCol.clone().multiplyScalar(0.26)).lerp(C(0.07, 0.04, 0.02).add(glow), night);
+    u.cloudDark.value.copy(zen).multiplyScalar(0.6).add(hor.clone().multiplyScalar(0.25)).lerp(C(0.11, 0.085, 0.12).multiplyScalar(dayK + 0.05), 0.5).lerp(C(0.012, 0.009, 0.008).add(glow.clone().multiplyScalar(0.35)), night);
+    u.smoke.value = p.smoke; u.smokeCol.value.setRGB(0.16 + red * 0.2, 0.12, 0.1).multiplyScalar(1 - night * 0.55);
+    u.lights.value = p.lights * night; u.burnGlow.value = p.burn * night; u.flash.value = Math.max(0, (u.flash.value || 0) - dt * 2.5);
+    u.groundCol.value.copy(hor).multiplyScalar(0.4);
+    // ---- shared lighting for everything outdoors
+    const O = OUT;
+    O.oSun.value.copy(p.sunDir); O.oSunCol.value.copy(sunCol);
+    O.oAmbSky.value.copy(zen).multiplyScalar(0.75).add(hor.clone().multiplyScalar(0.16)).add(C(0.004, 0.005, 0.009));
+    O.oAmbGnd.value.copy(hor).multiplyScalar(0.2).multiply(C(1, 0.85, 0.7)).add(glow.clone().multiplyScalar(0.25));
+    O.oFogCol.value.copy(hor).multiplyScalar(0.88).lerp(u.smogCol.value, 0.45).add(glow.clone().multiplyScalar(0.6));
+    O.oFogDen.value = 0.00019 + p.smoke * 0.0003 + p.cloud * 0.00004;
+    O.oGlare.value.copy(sunCol).multiplyScalar(0.55 * (1 - p.cloud * 0.4));
+    O.oZen.value.copy(zen); O.oHor.value.copy(hor);
+    O.oNight.value = night; O.oTime.value = t; O.oLit.value = p.litFrac; O.oBlackout.value = p.blackout; O.oBurn.value = p.burn;
+    O.oLamp.value = smoothstep(0.2, 0.6, night) * (1 - p.blackout * 0.55);
+    O.oPx.value = 2 * Math.tan((cam.fov || 72) * Math.PI / 360) / Math.max(200, (G.engine && G.engine.lowHc) || 720);
+    // ---- water
     const wu = this.waterMat.uniforms;
-    wu.skyCol.value.copy(hor); wu.time.value = t; wu.night.value = night; wu.fogCol.value.copy(hor); wu.sunDir.value.copy(p.sunDir); wu.sunCol.value.copy(u.sunCol.value); wu.fire.value = p.burn * night;
-    wu.fogDensity.value = bu.fogDensity.value;
+    wu.fire.value = p.burn * night;
+    wu.moonK.value = night * (1 - p.cloud * 0.6) * (1 - p.smoke * 0.7);
+    wu.cityRefl.value.copy(hor).multiplyScalar(0.35).add(sunCol.clone().multiplyScalar(0.06 * smoothstep(0.0, 0.5, p.sunDir.z))).multiplyScalar(1 - night * 0.85);
+    wu.deep.value.setRGB(0.05, 0.075, 0.06).lerp(C(0.08, 0.04, 0.03), red * 0.5);
     // shared outdoor state for the landmarks, the ship and the debris
     const sh = this.shared || (this.shared = { fogCol: new THREE.Color(), skyCol: new THREE.Color(), sunDir: new THREE.Vector3(), dayCol: new THREE.Color() });
-    sh.night = night; sh.litFrac = p.litFrac; sh.fogCol.copy(hor); sh.fogDensity = bu.fogDensity.value; sh.sunDir.copy(p.sunDir);
-    sh.dayCol.copy(bu.dayCol.value); sh.skyCol.copy(zen).lerp(hor, 0.55); sh.blackout = p.blackout; sh.burn = p.burn;
+    sh.night = night; sh.litFrac = p.litFrac; sh.fogCol.copy(O.oFogCol.value); sh.fogDensity = O.oFogDen.value; sh.sunDir.copy(p.sunDir);
+    sh.dayCol.setRGB(1, 0.95, 0.9).lerp(C(1, 0.6, 0.4), red * 0.5); sh.skyCol.copy(zen).lerp(hor, 0.55); sh.blackout = p.blackout; sh.burn = p.burn;
     this.landmarks.update(t, sh);
     this.shipObj.update(dt, t, sh);
     this.debris.update(dt, sh);
-    u.lights.value = p.lights * night; u.burnGlow.value = p.burn * night; u.flash.value = Math.max(0, (u.flash.value || 0) - dt * 2.5);
+    this.waterfront.update(dt);
+    this.harbor.update(dt, t);
+    // the stacks across the river breathe steam and smoke all day (the menu keeps the puffs for its own fires)
+    if (!this.cinematic) for (const s of this.skyline.stacks) {
+      s.t -= dt;
+      if (s.t > 0) continue;
+      s.t = 2.4 + Math.random() * 1.6;
+      const c = s.steam ? C(0.6, 0.58, 0.56) : C(0.2, 0.18, 0.17);
+      this.debris.puff(s.p.clone().add(new THREE.Vector3(0, s.r, 0)), new THREE.Vector3(-1 - Math.random(), 4 + Math.random() * 2, -0.5), s.r * 3, s.r * 1.4 + 2, 45, c, s.steam ? 0.42 : 0.36);
+    }
     if (wu.shock) { if (this.shock) { this.shock.r += dt * 340; wu.shock.value.set(this.shock.x, this.shock.z, this.shock.r, Math.max(0, 1 - this.shock.r / 2500)); } else wu.shock.value.w = 0; }
-    // moons (east-ish, high)
+    // moons (high over the harbour)
     const md1 = new THREE.Vector3(-0.35, 0.32, -1).normalize(), md2 = new THREE.Vector3(0.45, 0.2, -1).normalize();
     this.moon1.s.position.copy(cam.position).addScaledVector(md1, 5000);
     this.moon1.halo.position.copy(this.moon1.s.position);
-    this.moon1.s.material.opacity = clamp(0.25 + night, 0, 1); this.moon1.halo.material.opacity = night;
+    this.moon1.s.material.opacity = clamp(0.25 + night, 0, 1) * (1 - p.smoke * 0.5); this.moon1.halo.material.opacity = night * (1 - p.smoke * 0.5);
     this.moon2.s.position.copy(cam.position).addScaledVector(md2, 5000);
     this.moon2.halo.position.copy(this.moon2.s.position);
     this.moon2.s.material.opacity = p.moon2 * clamp(0.3 + night, 0, 1); this.moon2.halo.material.opacity = p.moon2 * night;
     this.moon2.s.material.rotation = Math.sin(t * 0.05) * 0.1;
-    // fires & smoke
-    for (const f of this.fires) {
-      const on = p.burn * f.b.burn;
-      f.s.material.opacity = on * (0.6 + 0.4 * Math.sin(t * 7 + f.ph) * Math.sin(t * 3.1 + f.ph)) * (0.4 + night * 0.6);
-    }
-    for (const s of this.smokes) {
-      const on = p.smoke * s.b.burn;
-      s.s.material.opacity = on * 0.55;
-      s.s.position.y = s.b.y + s.b.h + 40 + s.k * 90 + ((t * 6 + s.ph * 20) % 90);
-      s.s.position.x = s.b.x + Math.sin(t * 0.1 + s.ph) * 30 + s.k * 25;
-      s.s.material.color.setRGB(0.5 + 0.5 * (1 - night), 0.45 + 0.4 * (1 - night), 0.4 + 0.4 * (1 - night));
-    }
+    this.moon2.s.visible = this.moon2.halo.visible = p.moon2 > 0.01;
+    // fires & smoke (hidden outright when out, so they cost no draws)
+    this.fires.forEach((f, i) => {
+      const b = f.b, o = p.burn * b.burn * (0.6 + 0.4 * Math.sin(t * 7 + f.ph) * Math.sin(t * 3.1 + f.ph)) * (0.4 + night * 0.6);
+      this.fireBB.set(i, b.x, b.y + b.h * 0.6, b.z + b.d / 2 + 5, b.w * 2.2, b.h * 0.9, 1.0, 0.4, 0.05, o);
+    });
+    this.fireBB.flush(p.burn > 0.01);
+    // dark oily smoke, drifting north on the wind, lit a little from below at night
+    const sc = C(0.032, 0.028, 0.024).lerp(C(0.05, 0.022, 0.01), night * p.burn);
+    this.smokes.forEach((s, i) => {
+      const b = s.b, k = s.k, rise = (t * 6 + s.ph * 20) % 90, sz = 140 + k * 60 + rise * 0.6;
+      this.smokeBB.set(i, b.x + Math.sin(t * 0.1 + s.ph) * 30 - k * 25 - rise * 0.4, b.y + b.h + 40 + k * 90 + rise, b.z, sz, sz, sc.r, sc.g, sc.b, p.smoke * b.burn * 0.5 * Math.min(1, rise / 15, (90 - rise) / 20));
+    });
+    this.smokeBB.flush(p.smoke > 0.01);
     for (const m of this.motes) {
       m.a += m.sp * dt;
       m.s.position.set(Math.cos(m.a) * m.r * 0.6, m.y + Math.sin(t * 0.7 + m.r) * 20, m.z + Math.sin(m.a) * 300);
       m.s.material.opacity = p.lights * (0.5 + 0.5 * Math.sin(t * 2 + m.r)) * (0.3 + night * 0.7);
+      m.s.visible = p.lights > 0.01;
     }
     this.beamMat.uniforms.op.value = p.lights * night * 0.12;
     for (const b of this.beams) {
+      b.m.visible = p.lights * night > 0.01;
       b.m.position.set(b.x + Math.sin(t * 0.13 + b.ph) * 300, 900, -1500 + Math.cos(t * 0.1 + b.ph) * 200);
       b.m.rotation.set(Math.sin(t * 0.2 + b.ph) * 0.35, 0, Math.cos(t * 0.17 + b.ph) * 0.35);
     }
@@ -482,31 +508,39 @@ export class Sky {
     if (!this.cinematic) {
       this.ship.visible = p.ship > 0.01;
       if (this.ship.visible) {
-        this.ship.position.set(-260, 1150 - p.ship * 380 + Math.sin(t * 0.05) * 20, -2400);
-        this.ship.rotation.set(0.06, 1.25 + Math.sin(t * 0.02) * 0.05, 0.04);
+        this.ship.position.set(260, 1150 - p.ship * 380 + Math.sin(t * 0.05) * 20, -2400);
+        this.ship.rotation.set(0.06, -1.25 + Math.sin(t * 0.02) * 0.05, -0.04);
         this.shipLight.intensity = 0;
       }
     }
     this.updateBlasts(dt);
-    this.lampMat.opacity = clamp(night * 1.4 - 0.2, 0, 1) * (1 - p.blackout * 0.7);
     this.bgHemi.intensity = 0.25 + (1 - night) * 1.2;
     this.bgHemi.color.copy(zen).lerp(hor, 0.5);
     this.bgSun.position.copy(p.sunDir); this.bgSun.intensity = (1 - night) * 1.5;
+    this.interior(p);
+  }
 
-    // ---- interior lighting
+  // the light that comes in through the windows: kept on the original
+  // palette so the apartment reads the same whatever the sky outside does
+  interior(p) {
+    const night = p.night, red = p.red;
+    const lowSun = clamp(1 - Math.abs(p.sunDir.y) * 4, 0, 1) * (1 - night * 0.6);
+    const zen = C(0.22, 0.42, 0.78).lerp(C(0.01, 0.012, 0.025), night).lerp(C(0.25, 0.06, 0.04).multiplyScalar(1 - night * 0.6), red * 0.7);
+    const hor = C(0.68, 0.76, 0.86).lerp(C(0.95, 0.55, 0.3), lowSun * 0.7).lerp(C(0.05, 0.05, 0.07), night).lerp(C(0.7, 0.25, 0.1).multiplyScalar(1 - night * 0.5), red * 0.6);
+    if (p.burn > 0.3) hor.lerp(C(0.35, 0.12, 0.05), p.burn * night * 0.6);
+    const sunCol = C(1, 0.85 - lowSun * 0.3, 0.65 - lowSun * 0.4).multiplyScalar(p.sunBoost);
     const sv = (1 - night) * (1 - p.smoke * 0.6) * this.sunVis;
-    this.sun.color.copy(u.sunCol.value).lerp(new THREE.Color(1, 0.5, 0.3), red * 0.4);
+    this.sun.color.copy(sunCol).lerp(C(1, 0.5, 0.3), red * 0.4);
     this.sun.intensity = sv * 2.4 * clamp(p.sunDir.y * 3, 0, 1) * p.sunBoost;
-    const c = G.player ? G.player.ctrl.body.position : { x: 6, y: 0, z: 3 };
     const anchor = new THREE.Vector3(5, 0, 3.5);
     this.sun.target.position.copy(anchor);
     this.sun.position.copy(anchor).addScaledVector(p.sunDir, 30);
     this.sun.shadow.autoUpdate = this.sun.intensity > 0.02;
-    this.hemi.color.copy(zen).lerp(new THREE.Color(1, 1, 1), 0.3);
+    this.hemi.color.copy(zen).lerp(C(1, 1, 1), 0.3);
     this.hemi.groundColor.setRGB(0.18, 0.14, 0.1);
     this.hemi.intensity = (0.06 + (1 - night) * 0.32 + p.burn * night * 0.05) * (this.hemiBoost ?? 1);
     const winCol = hor.clone().lerp(zen, 0.3);
-    if (p.burn > 0.3) winCol.lerp(new THREE.Color(0.9, 0.35, 0.12), p.burn * night * 0.5);
+    if (p.burn > 0.3) winCol.lerp(C(0.9, 0.35, 0.12), p.burn * night * 0.5);
     for (const w of this.windowLights) {
       w.l.color.copy(winCol);
       w.l.intensity = (0.25 + (1 - night) * 2.2 + p.burn * night * 0.6 + p.lights * night * 0.25) * w.w * (this.windowBoost ?? 1);
@@ -524,6 +558,7 @@ export class Sky {
       b.s.position.copy(pos).add(new THREE.Vector3((Math.random() - 0.5) * spread, (Math.random() - 0.5) * spread, (Math.random() - 0.5) * spread));
       b.v.set((Math.random() - 0.5) * 40, 20 + Math.random() * 40, (Math.random() - 0.5) * 40);
       b.size = size * (0.6 + Math.random() * 0.8);
+      b.s.visible = true;
     }
   }
   updateBlasts(dt) {
@@ -531,7 +566,7 @@ export class Sky {
       if (b.t < 0) continue;
       b.t += dt;
       const f = b.t / b.life;
-      if (f >= 1) { b.t = -1; b.s.material.opacity = 0; continue; }
+      if (f >= 1) { b.t = -1; b.s.material.opacity = 0; b.s.visible = false; continue; }
       b.s.position.addScaledVector(b.v, dt);
       b.s.scale.setScalar(b.size * (0.5 + f * 1.6));
       b.s.material.opacity = (1 - f) * 0.9;

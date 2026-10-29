@@ -146,7 +146,7 @@ export class Debris {
       q.p.addScaledVector(q.v, dt);
       q.v.multiplyScalar(Math.exp(-0.3 * dt));
       q.v.y += dt * 0.8;                 // buoyant
-      q.v.x += dt * 1.5;                 // the wind blows north up the river
+      q.v.x -= dt * 1.5;                 // the wind blows north (-x) up the river
       q.s += q.grow * dt * (1 - k * 0.5);
       ap[i * 4] = q.p.x; ap[i * 4 + 1] = q.p.y; ap[i * 4 + 2] = q.p.z; ap[i * 4 + 3] = q.s;
       const night = sh.night;
