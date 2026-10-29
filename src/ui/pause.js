@@ -6,25 +6,24 @@ import { DEFAULTS, OPTIONS } from '../core/settings.js';
 const $ = (id) => document.getElementById(id);
 
 const ROWS = [
-  ['sensitivity', 'ความไวเมาส์ · MOUSE', 1, 10, 1],
-  ['invertY', 'กลับแกน Y · INVERT Y', 'bool'],
-  ['fov', 'มุมมอง · FIELD OF VIEW', 60, 90, 2],
-  ['volume', 'เสียง · VOLUME', 0, 10, 1],
-  ['resolution', 'ความละเอียด · RESOLUTION', 'list'],
-  ['ink', 'เส้นหมึก · INK LINES', 0, 10, 1],
-  ['paint', 'ภาพวาด · PAINTERLY', 0, 10, 1],
-  ['pixel', 'พิกเซล · PIXEL ART', 0, 10, 1],
-  ['vhs', 'วิดีโอเทป · VHS', 0, 10, 1],
-  ['grain', 'เกรนฟิล์ม · FILM GRAIN', 0, 10, 1],
-  ['wobble', 'ภาพสั่น · VERTEX WOBBLE', 'bool'],
-  ['brightness', 'ความสว่าง · BRIGHTNESS', 0, 10, 1],
-  ['headBob', 'หัวโยก · HEAD BOB', 'bool'],
-  ['subtitles', 'คำบรรยาย · SUBTITLES', 'bool'],
+  ['sensitivity', 'MOUSE SENSITIVITY', 1, 10, 1],
+  ['invertY', 'INVERT Y', 'bool'],
+  ['fov', 'FIELD OF VIEW', 60, 90, 2],
+  ['volume', 'VOLUME', 0, 10, 1],
+  ['resolution', 'RESOLUTION', 'list'],
+  ['ink', 'INK LINES', 0, 10, 1],
+  ['paint', 'PAINTERLY', 0, 10, 1],
+  ['vhs', 'VHS EFFECT', 0, 10, 1],
+  ['grain', 'FILM GRAIN', 0, 10, 1],
+  ['wobble', 'VERTEX WOBBLE', 'bool'],
+  ['brightness', 'BRIGHTNESS', 0, 10, 1],
+  ['headBob', 'HEAD BOB', 'bool'],
+  ['subtitles', 'SUBTITLES', 'bool'],
 ];
 const CONTROLS = [
   ['WASD', 'move'], ['MOUSE', 'look'], ['SHIFT', 'run'], ['C', 'crouch'], ['E', 'take / use / hold to pet'], ['F', 'eat / drink / special'],
   ['LEFT MOUSE', 'drag doors, drawers, objects'], ['R / WHEEL', 'rotate / distance while dragging'], ['RIGHT MOUSE', 'throw'], ['Q', 'put in pocket'], ['1 / 2', 'take from pocket'],
-  ['G', 'drop'], ['ESC', 'pause / stand up from the desk'], ['AT THE DOOR', 'open it to talk; 1 / 2 / 3 to answer'],
+  ['G', 'drop'], ['ESC', 'pause / stand up from the desk'],
 ];
 
 export class Pause {

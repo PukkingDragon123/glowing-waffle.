@@ -1,7 +1,6 @@
-// The CRT on the low cabinet: woodgrain and plastic on rabbit ears, a VCR
-// blinking 12:00 underneath. Channel 1997: the morning news on the float, a
-// lakorn, and from day 3 the Deputy Minister, who asks you not to panic, and
-// keeps asking.
+// The living-room CRT: a wood-grain-and-plastic set on rabbit ears with a VCR
+// blinking 12:00 underneath. On: static, the morning news, and from day 3 the
+// Emergency Alert System that never stops.
 import * as THREE from 'three';
 import { G } from '../core/globals.js';
 import { M } from '../gfx/materials.js';
@@ -59,32 +58,16 @@ export class CrtTV {
     sfx(this.on ? 'crtOn' : 'click', { pos: this.g.getWorldPosition(V()), vol: 0.6 });
     if (this.loop) { this.loop.stop(0.2); this.loop = null; }
     if (this.on) {
-      const day = G.story.day, p = this.g.getWorldPosition(V());
-      this.loop = G.audio && G.audio.loop(day === 2 ? 'tvLakorn' : day >= 3 ? 'static' : 'tvBabble', { pos: p, vol: day >= 3 ? 0.12 : 0.3 });
-      if (day >= 3) this.speech(p);
-      if (day >= 3 && !this.said) { this.said = true; setTimeout(() => G.hud.inner("He's been on every channel since this morning."), 1500); }
-    } else if (this.talk) { clearTimeout(this.talk); this.talk = null; }
+      const day = G.story.day;
+      this.loop = G.audio && G.audio.loop(day >= 3 ? 'eas' : day === 1 ? 'tvBabble' : 'static', { pos: this.g.getWorldPosition(V()), vol: day >= 3 ? 0.35 : 0.3 });
+      if (day >= 3 && !this.said) { this.said = true; setTimeout(() => G.hud.inner('It\'s been on every channel since this morning.'), 1500); }
+    }
     G.world.extraLight = G.world.extraLight || [];
     if (!this.lightHooked) { this.lightHooked = true; G.world.extraLight.push((p) => (this.on ? Math.max(0, 0.45 * (1 - p.distanceTo(this.g.getWorldPosition(V())) / 4)) : 0)); }
   }
-  // the Deputy Minister: the same speech, a little worse each day
-  speech(p) {
-    const day = G.story.day;
-    const lines = day >= 6
-      ? ['Do not panic.', 'Stay inside. Feed it.', 'The baht is strong. The baht is strong. The baht is strong.', 'Meridian Pacific is your friend.']
-      : ['Brothers and sisters, do not panic.', 'The fundamentals of the Thai economy are strong.', 'The government will not let a single depositor lose a single satang.', 'Please stay indoors after dark. The lights over Sukhumvit are lanterns.', 'Vote number nine.'];
-    let i = 0;
-    const next = () => {
-      if (!this.on) return;
-      const l = lines[i++ % lines.length];
-      const h = G.audio && G.audio.speak(l, { voice: day >= 6 ? 'machine' : 'supervisor', phone: true, pos: p, vol: 0.45, distort: 2 });
-      if (G.player && G.player.ctrl.body.position.distanceTo(p) < 4.5) G.hud.say(l, { who: 'รมช. ประสิทธิ์ · TV', cls: day >= 5 ? 'strange' : 'voice', force: true, dur: (h && h.dur ? h.dur : 3) + 0.6 });
-      this.talk = setTimeout(next, ((h && h.dur) || 3) * 1000 + 2200);
-    };
-    this.talk = setTimeout(next, 1200);
-  }
   update(dt) {
     this.t += dt;
+    // VCR clock, always 12:00
     const vc = this.vcrCv.getContext('2d');
     vc.fillStyle = '#020403'; vc.fillRect(0, 0, 64, 16);
     if (Math.floor(this.t * 1.6) % 2 === 0) { vc.fillStyle = '#5aff9a'; vc.font = 'bold 13px monospace'; vc.textAlign = 'center'; vc.fillText('12:00', 32, 12); }
@@ -94,47 +77,27 @@ export class CrtTV {
     this.light.intensity = this.on ? 0.6 + Math.random() * 0.3 : 0;
     if (!this.on || G.frame % 2) return;
     const c = this.ctx, W = 160, H = 120, day = G.story.day;
-    const TH = '"Kanit", "Leelawadee UI", Tahoma, sans-serif';
     if (day >= 3) {
-      // the Deputy Minister at a podium in front of the flag-blue curtain
-      c.fillStyle = '#1a3a8a'; c.fillRect(0, 0, W, H);
-      for (let i = 0; i < 8; i++) { c.fillStyle = i % 2 ? '#22489a' : '#16327a'; c.fillRect(i * 20, 0, 20, H); }
-      c.fillStyle = '#d8b878'; c.beginPath(); c.arc(80, 46, 17, 0, Math.PI * 2); c.fill();
-      c.fillStyle = '#1a1410'; c.beginPath(); c.arc(80, 38, 17, Math.PI, 0); c.fill();
-      // the face: a smile that is too wide, and from day 5 two black lenses
-      c.strokeStyle = '#5a1010'; c.lineWidth = 2; c.beginPath(); c.moveTo(70 - day, 53); c.quadraticCurveTo(80, 60 + day, 90 + day, 53); c.stroke();
-      if (day >= 5) { c.fillStyle = '#000'; c.fillRect(68, 42, 9, 6); c.fillRect(83, 42, 9, 6); } else { c.fillStyle = '#111'; c.fillRect(72, 44, 3, 3); c.fillRect(85, 44, 3, 3); }
-      c.fillStyle = '#3a3a44'; c.fillRect(56, 64, 48, 40); c.fillStyle = '#e8e4d8'; c.fillRect(76, 64, 8, 24); c.fillStyle = '#8a1a1a'; c.fillRect(78, 66, 4, 18);
-      c.fillStyle = '#7a5a30'; c.fillRect(50, 86, 60, 34); c.fillStyle = '#d8b040'; c.beginPath(); c.arc(80, 100, 7, 0, Math.PI * 2); c.fill();
-      c.fillStyle = '#b01818'; c.fillRect(0, 98, W, 22); c.fillStyle = '#fff'; c.font = `600 9px ${TH}`; c.textAlign = 'left';
-      const msg = day >= 6 ? '  อย่าตื่นตระหนก · DO NOT PANIC · STAY INSIDE · FEED IT · อย่าตื่นตระหนก  ' : '  รมช.ประสิทธิ์: ไม่ต้องตื่นตระหนก · DEPUTY MINISTER: DO NOT PANIC · ปิดไฟหลังมืด  ';
-      const x = W - ((this.t * 30) % (msg.length * 6 + W));
-      c.fillText(msg, x, 112);
-      c.fillStyle = '#fff'; c.font = '700 8px Arial'; c.fillText('LIVE', 6, 10);
-    } else if (day === 2) {
-      // a lakorn: a slap, a gasp, a mansion
-      c.fillStyle = '#e8c8a0'; c.fillRect(0, 0, W, H);
-      c.fillStyle = '#8a5a3a'; c.fillRect(0, 70, W, 50);
-      c.fillStyle = '#c84a6a'; c.fillRect(30, 40, 30, 60); c.fillStyle = '#d8a882'; c.beginPath(); c.arc(45, 32, 11, 0, 7); c.fill();
-      c.fillStyle = '#2a2a3a'; c.fillRect(96, 38, 32, 62); c.fillStyle = '#c89a72'; c.beginPath(); c.arc(112, 30, 11, 0, 7); c.fill();
-      c.fillStyle = '#fff'; c.font = `600 10px ${TH}`; c.textAlign = 'center'; c.fillText(Math.floor(this.t / 3) % 2 ? 'เธอทำแบบนี้ได้ยังไง!' : 'ฉันไม่เคยรักเธอ!', W / 2, 114);
-    } else {
-      // the morning news: the anchor, the rate board, the lower third
-      c.fillStyle = '#1a2a4a'; c.fillRect(0, 0, W, H);
-      c.fillStyle = '#0a1a10'; c.fillRect(86, 12, 66, 56);
-      c.fillStyle = '#5aff7a'; c.font = 'bold 8px monospace'; c.textAlign = 'left';
-      c.fillText('USD/THB', 90, 22);
-      const r = G.director ? G.director.fx : 24.5; c.fillStyle = '#ff5a4a'; c.font = 'bold 14px monospace'; c.fillText(r.toFixed(2), 92, 40);
-      c.strokeStyle = '#ff5a4a'; c.beginPath(); for (let i = 0; i < 12; i++) { const y = 62 - i * i * 0.18 - Math.sin(i + this.t) * 1.5; i ? c.lineTo(90 + i * 5, y) : c.moveTo(90, y); } c.stroke();
-      c.fillStyle = '#c8a07a'; c.beginPath(); c.arc(42, 56, 13, 0, Math.PI * 2); c.fill(); c.fillStyle = '#1a1410'; c.beginPath(); c.arc(42, 50, 13, Math.PI, 0); c.fill();
-      c.fillStyle = '#2a3a6a'; c.fillRect(24, 70, 36, 50);
-      c.fillStyle = '#b01818'; c.fillRect(0, 94, W, 18); c.fillStyle = '#fff'; c.font = `600 9px ${TH}`; c.fillText('ด่วน! ลอยตัวค่าเงินบาท · BAHT FLOATED', 4, 106);
-      c.fillStyle = '#ffd040'; c.fillRect(0, 112, W, 8); c.fillStyle = '#111'; c.font = '700 6px Arial'; c.fillText('SET INDEX  ▲  FINANCE STOCKS SUSPENDED  ·  34°C THUNDERSTORMS', 4, 118);
+      // Emergency Alert System: bars, then the crawl
+      const bars = ['#c0c0c0', '#c0c000', '#00c0c0', '#00c000', '#c000c0', '#c00000', '#0000c0'];
+      bars.forEach((col, i) => { c.fillStyle = col; c.fillRect(i * W / 7, 0, W / 7 + 1, H * 0.62); });
+      c.fillStyle = '#000'; c.fillRect(0, H * 0.62, W, H * 0.38);
+      c.fillStyle = '#fff'; c.font = 'bold 11px monospace'; c.textAlign = 'left';
+      const msg = day >= 6 ? '  STAY INSIDE. FEED IT. STAY INSIDE. FEED IT.  ' : '  EMERGENCY ALERT SYSTEM: CIVIL DANGER WARNING FOR HUDSON COUNTY. REMAIN INDOORS. EXTINGUISH ALL LIGHTS AFTER DARK.  ';
+      const x = W - ((this.t * 40) % (msg.length * 7 + W));
+      c.fillText(msg, x, H * 0.85);
+    } else if (day === 1) {
+      // the morning news: a desk, a skyline still, a lower third
+      c.fillStyle = '#20304a'; c.fillRect(0, 0, W, H);
+      c.fillStyle = '#3a4a64'; for (let i = 0; i < 12; i++) c.fillRect(10 + i * 12, 60 - (i * 37 % 30), 9, 40);
+      c.fillStyle = '#c8c8c8'; c.fillRect(66, 26, 10, 64); c.fillRect(80, 30, 10, 60);
+      c.fillStyle = '#101010'; c.beginPath(); c.arc(40, 70, 14, 0, Math.PI * 2); c.fill(); c.fillRect(22, 82, 36, 40);
+      c.fillStyle = '#b01818'; c.fillRect(0, 96, W, 16); c.fillStyle = '#fff'; c.font = 'bold 9px sans-serif'; c.fillText('LIVE  HARBOR LIGHTS: WEATHER BALLOONS', 4, 107);
     }
     // the picture is never clean: noise and rolling bars
     const id = c.getImageData(0, 0, W, H), d = id.data;
     const roll = (this.t * 30) % H;
-    const amt = day >= 3 ? 34 + day * 4 : 24;
+    const amt = day >= 3 ? 40 : day === 1 ? 26 : 255;
     for (let i = 0; i < d.length; i += 4) {
       const y = (i / 4 / W) | 0;
       const n = (Math.random() - 0.5) * amt * (Math.abs(y - roll) < 6 ? 2 : 1);

@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import { RNG } from '../core/util.js';
 import { radial } from '../gfx/textures.js';
 
-export const GROUND = -14;
+const GROUND = -14;
 
 // one facade shader for the landmark towers. Columns are anti-aliased with
 // fwidth so the tight 1 m WTC pitch averages to brushed aluminium at range.

@@ -1,4 +1,4 @@
-// The end. You wake in a biomechanical chamber on a slab, high over Bangkok. You scream, you fall,
+// The end. You wake in a biomechanical chamber on a slab. You scream, you fall,
 // you die on the floor with your eyes open. Something leaves you and crawls
 // away. A voice: SUBJECT STATUS: COMPLETE. Nothing is explained.
 import * as THREE from 'three';
@@ -64,7 +64,7 @@ export class Ending {
     this.monTex = new THREE.CanvasTexture(this.monCv); this.monTex.colorSpace = THREE.SRGBColorSpace;
     const mon = add(new THREE.PlaneGeometry(0.9, 0.45), new THREE.MeshBasicMaterial({ map: this.monTex, toneMapped: false }), -1.6, 2.1, -5.12);
     add(new THREE.BoxGeometry(1.0, 0.55, 0.08), bio, -1.6, 2.1, -5.18);
-    this.setMonitor('SUBJECT 1407\nGESTATION 100%');
+    this.setMonitor('SUBJECT 0419\nGESTATION 100%');
     // what comes out
     this.thing = makeThing(); this.thing.visible = false; g.add(this.thing);
     this.cord = new THREE.Mesh(new THREE.BufferGeometry(), flesh); g.add(this.cord);
@@ -201,7 +201,7 @@ export class Ending {
   setMonitor(text) {
     const c = this.monCv.getContext('2d');
     c.fillStyle = '#020402'; c.fillRect(0, 0, 256, 128);
-    c.fillStyle = '#7dff9a'; c.font = '22px "Chakra Petch", "Courier New", monospace'; c.textBaseline = 'top';
+    c.fillStyle = '#7dff9a'; c.font = '22px "Special Elite", "Courier New", monospace'; c.textBaseline = 'top';
     text.split('\n').forEach((l, i) => c.fillText(l, 16, 26 + i * 34));
     for (let y = 0; y < 128; y += 3) { c.fillStyle = 'rgba(0,0,0,0.35)'; c.fillRect(0, y, 256, 1); }
     this.monTex.needsUpdate = true;
@@ -218,9 +218,7 @@ export class Ending {
     if (this.drone) { this.drone.stop(2); this.drone = null; }
     this.running = false;
     clearSave();
-    // what happened after, in Bangkok and on the 14th floor
-    for (const [big, small, dur] of epilogue()) await G.hud.titleCard(big, small, dur);
-    await G.hud.titleCard('ต้มยำกุ้ง ๒๕๔๐', 'TOM YUM 2540', 5);
+    await G.hud.titleCard('bengrim', '', 5);
     G.body.mode = 'stand'; G.body.customPose = null;
     G.body.setMutation({ split: 0 });
     this.thing.visible = false;
@@ -228,26 +226,21 @@ export class Ending {
   }
 }
 
-// Real history first, then what you did. (Facts: the baht was floated on 2
-// July 1997 and passed 55 to the dollar in January 1998; the Bank of Thailand
-// closed 56 finance companies for good on 8 December 1997; the 1997
-// constitution was promulgated on 11 October 1997 and let 50,000 voters
-// propose a law; Sathorn Unique still stands unfinished.)
-function epilogue() {
-  const p = G.story.politics || {};
-  const out = [
-    ['๒ กรกฎาคม ๒๕๔๐', 'The baht was floated that morning. By January it took 56 baht to buy one dollar.', 6],
-    ['๘ ธันวาคม ๒๕๔๐', 'Fifty-six finance companies were closed for good. Siam Prosperity was one of them.', 6],
-  ];
-  if (p.yaba === 'bought') out.push(['วิน · Win', 'Win from the motosai stand still comes by. He always comes back tomorrow.', 5]);
-  else if (p.yaba === 'police') out.push(['ตำรวจ · Police', 'The sergeant at Thong Lor was Win\'s cousin. A fish ball vendor went to prison.', 5]);
-  else if (p.yaba === 'refused') out.push(['วิน · Win', 'You said no to Win. He found somebody on the 13th floor who said yes.', 5]);
-  if (p.vote === 'kept') out.push(['เบอร์ ๙', 'Number nine won the by-election in a landslide. Five hundred baht of it was yours.', 5]);
-  else if (p.vote === 'burned') out.push(['เบอร์ ๙', 'Number nine won anyway. Your five hundred baht went up the kitchen fan.', 5]);
-  else if (p.vote) out.push(['เบอร์ ๙', 'Number nine won anyway. Nobody counted your no.', 5]);
-  if (p.deed === 'signed') out.push(['ห้อง ๑๔๐๗', 'Room 1407 belongs to Meridian Pacific Capital. The lights there never go off.', 5]);
-  else if (p.deed === 'refused') out.push(['ห้อง ๑๔๐๗', 'Room 1407 was never sold. Nobody lives in it. A cat still waits at the door.', 5]);
-  out.push(['๑๑ ตุลาคม ๒๕๔๐', p.petition === true ? 'The People\'s Constitution became law. Your name is on page 3,112 of the petition.' : 'The People\'s Constitution became law. Fifty thousand people could now propose a law. You did not sign.', 6]);
-  out.push(['ตึกร้าง', 'Sathorn Unique, the real ghost tower, still stands unfinished over Bangkok.', 6]);
-  return out;
+function makeThing() {
+  // pale, wet, skinless, too many limbs
+  const g = new THREE.Group();
+  const skin = new THREE.MeshStandardMaterial({ color: 0xc89890, roughness: 0.28, metalness: 0.05 });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x5a2020, roughness: 0.4 });
+  const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.07, 0.22, 6, 10), skin); body.rotation.x = Math.PI / 2; body.castShadow = true; g.add(body);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.075, 12, 10), skin); head.position.set(0, 0.02, 0.17); head.scale.set(1, 0.85, 1.25); head.castShadow = true; g.add(head);
+  const mouth = new THREE.Mesh(new THREE.SphereGeometry(0.03, 8, 6), dark); mouth.position.set(0, -0.01, 0.25); g.add(mouth);
+  const legs = [];
+  for (let i = 0; i < 6; i++) {
+    const s = i % 2 ? 1 : -1, z = 0.1 - Math.floor(i / 2) * 0.1;
+    const l = new THREE.Group(); l.position.set(s * 0.05, 0, z); g.add(l);
+    const seg = new THREE.Mesh(new THREE.CapsuleGeometry(0.012, 0.16, 3, 6), skin); seg.position.set(s * 0.08, -0.02, 0); seg.rotation.z = Math.PI / 2; seg.castShadow = true; l.add(seg);
+    legs.push(l);
+  }
+  g.userData.legs = legs;
+  return g;
 }

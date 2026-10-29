@@ -98,24 +98,25 @@ function pushOut(p, cx, cz, r, y0, y1) {
 let _ring;
 function M_ring() { return _ring || (_ring = new THREE.MeshStandardMaterial({ color: 0x8a8a80, roughness: 0.5, metalness: 0.6 })); }
 
-// all the cloth in 1407: blue curtains at the balcony door and the window,
-// the shower curtain in the bathroom
+// all the cloth in 4B
 export function hangCloth() {
   const ap = G.apartment, list = [];
   const cur = M.curtainCloth || (M.curtainCloth = M.curtain.clone()); cur.side = THREE.DoubleSide;
   const sh = M.showerCloth || (M.showerCloth = M.showerCurtain.clone()); sh.side = THREE.DoubleSide;
   const rodM = M.chrome;
-  const curtain = (key, x0, x1, z, drop) => {
+  const curtain = (key, x0, x1, z) => {
     const w = ap.windows[key];
-    const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, x1 - x0 + 0.7, 8), rodM);
+    const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, x1 - x0 + 1.0, 8), rodM);
     rod.rotation.z = Math.PI / 2; rod.position.set((x0 + x1) / 2, 2.345, z); G.world.root.add(rod);
-    for (const ex of [x0 - 0.35, x1 + 0.35]) { const f = new THREE.Mesh(new THREE.SphereGeometry(0.018, 8, 6), rodM); f.position.set(ex, 2.345, z); G.world.root.add(f); }
-    // two panels, drawn back to the sides
-    list.push(new Cloth({ a: V(x0 - 0.3, 2.32, z), b: V(x0 + 0.12, 2.32, z), drop, mat: cur, window: w, nx: 9, ny: 15, gather: 1 }));
-    list.push(new Cloth({ a: V(x1 + 0.3, 2.32, z), b: V(x1 - 0.12, 2.32, z), drop, mat: cur, window: w, nx: 9, ny: 15, gather: 1 }));
+    for (const ex of [x0 - 0.5, x1 + 0.5]) { const f = new THREE.Mesh(new THREE.SphereGeometry(0.018, 8, 6), rodM); f.position.set(ex, 2.345, z); G.world.root.add(f); }
+    // two panels per window, drawn back to the sides of the frame
+    list.push(new Cloth({ a: V(x0 - 0.42, 2.32, z), b: V(x0 + 0.1, 2.32, z), drop: 1.62, mat: cur, window: w, nx: 9, ny: 14, gather: 1 }));
+    list.push(new Cloth({ a: V(x1 + 0.42, 2.32, z), b: V(x1 - 0.1, 2.32, z), drop: 1.62, mat: cur, window: w, nx: 9, ny: 14, gather: 1 }));
   };
-  curtain('balcony', 3.95, 5.55, 0.1, 2.24);
-  curtain('window', 6.4, 7.6, 0.1, 1.62);
-  list.push(new Cloth({ a: V(7.35, 1.96, 5.95), b: V(8.3, 1.96, 5.95), drop: 1.5, mat: sh, nx: 12, ny: 14, gather: 0.9 }));
+  curtain('living1', 4.7, 5.9, 0.1);
+  curtain('menu', 7.1, 8.3, 0.1);
+  curtain('bedroom', 1.1, 2.3, 0.1);
+  // shower curtain on its rod over the tub
+  list.push(new Cloth({ a: V(0.78, 1.98, 3.85), b: V(0.78, 1.98, 5.3), drop: 1.5, mat: sh, nx: 14, ny: 14, gather: 0.9 }));
   return list;
 }

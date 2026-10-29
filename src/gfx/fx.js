@@ -12,7 +12,7 @@ export class FX {
     this.layers = new Map();   // source -> {key: value}
     this.pulses = [];          // {key, amt, t, dur}
     this.cur = {}; for (const k of KEYS) this.cur[k] = 0;
-    this.grade = { saturation: 1.06, contrast: 1.06, exposure: 1, tint: new THREE.Vector3(1.02, 0.99, 0.95) };
+    this.grade = { saturation: 0.86, contrast: 1.06, exposure: 1, tint: new THREE.Vector3(1, 0.98, 0.95) };
     this.gradeTarget = { ...this.grade, tint: this.grade.tint.clone() };
     this.fade = 0;             // fade to black 0..1 (scripted)
     this.fadeTarget = 0; this.fadeSpeed = 1.5;
@@ -54,7 +54,7 @@ export class FX {
     fx.ghost = this.cur.ghost; fx.flesh = this.cur.flesh; fx.shake = this.cur.shake; fx.blur = this.cur.blur;
     fx.saturation = this.grade.saturation; fx.contrast = this.grade.contrast; fx.exposure = this.grade.exposure * (0.8 + s.brightness * 0.04);
     fx.tint.copy(this.grade.tint);
-    fx.ink = s.ink / 10; fx.paint = s.paint / 10; fx.pixel = (s.pixel ?? 5) / 10;
+    fx.ink = s.ink / 10; fx.paint = s.paint / 10;
     fx.brightness = (s.brightness - 5) * 0.006;
     G.uniforms.uSnapOn.value = s.wobble ? 1 : 0;
   }

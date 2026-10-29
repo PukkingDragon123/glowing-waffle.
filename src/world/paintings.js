@@ -113,7 +113,7 @@ function surfaceHeight(ctx, w, h, age, seed) {
 
 const LINES = {
   charpentier: ['Their faces are gone.', 'The dog is fine. Only them.', 'I hung this. They had faces when I hung it.'],
-  pitcher: ['Her face is smeared. Like Khanom.', 'It looks wet. It isn\'t.'],
+  pitcher: ['Her face is smeared. Like Mochi.', 'It looks wet. It isn\'t.'],
   madamex: ['She was turned away. Now there\'s nothing to turn.', 'I keep checking.'],
   thinker: ['He\'s looking at the floor. With what?', 'He had glasses. I remember the glasses.'],
   aristotle: ['Even the statue.', 'Both of them. Even the stone one.'],
@@ -121,7 +121,7 @@ const LINES = {
 
 // Hang a painting. pos: centre of the canvas on the wall surface; ry: wall
 // facing; height: canvas height in metres; frame: 'gilt' | 'walnut' | 'ebony'.
-export function hangPainting(root, key, { pos, ry, height, frame = 'gilt', fw = 0.06, fd = 0.04, tilt = 0.03, roll = 0, age = 0.5, lines: ownLines = null }) {
+export function hangPainting(root, key, { pos, ry, height, frame = 'gilt', fw = 0.06, fd = 0.04, tilt = 0.03, roll = 0, age = 0.5 }) {
   const p = PAINTINGS[key];
   const ch = height, cw = height * p.w / p.h;
   const outer = new THREE.Group(), inner = new THREE.Group();
@@ -139,7 +139,7 @@ export function hangPainting(root, key, { pos, ry, height, frame = 'gilt', fw = 
   outer.position.set(pos.x, pos.y - ch / 2 - fw, pos.z);
   outer.rotation.set(tilt, ry, roll, 'YXZ');
   root.add(outer);
-  const lines = ownLines || LINES[key] || ['...'];
+  const lines = LINES[key] || ['...'];
   const art = { key, group: outer, roll0: roll, seen: 0 };
   art.inter = new Button(outer, {
     name: 'painting', label: 'look', reach: 2.6,

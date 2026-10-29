@@ -1,4 +1,4 @@
-// Load dist/tomyum2540.html headless (CDN routed to vendor/), start, report state + errors.
+// Load dist/bengrim.html headless (CDN routed to vendor/), start, report state + errors.
 import { createRequire } from 'node:module';
 import fs from 'node:fs'; import path from 'node:path';
 const require = createRequire(import.meta.url);
@@ -12,7 +12,7 @@ page.on('pageerror', (e) => errs.push('PAGEERROR ' + e.message));
 await page.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
 await page.route(/cdn\.jsdelivr\.net\/npm\/three@0\.170\.0\/build\/three\.module\.min\.js/, (r) => r.fulfill({ contentType: 'text/javascript', body: fs.readFileSync(path.join(root, 'vendor/three.module.min.js')) }));
 await page.route(/cdn\.jsdelivr\.net\/npm\/cannon-es@0\.20\.0\/dist\/cannon-es\.js/, (r) => r.fulfill({ contentType: 'text/javascript', body: fs.readFileSync(path.join(root, 'vendor/cannon-es.js')) }));
-await page.goto('file://' + path.join(root, 'dist/tomyum2540.html'));
+await page.goto('file://' + path.join(root, 'dist/bengrim.html'));
 await page.waitForFunction(() => window.BENGRIM && window.BENGRIM.G.state !== 'loading' || document.querySelector('#boot.ready'), null, { timeout: 180000, polling: 500 }).catch((e) => errs.push('load ' + e.message.slice(0, 80)));
 await page.waitForTimeout(1500);
 // the loader waits for any key or click once it's ready

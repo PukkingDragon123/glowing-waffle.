@@ -17,24 +17,12 @@ export function matteAll(root) {
   root.traverse((o) => {
     const ms = o.material ? (Array.isArray(o.material) ? o.material : [o.material]) : [];
     for (const m of ms) {
-      if (seen.has(m) || !m.isMeshStandardMaterial) continue;
-      seen.add(m);
-      // low-poly pixel art: hard facets and crisp texels on everything but glass
-      // and the shaders that need smooth normals
-      const custom = Object.prototype.hasOwnProperty.call(m, 'onBeforeCompile') && !m.userData.patches;
-      if (!m.isMeshPhysicalMaterial && !GLOSSY.has(m.name) && !custom && !m.flatShading && !m.userData.smooth) { m.flatShading = true; m.needsUpdate = true; }
-      pixelate(m);
-      if (m.isMeshPhysicalMaterial || m.userData.matte || m.userData.keepGloss || GLOSSY.has(m.name)) continue;
-      m.userData.matte = true;
+      if (seen.has(m) || !m.isMeshStandardMaterial || m.isMeshPhysicalMaterial || m.userData.matte || m.userData.keepGloss || GLOSSY.has(m.name)) continue;
+      seen.add(m); m.userData.matte = true;
       if (!M[m.name] || M[m.name] !== m) m.roughness = matte(m.name, m.roughness, m.metalness);
       m.envMapIntensity *= 0.5;
     }
   });
-}
-
-// pixel-art texels: crisp when magnified, still mipmapped far away
-export function pixelate(m) {
-  for (const k of ['map', 'emissiveMap']) { const t = m[k]; if (t && !t.userData.smooth && t.magFilter !== THREE.NearestFilter) { t.magFilter = THREE.NearestFilter; t.needsUpdate = true; } }
 }
 
 export function std(name, bundle = null, o = {}) {
@@ -51,7 +39,7 @@ export function std(name, bundle = null, o = {}) {
     emissiveIntensity: o.emissiveIntensity ?? 1,
     depthWrite: o.depthWrite ?? true,
     alphaTest: o.alphaTest ?? 0,
-    flatShading: o.flat ?? true,
+    flatShading: o.flat ?? false,
   });
   if (bundle) {
     if (bundle.map) m.map = bundle.map;

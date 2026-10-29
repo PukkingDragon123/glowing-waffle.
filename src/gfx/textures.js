@@ -27,25 +27,6 @@ export function toTexture(canvas, { srgb = true, nearest = false, repeat = true,
   return t;
 }
 
-// Pixel art: redraw a photographic texture at a few texels per centimetre,
-// area-averaged so it keeps its colours, then shown nearest so every texel is a
-// hand-placed square. Keeps the texture's wrap, flip, uv channel and colour space.
-export function downsample(tex, size) {
-  const img = tex && tex.image;
-  if (!img || !img.width || img.width <= size) { if (tex) { tex.magFilter = THREE.NearestFilter; tex.needsUpdate = true; } return tex; }
-  const h = Math.max(4, Math.round(size * img.height / img.width));
-  const c = document.createElement('canvas'); c.width = size; c.height = h;
-  const ctx = c.getContext('2d');
-  ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
-  ctx.drawImage(img, 0, 0, size, h);
-  const t = new THREE.CanvasTexture(c);
-  for (const k of ['wrapS', 'wrapT', 'flipY', 'colorSpace', 'channel']) t[k] = tex[k];
-  t.repeat.copy(tex.repeat); t.offset.copy(tex.offset); t.rotation = tex.rotation; t.center.copy(tex.center);
-  t.magFilter = THREE.NearestFilter; t.minFilter = THREE.LinearMipmapLinearFilter; t.anisotropy = 1;
-  t.needsUpdate = true;
-  return t;
-}
-
 // tileable value noise with independent periods on x and y
 function h2(x, y) { return hash2(x, y); }
 const fade = (t) => t * t * t * (t * (t * 6 - 15) + 10);
@@ -592,24 +573,12 @@ export function biomech({ seed = 23, size = 128, worldSize = 1.5 } = {}) {
   });
 }
 
-// Real photographs that stand in for drawn 2D art, by print key
-// (assets/images/manifest.json, filled in by gfx/assets.js before the world is
-// built). A poster, sign or label with a photo on file uses the photo.
-export const IMAGE_OVERRIDES = {};
-function drawCover(ctx, img, w, h) {
-  const s = Math.max(w / img.width, h / img.height);
-  const dw = img.width * s, dh = img.height * s;
-  ctx.drawImage(img, (w - dw) / 2, (h - dh) / 2, dw, dh);
-}
-
 // generic label/print texture helper: draws with a callback on a canvas
 export function printed(key, w, h, draw, { nearest = false } = {}) {
   return cached('print:' + key, () => {
-    const real = IMAGE_OVERRIDES[key];
-    if (real) { w = Math.max(w, Math.min(1024, real.img.width)); h = Math.round(w * (real.img.height / real.img.width)) || h; }
     const { c, ctx } = makeCanvas(w, h);
-    ctx.imageSmoothingEnabled = !!real;
-    if (real) drawCover(ctx, real.img, w, h); else draw(ctx, w, h);
+    ctx.imageSmoothingEnabled = false;
+    draw(ctx, w, h);
     const t = toTexture(c, { nearest, repeat: false });
     t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
     return t;

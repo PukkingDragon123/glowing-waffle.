@@ -1,4 +1,4 @@
-// Real furniture from the CC0 model set: placement, colliders
+// Real furniture for apartment 4B from the CC0 model set: placement, colliders
 // and the moving parts (drawers, clock hands, fan blades, lids), plus the
 // little machines (radio, microwave, kettle). Each function returns null when
 // its model is missing so the caller can fall back to procedural furniture.

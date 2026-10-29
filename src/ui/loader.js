@@ -1,4 +1,4 @@
-// While the world is built: black, a pool of light, Khanom running and
+// While the world is built: black, a pool of light, Mochi running and
 // running and getting nowhere, her face a smear. Three dots underneath.
 import * as THREE from 'three';
 import { G } from '../core/globals.js';
@@ -37,7 +37,7 @@ export class Loader {
     const pg = new THREE.BufferGeometry(); pg.setAttribute('position', new THREE.BufferAttribute(pos, 3));
     this.dust = new THREE.Points(pg, new THREE.PointsMaterial({ color: 0xd8d0c0, size: 0.008, transparent: true, opacity: 0.55, depthWrite: false }));
     s.add(this.dust);
-    // Khanom
+    // Mochi
     this.cat = new CatModel();
     s.add(this.cat.root);
     this.cat.root.rotation.y = Math.PI / 2;   // runs toward -x, side-on to us

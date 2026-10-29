@@ -1,4 +1,4 @@
-// Khanom: SDF-sculpted cat with a skeleton, fur shells, tabby coat, slit-pupil
+// Mochi: SDF-sculpted cat with a skeleton, fur shells, tabby coat, slit-pupil
 // eyes with eyeshine, whiskers, and a procedural pose/gait system.
 import * as THREE from 'three';
 import { G } from '../core/globals.js';
@@ -7,8 +7,6 @@ import { clamp, damp, lerp, smoothstep, snoise1, TAU } from '../core/util.js';
 import { makeCanvas, toTexture } from '../gfx/textures.js';
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
-// the game's look is low-poly pixel art: Khanom is faceted and painted, with no fur shells
-const LOW_POLY = true;
 const _q = new THREE.Quaternion(), _m = new THREE.Matrix4();
 
 function boneTable() {
@@ -384,13 +382,11 @@ export class CatModel {
       const rad = 0.017 - i * 0.0012;
       P.push(cap(a(p0), a(p1), rad, rad - 0.0012, { bone: B('tail' + i), zone: Z.tail, k: 0.012 }));
     }
-    // low-poly: a coarse mesh with hard facets, painted, no fur shells
-    let geo = meshPrims(P, { cell: LOW_POLY ? 0.0068 : 0.0045, weightK: 0.008, pad: 0.012 });
-    if (LOW_POLY) { geo = geo.toNonIndexed(); geo.computeVertexNormals(); }
+    const geo = meshPrims(P, { cell: 0.0045, weightK: 0.008, pad: 0.012 });
     this.geo = geo;
     const N = 24;
     this.shells = [];
-    for (let i = 0; i <= (LOW_POLY ? 0 : N); i++) {
+    for (let i = 0; i <= N; i++) {
       const mesh = new THREE.SkinnedMesh(geo, furMaterial(this.u, i, N));
       mesh.bind(this.skeleton);
       mesh.frustumCulled = false;
@@ -497,19 +493,6 @@ export class CatModel {
     this.tongue.position.set(0, 0.272 - this.rest.jaw.y, -0.225 - this.rest.jaw.z);
     this.tongue.scale.setScalar(0.001);
     this.by.jaw.add(this.tongue);
-    // a red collar with a little gold bell, from the market at Chatuchak
-    {
-      const collar = new THREE.Group();
-      const red = new THREE.MeshStandardMaterial({ color: 0xc8241c, roughness: 0.6, flatShading: true });
-      const gold = new THREE.MeshStandardMaterial({ color: 0xe8b830, roughness: 0.3, metalness: 0.7, flatShading: true });
-      collar.add(new THREE.Mesh(new THREE.TorusGeometry(0.031, 0.0055, 5, 12), red));
-      const bell = new THREE.Mesh(new THREE.IcosahedronGeometry(0.0085, 0), gold); bell.position.set(0, -0.039, 0); collar.add(bell);
-      const tag = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, 0.012, 5), gold); tag.position.set(0, -0.034, 0); collar.add(tag);
-      collar.rotation.x = Math.PI / 4;
-      collar.position.set(0, -0.006, 0.006);
-      collar.traverse((m) => { if (m.isMesh) m.castShadow = true; });
-      this.by.neck.add(collar); this.collar = collar;
-    }
     // mouth interior (dark) so an open mouth reads as a mouth
     const mouth = new THREE.Mesh(new THREE.SphereGeometry(1, 10, 6), new THREE.MeshStandardMaterial({ color: 0x3a1214, roughness: 0.6 }));
     mouth.scale.set(0.011, 0.006, 0.016); mouth.position.set(0, 0.276 - this.rest.head.y, -0.228 - this.rest.head.z);

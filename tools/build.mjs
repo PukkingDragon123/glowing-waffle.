@@ -1,5 +1,5 @@
 // Bundle the game into one HTML file.
-//   node tools/build.mjs            -> dist/tomyum2540.html (standalone) + dist/tomyum2540.artifact.html
+//   node tools/build.mjs            -> dist/bengrim.html (standalone) + dist/bengrim.artifact.html
 // three.js and cannon-es load from jsDelivr (pinned); everything else is inlined.
 // Needs esbuild:  npm i --no-save esbuild   (or set ESBUILD=/path/to/node_modules/esbuild)
 import { createRequire } from 'node:module';
@@ -31,19 +31,18 @@ const js = res.outputFiles[0].text.replace(/<\/script/gi, '<\\/script');
 const css = fs.readFileSync(path.join(root, 'css/style.css'), 'utf8');
 const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 const body = html.slice(html.indexOf('<body>') + 6, html.indexOf('<script type="module"')).trim();
-const fonts = '<link rel="preconnect" href="https://fonts.googleapis.com">\n<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Kanit:ital,wght@0,300;0,400;0,600;0,800;1,300;1,400&family=Sarabun:wght@400;700&family=Itim&family=Chakra+Petch:wght@500;700&display=swap">';
-const inner = `<title>ต้มยำกุ้ง ๒๕๔๐ · Tom Yum 2540</title>
+const fonts = '<link rel="preconnect" href="https://fonts.googleapis.com">\n<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Special+Elite&family=Caveat:wght@600;700&display=swap">';
+const inner = `<title>bengrim</title>
 ${fonts}
 <style>
 ${css}
 </style>
 ${body}
-<script>window.BENGRIM_ASSETS = window.BENGRIM_ASSETS || '../assets/';</script>
 <script type="module">
 ${js}
 </script>
 `;
 fs.mkdirSync(path.join(root, 'dist'), { recursive: true });
-fs.writeFileSync(path.join(root, 'dist/tomyum2540.artifact.html'), inner);
-fs.writeFileSync(path.join(root, 'dist/tomyum2540.html'), `<!doctype html>\n<html lang="th">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n${inner.replace('</style>', '</style>\n</head>\n<body>')}</body>\n</html>\n`);
-console.log('dist/tomyum2540.html', (fs.statSync(path.join(root, 'dist/tomyum2540.html')).size / 1024).toFixed(0) + ' KB');
+fs.writeFileSync(path.join(root, 'dist/bengrim.artifact.html'), inner);
+fs.writeFileSync(path.join(root, 'dist/bengrim.html'), `<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n${inner.replace('</style>', '</style>\n</head>\n<body>')}</body>\n</html>\n`);
+console.log('dist/bengrim.html', (fs.statSync(path.join(root, 'dist/bengrim.html')).size / 1024).toFixed(0) + ' KB');

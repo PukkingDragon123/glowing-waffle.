@@ -1,7 +1,6 @@
 node_modules/
 dist/*
-!dist/tomyum2540.html
+!dist/bengrim.html
 *.log
 .DS_Store
 .asset-cache/
-.claude/

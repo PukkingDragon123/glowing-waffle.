@@ -37,8 +37,6 @@ export const G = {
     deaths: 0,
     callsDone: 0,
     flags: {},
-    // the choices at the door: the one thing the loop keeps
-    politics: { yaba: null, vote: null, deed: null, petition: null },
   },
 
   // shared shader uniforms (patched into most world materials)

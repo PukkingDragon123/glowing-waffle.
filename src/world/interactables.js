@@ -252,22 +252,15 @@ export class SashWindow extends Interactable {
     this.onChange = o.onChange; this.wasOpen = false;
   }
   get open() { return this.pos > 0.05; }
-  actions() { const n = this.o.noun || 'window'; return this.locked ? [{ key: 'E', label: 'Try ' + n }] : [{ key: 'E', label: (this.open ? 'Close ' : 'Open ') + n }, { key: 'LMB', label: 'Drag' }]; }
+  actions() { return this.locked ? [{ key: 'E', label: 'Try window' }] : [{ key: 'E', label: this.open ? 'Close window' : 'Open window' }, { key: 'LMB', label: 'Drag' }]; }
   use() {
     if (this.locked) { sfx('windowStuck', { pos: this.worldPos(_v) }); if (this.o.onLocked) this.o.onLocked(); return; }
     this.target = this.open ? 0 : this.max;
     sfx('windowSlide', { pos: this.worldPos(_v), vol: 0.7 });
   }
   canGrab() { return !this.locked; }
-  grabStart() {
-    this.target = null; sfx('windowSlide', { pos: this.worldPos(_v), vol: 0.4 });
-    // dragging right moves a right-opening slider open, whichever side of it you stand
-    if (this.o.axis === 'x') { const f = new THREE.Vector3(0, 0, -1).applyQuaternion(G.camera.quaternion); this.sideSign = (f.z < 0 ? 1 : -1) * (this.o.dir ?? 1); }
-  }
-  grabMove(dx, dy) {
-    // sash windows lift; Thai aluminium sliders run sideways in their track
-    if (this.o.axis === 'x') { const side = this.sideSign ?? 1; this.vel += dx * 0.0025 * 60 * 0.5 * side; } else this.vel += -dy * 0.0025 * 60 * 0.5;
-  }
+  grabStart() { this.target = null; sfx('windowSlide', { pos: this.worldPos(_v), vol: 0.4 }); }
+  grabMove(dx, dy) { this.vel += -dy * 0.0025 * 60 * 0.5; }
   update(dt) {
     if (this.target !== null) {
       this.pos = damp(this.pos, this.target, 4, dt);
@@ -275,9 +268,7 @@ export class SashWindow extends Interactable {
     } else { this.vel *= Math.exp(-8 * dt); this.pos += this.vel * dt; }
     if (this.pos < 0) { if (this.vel < -0.3) sfx('windowThud', { pos: this.worldPos(_v), vol: 0.6 }); this.pos = 0; this.vel = 0; }
     if (this.pos > this.max) { this.pos = this.max; this.vel = 0; }
-    this.sash.position.copy(this.base);
-    if (this.o.axis === 'x') this.sash.position.x += this.pos * (this.o.dir ?? 1); else this.sash.position.y += this.pos;
-    if (this.o.onMove) this.o.onMove(this.pos, this);
+    this.sash.position.copy(this.base); this.sash.position.y += this.pos;
     const isOpen = this.pos > 0.05;
     if (isOpen !== this.wasOpen) { this.wasOpen = isOpen; this.onChange && this.onChange(isOpen, this); }
   }
