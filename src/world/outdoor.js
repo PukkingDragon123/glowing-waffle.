@@ -13,14 +13,20 @@ export const OUT = {
   oSun: { value: new THREE.Vector3(0, 1, 0) }, oSunCol: { value: C(1, 1, 1) }, oAmbSky: { value: C(0.2, 0.25, 0.3) }, oAmbGnd: { value: C(0.1, 0.09, 0.08) },
   oFogCol: { value: C(0.3, 0.4, 0.5) }, oFogDen: { value: 0.0002 }, oGlare: { value: C() }, oZen: { value: C() }, oHor: { value: C() },
   oNight: { value: 0 }, oTime: { value: 0 }, oLit: { value: 0.5 }, oBlackout: { value: 0 }, oBurn: { value: 0 }, oLamp: { value: 0 }, oPx: { value: 0.002 },
-  // street lamp rows along the waterfront: (z, spacing, x of one lamp, lamp height y)
-  oLampRow: { value: [new THREE.Vector4(-15.8, 32, 0, -5.7), new THREE.Vector4(-32.4, 16, 8, -10.1)] },
+  // street lamp rows: (fixed x or z, spacing (> 0 runs along z, < 0 along x), first lamp, lamp height y)
+  oLampRow: { value: [new THREE.Vector4(-1.2, 30, -25, -5.8), new THREE.Vector4(14.2, 30, -40, -5.8), new THREE.Vector4(-12.6, -34, -30, -5.8)] },
+  // emergency flashers washing the street red and blue: (x, y, z, phase); oFlashK their strength
+  oFlash: { value: [new THREE.Vector4(), new THREE.Vector4(), new THREE.Vector4(), new THREE.Vector4()] }, oFlashK: { value: 0 },
+  // helicopter searchlights: source (xyz, on) and target (xyz, pool radius)
+  oSpotP: { value: [new THREE.Vector4(), new THREE.Vector4()] }, oSpotT: { value: [new THREE.Vector4(0, -14, 0, 8), new THREE.Vector4(0, -14, 0, 8)] },
+  // dust and smoke settled in the streets, and the blast's shock ring (x, z, radius, strength)
+  oDust: { value: 0 }, oDustCol: { value: C(0.3, 0.27, 0.23) }, oShock: { value: new THREE.Vector4() },
 };
 
 export const OUT_GLSL = /* glsl */`
 uniform vec3 oSun; uniform vec3 oSunCol; uniform vec3 oAmbSky; uniform vec3 oAmbGnd; uniform vec3 oFogCol; uniform float oFogDen; uniform vec3 oGlare;
 uniform vec3 oZen; uniform vec3 oHor; uniform float oNight; uniform float oTime; uniform float oLit; uniform float oBlackout; uniform float oBurn; uniform float oLamp;
-uniform vec4 oLampRow[2];
+uniform vec4 oLampRow[3]; uniform vec4 oFlash[4]; uniform float oFlashK; uniform vec4 oSpotP[2]; uniform vec4 oSpotT[2]; uniform float oDust; uniform vec3 oDustCol; uniform vec4 oShock;
 float h21(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 float h31(vec3 p){ return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
 float vn2(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3.0-2.0*f); return mix(mix(h21(i), h21(i+vec2(1,0)), f.x), mix(h21(i+vec2(0,1)), h21(i+vec2(1,1)), f.x), f.y); }
@@ -29,33 +35,53 @@ float band(float x){ return clamp((x + 0.06) / 1.06, 0.0, 1.0); }
 vec3 outLight(vec3 alb, vec3 n){ return alb * (oSunCol * band(dot(n, oSun)) + mix(oAmbGnd, oAmbSky, n.y * 0.5 + 0.5)); }
 // glass and wet things pick up the sky they face
 vec3 skyRefl(vec3 r){ return mix(oHor, oZen, smoothstep(-0.05, 0.6, r.y)) + oGlare * pow(max(dot(r, oSun), 0.0), 24.0) * 2.0; }
-// haze: thick and low over the river, thinner up high, bright toward the sun
+// haze: thicker low down, thinner up high, bright toward the sun; dust settles in the streets
 vec3 outFog(vec3 c, vec3 wp){
   vec3 d = wp - cameraPosition; float dist = length(d);
   float hk = mix(1.0, 0.45, smoothstep(0.0, 450.0, wp.y + 14.0));
   float f = 1.0 - exp(-dist * oFogDen * hk);
   float s = max(dot(d / dist, oSun), 0.0);
-  return mix(c, oFogCol + oGlare * (pow(s, 6.0) * 0.5 + pow(s, 40.0) * 0.9), f);
+  c = mix(c, oFogCol + oGlare * (pow(s, 6.0) * 0.5 + pow(s, 40.0) * 0.9), f);
+  if (oDust > 0.0) c = mix(c, oDustCol, (1.0 - exp(-dist * oDust * 0.006 * exp(-max(wp.y + 12.0, 0.0) / 26.0))) * 0.92);
+  if (oShock.w > 0.0) { float sd = abs(length(wp.xz - oShock.xy) - oShock.z); c = mix(c, oDustCol * 1.6 + 0.04, smoothstep(45.0, 0.0, sd) * oShock.w * smoothstep(160.0, 0.0, wp.y + 14.0) * 0.85); }
+  return c;
 }
-// sodium pools from the two rows of street lamps along the waterfront
+// the street's own light: sodium pools under the cobra-heads, emergency flashers, helicopter searchlights
 vec3 lampPools(vec3 p, vec3 n){
-  if (oLamp < 0.01 || p.z < -90.0 || abs(p.x) > 420.0) return vec3(0.0);
   vec3 acc = vec3(0.0);
-  for (int i = 0; i < 2; i++){
-    vec4 r = oLampRow[i];
-    float dx = mod(p.x - r.z + r.y * 0.5, r.y) - r.y * 0.5;
-    vec3 L = vec3(-dx, r.w - p.y, r.x - p.z);
-    float d2 = dot(L, L);
-    // pools with real gaps between them: inverse square, cut off before the next lamp
-    float k = i == 0 ? 150.0 : 26.0, rr = i == 0 ? 24.0 : 11.0;
-    float cut = max(1.0 - d2 / (rr * rr), 0.0);
-    acc += (i == 0 ? vec3(1.0, 0.5, 0.16) : vec3(1.0, 0.68, 0.34)) * max(dot(n, L) * inversesqrt(d2), 0.0) * k * cut * cut / (d2 + 3.0);
+  if (p.z > -640.0 && p.z < 60.0 && p.x > -90.0 && p.x < 100.0) {
+    if (oLamp > 0.01) for (int i = 0; i < 3; i++){
+      vec4 r = oLampRow[i];
+      bool alongZ = r.y > 0.0; float sp = abs(r.y);
+      float u = alongZ ? p.z : p.x;
+      float du = mod(u - r.z + sp * 0.5, sp) - sp * 0.5;
+      vec3 L = alongZ ? vec3(r.x - p.x, r.w - p.y, -du) : vec3(-du, r.w - p.y, r.x - p.z);
+      float d2 = dot(L, L);
+      // pools with real gaps between them: inverse square, cut off before the next lamp
+      float cut = max(1.0 - d2 / 520.0, 0.0);
+      // the cobra-head throws its light down and out, not up the walls
+      acc += vec3(1.0, 0.5, 0.16) * max(dot(n, L) * inversesqrt(d2), 0.0) * 140.0 * cut * cut / (d2 + 3.0) * oLamp * smoothstep(0.05, 0.6, L.y * inversesqrt(d2));
+    }
+    if (oFlashK > 0.0) for (int i = 0; i < 4; i++){
+      vec4 fl = oFlash[i];
+      vec3 L = fl.xyz - p; float d2 = dot(L, L);
+      float ph = fract(oTime * 1.6 + fl.w);
+      vec3 fc = ph < 0.5 ? vec3(1.0, 0.08, 0.04) : vec3(0.1, 0.2, 1.0);
+      acc += fc * step(0.1, fract(ph * 2.0)) * max(dot(n, L) * inversesqrt(d2), 0.0) * 40.0 / (d2 + 4.0) * oFlashK;
+    }
   }
-  return acc * oLamp;
+  for (int i = 0; i < 2; i++){
+    vec4 sp = oSpotP[i], st = oSpotT[i];
+    if (sp.w < 0.01) continue;
+    float r = length(p.xz - st.xz);
+    vec3 L = sp.xyz - p;
+    acc += vec3(0.9, 0.95, 1.0) * sp.w * smoothstep(st.w, st.w * 0.55, r) * max(dot(n, normalize(L)), 0.0) * 3.5;
+  }
+  return acc;
 }
 `;
 
-// window grids shared by the skyline and the waterfront facades.
+// window grids shared by the skyline and the street facades.
 // style: 0 brick, 1 limestone, 2 glass curtain, 3 aluminium grid, 4 ribbon, 5 black glass, 6 white brick, 7 loft (big panes)
 export const FACADE_GLSL = /* glsl */`
 void facadeStyle(float s, out vec2 cell, out vec2 win, out float glassy, out float office){
@@ -103,7 +129,7 @@ vec3 facade(vec2 f, float style, float seed, float litMod, vec3 wall, vec3 n, ve
   float bright = (0.55 + 0.9 * rnd) * mix(blind, 0.75, farK);
   // unresolved distance: blend the sparkle toward its expected value
   float litAvg = clamp(p, 0.0, 1.0) * 0.82;
-  lit = mix(lit, mix(lit, litAvg, 0.6), farK);
+  lit = mix(lit, litAvg, farK);
   c += wc * m * lit * bright * oNight * 1.05;
   return c;
 }
@@ -172,32 +198,40 @@ ${OUT_GLSL}
 ${FACADE_GLSL}
 varying vec3 vCol; varying vec4 vAux; varying vec3 vN; varying vec3 vW;
 // ground surfaces drawn from world position
-vec3 surface(float pat, vec3 c, vec3 p, out float wet){
+vec3 surface(float pat, float road, vec3 c, vec3 p, out float wet){
   wet = 0.0;
   // crisp texels (16 per metre) up close, like the rest of the world's textures
   if (max(fwidth(p.x), fwidth(p.z)) * 16.0 < 0.8) p.xz = (floor(p.xz * 16.0) + 0.5) / 16.0;
   if (pat < 1.5) {
-    // asphalt: patches, tar seams, oil down the parking lanes, worn lane paint
+    // asphalt: patches, tar seams, oil down the lanes, worn paint. road: 1 our cross street,
+    // 2 West Broadway (runs along z), 3 the cross streets down it (centred on the nearest one)
     float n = vn2(p.xz * 0.35) * 0.6 + vn2(p.xz * 2.3) * 0.4;
     c *= 0.8 + 0.4 * n;
-    c *= 1.0 - 0.35 * smoothstep(0.02, 0.0, abs(vn2(p.xz * vec2(0.08, 0.9)) - 0.5)) ;
-    float z = p.z;
-    float oil = smoothstep(0.55, 0.8, vn2(vec2(p.x * 0.4, z * 1.5))) * (step(abs(z + 6.6), 1.0) + step(abs(z + 16.0), 1.0));
-    c *= 1.0 - oil * 0.35;
-    float paint = 0.0; vec3 pc = vec3(0.0);
-    // double yellow down the middle
-    float dy = min(abs(z + 11.12), abs(z + 11.38));
-    float yl = smoothstep(0.08, 0.05, dy);
-    // dashed white edge of the parking lanes
-    float wl = smoothstep(0.07, 0.04, min(abs(z + 7.6), abs(z + 14.9))) * step(0.45, fract(p.x / 6.0));
-    // a mid-block crosswalk to the PATH entrance, with stop bars
-    float cw = step(abs(p.x - 20.0), 1.8) * step(0.5, fract(p.z / 1.1)) * step(-16.9, z) * step(z, -5.6);
-    float stop = step(abs(abs(p.x - 20.0) - 4.0), 0.22) * step(-16.9, z) * step(z, -5.6);
+    c *= 1.0 - 0.35 * smoothstep(0.02, 0.0, abs(vn2(p.xz * vec2(0.9, 0.08)) - 0.5));
+    bool wb = road > 1.5 && road < 2.5;
+    float zc = floor((p.z + 104.0) / 88.0 + 0.5) * 88.0 - 104.0;
+    float along = wb ? p.z : p.x, v = wb ? p.x - 6.5 : p.z - (road < 1.5 ? -10.0 : zc);
+    float inter = wb ? max(step(abs(p.z - zc), 6.0) * step(p.z, -60.0), step(-16.0, p.z)) : 0.0;
     float worn = 0.55 + 0.45 * vn2(p.xz * 1.7);
+    float yl = 0.0, wl = 0.0, cw = 0.0;
+    if (wb) {
+      yl = smoothstep(0.08, 0.05, abs(abs(v) - 0.13)) * (1.0 - inter);
+      wl = smoothstep(0.07, 0.04, abs(abs(v) - 3.8)) * step(0.5, fract(along / 6.0)) * (1.0 - inter);
+      float dz = abs(p.z - zc);
+      cw = step(6.5, dz) * step(dz, 9.5) * step(p.z, -60.0) + step(-19.5, p.z) * step(p.z, -16.5);
+      cw *= step(0.5, fract(v / 1.2)) * step(abs(v), 9.8);
+      cw = max(cw, smoothstep(0.24, 0.18, abs(dz - 10.0)) * step(p.z, -60.0) * step(abs(v), 9.8));
+    } else {
+      wl = smoothstep(0.07, 0.04, abs(v)) * step(0.5, fract(along / 6.0));
+      float dx = min(abs(p.x + 6.5), abs(p.x - 19.5));
+      cw = step(dx, 1.6) * step(0.5, fract(v / 1.2)) * step(abs(v), 5.2);
+    }
     c = mix(c, vec3(0.62, 0.42, 0.06), yl * worn);
-    c = mix(c, vec3(0.6, 0.6, 0.56), max(max(wl, cw), stop) * worn);
-    // manholes
-    vec2 mh = vec2(mod(p.x + 9.0, 47.0) - 23.5, z + 11.25 - 2.2);
+    c = mix(c, vec3(0.6, 0.6, 0.56), max(wl, cw) * worn);
+    float oil = smoothstep(0.55, 0.8, vn2(vec2(v * 1.5, along * 0.4))) * step(abs(abs(v) - 1.9), 1.0);
+    c *= 1.0 - oil * 0.35;
+    // manholes and steam vents down the lanes
+    vec2 mh = vec2(mod(along + 9.0, 41.0) - 20.5, abs(v) - 1.9);
     c *= 1.0 - 0.3 * smoothstep(0.42, 0.36, abs(length(mh) - 0.38));
     wet = 0.25;
   } else if (pat < 2.5) {
@@ -245,7 +279,7 @@ void main(){
   if (!gl_FrontFacing) n = -n;
   vec3 alb = vCol;
   float pat = vAux.z, wet = 0.0;
-  if (pat > 0.5 && pat < 9.5) alb = surface(pat, alb, vW, wet);
+  if (pat > 0.5 && pat < 9.5) alb = surface(pat, vAux.w, alb, vW, wet);
   vec3 c = outLight(alb, n);
   if (pat > 7.5 && pat < 8.5) {
     // glass (cars, shelters): a dark interior and the sky

@@ -1,6 +1,6 @@
 // Main menu. You stand back in the dark living room of 4B: the wall, the
 // window, the curtains, Mochi on the sill, and through the glass Lower
-// Manhattan at true scale. The ship comes down over the river and into the
+// Manhattan at true scale. The ship comes down over the harbour and into the
 // North Tower. The options are written in the grime on the glass; you walk up
 // and touch one.
 import * as THREE from 'three';
@@ -163,7 +163,7 @@ export class Menu {
     const sill = cat.perches.find((p) => p.name === 'sill2');
     cat.perch = sill; cat.pos.copy(sill.pos); cat.pos.y = 0; cat.h = sill.pos.y; cat.yaw = 0;
     cat.fear = 0.2;
-    cat.stareAt = V(60, 300, -1400);
+    cat.stareAt = V(21, 300, -802);
     cat.scripted = (ct) => { ct.path = null; ct.yaw = 0.05; ct.model.set({ sit: 1, tailUp: 0.0, tailCurve: 0.6, tailSway: 0.04, earL: 0.1, earR: -0.1 }); };
   }
   catBolts() {
@@ -299,13 +299,13 @@ export class Menu {
     ship.reset();
     ship.u.damage.value = 0.35; ship.u.power.value = 1;
     // out of the east, straight at us, low over Manhattan into the North Tower
-    this.flight = { p0: V(-260, 1250, -4600), p1: V(-90, 760, -2500), p2: V(38, 290, -1415), dur: 14 };
+    this.flight = { p0: V(400, 1250, -4400), p1: V(180, 740, -2200), p2: V(24, 290, -805), dur: 14 };
     sky.ship.position.copy(this.flight.p0);
     sky.ship.visible = true;
     this.shipVel = V();
     this.impacted = false; this.shockArrived = false;
     this.cut = [417, 415]; this.collapse = [null, null];
-    // the ship burns before it ever reaches the river
+    // the ship burns before it ever reaches the towers
     this.attachedFires = [];
     for (let i = 0; i < 6; i++) {
       const h = ship.hull[i % 3];
@@ -325,9 +325,9 @@ export class Menu {
     const sky = G.sky;
     sky.setTower(0, 0.02); sky.setTower(1, 0.03);
     sky.landmarks.setFire(0, 1, 2); sky.landmarks.setFire(1, 1, 4);
-    sky.ship.position.set(-30, -14 + 30, -1330); sky.ship.rotation.set(0.25, -1.9, -0.5);
+    sky.ship.position.set(55, -14 + 30, -745); sky.ship.rotation.set(0.25, -1.9, -0.5);
     sky.shipObj.u.damage.value = 1; sky.shipObj.u.power.value = 0.15;
-    for (let i = 0; i < 10; i++) sky.debris.fire(V(-40 + Math.random() * 230, -14 + Math.random() * 40, -1420 + Math.random() * 120), 80 + Math.random() * 90, 1e6);
+    for (let i = 0; i < 10; i++) sky.debris.fire(V(-90 + Math.random() * 180, -14 + Math.random() * 40, -920 + Math.random() * 160), 80 + Math.random() * 90, 1e6);
     this.phase = 'after'; this.impacted = true; this.shockArrived = true; this.alpha = 1;
   }
 
@@ -364,7 +364,7 @@ export class Menu {
       // free parts tumble, hit the ground or the river
       ship.stepParts(dt, -14, (p, v) => {
         const pos = p.obj.position;
-        const river = pos.z > -1180 && pos.z < -50;
+        const river = sky.isWater ? sky.isWater(pos.x, pos.z) : false;
         if (river) { for (let i = 0; i < 12; i++) deb.puff(pos.clone().add(V((Math.random() - 0.5) * 120, -10, (Math.random() - 0.5) * 120)), V((Math.random() - 0.5) * 20, 30 + Math.random() * 30, (Math.random() - 0.5) * 20), 40, 60, 10, new THREE.Color(0.75, 0.78, 0.8), 0.6); }
         else { deb.burst(pos, 40, v * 0.6, 4, 0.5); for (let i = 0; i < 8; i++) deb.puff(pos.clone().add(V((Math.random() - 0.5) * 80, 0, (Math.random() - 0.5) * 80)), V((Math.random() - 0.5) * 30, 8, (Math.random() - 0.5) * 30), 50, 50, 25, new THREE.Color(0.3, 0.28, 0.26), 0.7); sky.blast(pos, 4, 160, 80); }
       });
@@ -388,8 +388,8 @@ export class Menu {
         if (this.cut[i] < 200 && Math.random() < dt * 8) { const a = Math.random() * Math.PI * 2; deb.puff(tp.clone().add(V(Math.cos(a) * 60, 10, Math.sin(a) * 60)), V(Math.cos(a) * 35, 2, Math.sin(a) * 35), 70, 45, 40, new THREE.Color(0.6, 0.58, 0.55), 0.6); }
         if (!c.rumbled && this.cut[i] < lm.towers[i].h * 0.9) { c.rumbled = true; setTimeout(() => { sfx('roarFar', { vol: 0.8, rate: 0.5 }); this.shake = Math.max(this.shake || 0, 0.6); }, 4000); }
       }
-      // the shockwave arrives across the river: the window, the curtains, the cat
-      if (!this.shockArrived && sky.shock && sky.shock.r > 1330) {
+      // the shockwave comes up the street: the window, the curtains, the cat
+      if (!this.shockArrived && sky.shock && sky.shock.r > Math.hypot(sky.shock.x - 7.7, sky.shock.z)) {
         this.shockArrived = true;
         sfx('roar', { vol: 1, rate: 0.55 }); sfx('bodyFall', { vol: 0.9, rate: 0.4 });
         this.shake = 1.4; G.fx.pulse('shake', 0.8, 2);
@@ -398,7 +398,7 @@ export class Menu {
         this.catBolts();
       }
       // smouldering columns from the site
-      if (Math.random() < dt * 6) deb.puff(V(90 + (Math.random() - 0.5) * 180, -14 + Math.random() * 60, -1420 + (Math.random() - 0.5) * 120), V(0, 10 + Math.random() * 8, 0), 60, 30, 45, new THREE.Color(0.14, 0.12, 0.11), 0.5);
+      if (Math.random() < dt * 6) deb.puff(V(-15 + (Math.random() - 0.5) * 180, -14 + Math.random() * 60, -840 + (Math.random() - 0.5) * 140), V(0, 10 + Math.random() * 8, 0), 60, 30, 45, new THREE.Color(0.14, 0.12, 0.11), 0.5);
       if (Math.random() < dt * 0.15) sky.skyMat.uniforms.flash.value = 1;
     }
     if (t > 22 || !this.intro) this.alpha = Math.min(1, this.alpha + dt * 0.5);
@@ -420,7 +420,7 @@ export class Menu {
     ship.breakApart(30);
     const bow = ship.parts.find((q) => q.name === 'bow'); if (bow) bow.vel.multiplyScalar(0.08);
     for (const q of ship.parts) if (q.name !== 'bow') q.vel.multiplyScalar(0.22);
-    // the ring shears off and goes skipping across the Hudson toward Jersey
+    // the ring shears off and comes tumbling up the street toward us
     const ring = ship.parts.find((q) => q.name === 'ring'); if (ring) { ring.vel.set(15, 25, 95); ring.ang.set(0.1, 0.02, 0.9); }
     ship.u.power.value = 0.25; ship.u.damage.value = 1;
     for (const f of this.attachedFires) f.max = f.life + 25;
@@ -431,7 +431,7 @@ export class Menu {
     this.collapse = [{ t: -2.5, v: 2 }, { t: -11, v: 2 }];
     // the top of the North Tower goes first
     for (let i = 0; i < 30; i++) deb.chunk(lm.towers[0].pos.clone().add(V((Math.random() - 0.5) * 60, 300 + Math.random() * 110, (Math.random() - 0.5) * 60)), V((Math.random() - 0.5) * 30, Math.random() * 10, (Math.random() - 0.5) * 30), 6 + Math.random() * 10, 0.5, 40);
-    // the shock ring starts across the water
+    // the shock ring starts at the towers
     sky.shock = { x: p.x, z: p.z, r: 0 };
     this.shake = 0.15;
   }

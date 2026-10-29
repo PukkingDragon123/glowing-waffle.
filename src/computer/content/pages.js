@@ -31,7 +31,7 @@ export const PAGES = {
           { search: true },
         ],
         [
-          { box: [{ h: 3, t: 'Weather: Jersey City' }, { img: day >= 4 ? 'wxBad' : 'wxSun', w: 44, h: 36 }, { p: day >= 4 ? '**??°F**  The sky is not available.' : day >= 3 ? '**81°F** Hazy. Smoke advisory.' : '**94°F** Sunny. Heat advisory.' }, { p: '[Full forecast](http://www.jc-weather.com/)' }], bg: '#fff8e0' },
+          { box: [{ h: 3, t: 'Weather: New York, NY' }, { img: day >= 4 ? 'wxBad' : 'wxSun', w: 44, h: 36 }, { p: day >= 4 ? '**??°F**  The sky is not available.' : day >= 3 ? '**81°F** Hazy. Smoke advisory.' : '**94°F** Sunny. Heat advisory.' }, { p: '[Full forecast](http://www.nyc-weather.com/)' }], bg: '#fff8e0' },
           { box: [{ h: 3, t: 'Y2K Countdown' }, { p: '**' + (184 - day + 1) + '** days until the year 2000.' }, { p: '[Is your PC ready?](http://www.y2kready.org/)' }], bg: '#f0fff0' },
           { box: [{ h: 3, t: 'Cool Links' }, { list: ['[The Truth Is Up There](http://www.geocities.com/Area51/Nebula/1999/)', '[PurrfectPets: cat care](http://www.purrfectpets.com/behavior.html)', '[BabyBoards community](http://www.babyboards.net/)', ...(day >= 4 ? ['[LIVE: apt cam](http://www.bengrim.cam/)'] : [])] }], bg: '#f8f0ff' },
         ],
@@ -61,11 +61,11 @@ export const PAGES = {
       ...(day >= 4 ? [{ marquee: '*** EMERGENCY BROADCAST SYSTEM *** REMAIN INDOORS *** TURN OFF ALL LIGHTS *** DO NOT APPROACH WINDOWS *** THIS IS NOT A TEST ***', color: '#ff0000' }] : []),
       { h: 1, t: (headlines[day] || headlines[1])[0] },
       { img: day >= 3 ? 'newsFire' : 'newsHarbor', w: 320, h: 180 },
-      { p: day <= 1 ? 'NEW YORK (CNM) -- The Federal Aviation Administration said Wednesday that the bright lights seen over New York Harbor late Tuesday night were weather balloons released by a university research team. Dozens of residents called 911 after seeing what one described as "a city of lights in the sky." "It was just like a dream," said a Jersey City woman. "I went to bed and I thought I dreamed it."'
+      { p: day <= 1 ? 'NEW YORK (CNM) -- The Federal Aviation Administration said Wednesday that the bright lights seen over New York Harbor late Tuesday night were weather balloons released by a university research team. Dozens of residents called 911 after seeing what one described as "a city of lights in the sky." "It was just like a dream," said a Tribeca woman. "I went to bed and I thought I dreamed it."'
         : day === 2 ? 'NEW YORK (CNM) -- The FAA declined to repeat its weather balloon explanation on Thursday. Several observatories reported a "second object" in lunar orbit. "It is not reflecting light the way the Moon does," said one astronomer, who asked not to be named. "It is emitting it."'
         : day === 3 ? 'NEW YORK (CNM) -- Officials are calling it a rare optical effect. But anyone who has looked up after sunset this week has seen it: a second moon, larger and redder than our own. Power failures have rolled across lower Manhattan. Residents are advised to stay indoors after dark and keep their windows covered.'
         : 'Lights attract it. Lights attract it. Lights attract it. Turn off every light in your home. Turn off your television. Turn off your computer. If you are reading this, you are lit.' },
-      { p: '[Home](http://www.blueberrypie.net/)  |  [Weather](http://www.jc-weather.com/)' },
+      { p: '[Home](http://www.blueberrypie.net/)  |  [Weather](http://www.nyc-weather.com/)' },
     ],
   }),
   'http://www.geocities.com/Area51/Nebula/1999/': (day) => ({
@@ -108,14 +108,14 @@ export const PAGES = {
         ...(day >= 5 ? [['how do i get it out', '4B_resident', '0']] : []),
         ...(day >= 6 ? [['IT IS ALMOST TIME', 'FACILITY', '999']] : []),
       ], widths: [0.62, 0.22, 0.16], border: true },
-      ...(day >= 3 ? [{ box: [{ p: '**4B_resident** wrote:' }, { p: day >= 5 ? 'I have not been pregnant. I have never been pregnant. I woke up a week ago and I was. It keeps getting bigger. My cat will not come near me. The phone keeps ringing. Please someone in Jersey City answer this.' : 'Day 3. I am so hungry. I ate everything in the fridge. Something rolled under my skin like a fish under ice. My doctor\'s number is disconnected.' }], bg: '#ffffff' }] : []),
+      ...(day >= 3 ? [{ box: [{ p: '**4B_resident** wrote:' }, { p: day >= 5 ? 'I have not been pregnant. I have never been pregnant. I woke up a week ago and I was. It keeps getting bigger. My cat will not come near me. The phone keeps ringing. Please someone in Tribeca answer this.' : 'Day 3. I am so hungry. I ate everything in the fridge. Something rolled under my skin like a fish under ice. My doctor\'s number is disconnected.' }], bg: '#ffffff' }] : []),
       { p: '[Home](http://www.blueberrypie.net/)' },
     ],
   }),
-  'http://www.jc-weather.com/': (day) => ({
-    title: 'Jersey City Weather Online', bg: '#e8f4ff', link: '#004080',
+  'http://www.nyc-weather.com/': (day) => ({
+    title: 'New York Weather Online', bg: '#e8f4ff', link: '#004080',
     body: [
-      { h: 2, t: 'Jersey City, NJ - 7 Day Forecast' },
+      { h: 2, t: 'New York, NY - 7 Day Forecast' },
       { table: [['**Day**', '**Forecast**', '**Hi**'], ['Thu 7/1', 'Sunny, heat advisory', '94'], ['Fri 7/2', 'Hazy sun', '91'], ['Sat 7/3', day >= 3 ? 'Smoke' : 'Partly cloudy', '88'], ['Sun 7/4', day >= 3 ? 'Ash' : 'Fireworks after dark!', '86'], ['Mon 7/5', day >= 3 ? 'Dark' : 'Scattered storms', '84'], ['Tue 7/6', day >= 3 ? 'Dark' : 'Clear', '85'], ['Wed 7/7', day >= 3 ? 'Birth' : 'Clear', '87']], widths: [0.3, 0.5, 0.2], border: true },
       { p: day >= 4 ? 'Moonrise: 7:58 PM  Second moonrise: 7:59 PM' : 'Moonrise: 7:58 PM' },
       { p: '[Home](http://www.blueberrypie.net/)' },
@@ -156,7 +156,7 @@ const INDEX = [
   ['ufo aliens lights truth area51 abduction', 'http://www.geocities.com/Area51/Nebula/1999/', 'THE TRUTH IS UP THERE!!!', 'Dennis\'s UFO page. They are already here.'],
   ['cat afraid hiss scared pet behavior hide', 'http://www.purrfectpets.com/behavior.html', 'PurrfectPets: Why is my cat afraid of me?', 'Cats can sense changes in their owners...'],
   ['pregnant pregnancy baby kicks hungry week forum', 'http://www.babyboards.net/', 'BabyBoards - Pregnancy Week by Week', 'Community forums for moms-to-be.'],
-  ['weather jersey city forecast heat', 'http://www.jc-weather.com/', 'Jersey City Weather Online', 'Seven day forecast.'],
+  ['weather new york nyc forecast heat', 'http://www.nyc-weather.com/', 'New York Weather Online', 'Seven day forecast.'],
   ['y2k year 2000 bug ready', 'http://www.y2kready.org/', 'Y2K Ready!', 'Is your computer ready for the year 2000?'],
 ];
 export function search(q, day) {

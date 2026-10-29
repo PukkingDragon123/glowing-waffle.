@@ -1,6 +1,6 @@
 # bengrim
 
-A first-person psychological horror game set in 1999. Jersey City, apartment 4B, across the river from a burning Manhattan. It is Thursday, July 1st. It is always Thursday, July 1st.
+A first-person psychological horror game set in 1999. Tribeca, apartment 4B, four floors above West Broadway, with a burning Lower Manhattan at the end of the street. It is Thursday, July 1st. It is always Thursday, July 1st.
 
 You wake up, turn off the alarm, make coffee, cook eggs, feed Mochi, and take three support calls for Blueberry Pie Online on a beige Glass 98 PC. Then you sleep. Then it is July 1st again: the same radio broadcast, the same e-mails, the same customers with the same dial-up errors. Each morning a little more has drifted. Your body has not reset. Neither has the cat.
 
@@ -41,7 +41,7 @@ At the computer the mouse and keyboard drive Glass 98. The four apps are Blueber
 
 ## The week
 
-1. A normal routine, a window full of light, a roar across the river.
+1. A normal routine, a window full of light, a roar down the street.
 2. The same day. The trash chute at the end of the hall. 4A is empty except for one chair.
 3. Callers who know things. Cups lined up on the floor. Something moves inside you.
 4. Blood in the sink. Trembling hands. The mirror is late.
@@ -60,7 +60,7 @@ At night something hunts by light. Turn the lamps off, switch off the monitor, s
 - Procedural Web Audio: every sound effect is synthesized at load. Voices come from a formant speech synthesizer with letter-to-sound rules.
 - Glass 98 is an immediate-mode Windows 98-style desktop drawn on a 640×480 canvas and shown through a curved CRT shader.
 - Verlet cloth for the pinch-pleated curtains, which glow with daylight behind them, and the shower curtain. The bathroom mirror is a planar reflection with oblique clipping and a frame-delay ring buffer.
-- The view from the window is Exchange Place in 1999 at true scale. Below it are the street, the riverside walkway with its lamps, benches, trees and iron railing, late-90s traffic with yellow cabs, the PATH entrance, the ferry slip and the old waterfront buildings. On the Hudson, ferries, a tug with its barge, a sightseeing boat and a sailboat leave wakes. Across the river stand the Twin Towers and the other modelled Lower Manhattan landmarks, thousands of instanced filler buildings with setbacks, crowns, masts, water tanks and procedural brick, stone and glass facades lit at night, Midtown, Brooklyn, and stacks that never stop smoking. The sun follows the real July 1st path, over a smoggy sky with self-shadowed clouds, low haze and a sodium glow at night. The sci-fi ship has triplanar hull panels. When it falls, it breaks into rigid parts with gravity, drag and bounce, plus instanced debris, billboard smoke, fire and a shock ring on the water.
+- The view from the window is West Broadway in Tribeca in 1999, at true scale, looking south down the street canyon at the Twin Towers, with the Woolworth Building in front of them. Below are brick walk-ups and cast-iron lofts with cornices, fire escapes, window units, water tanks, awnings and shop signs; trees, cobra-head lamps, mast-arm signals that cycle, parked cars, and traffic with yellow Caprice cabs and NYPD cruisers that stops at the lights. Government Black Hawks and Hueys circle the towers, hover over the street, sweep it with searchlights at night, and now and then one comes up the street low over the roof. As the week goes on the street is closed off: cruisers, Suburbans, an ambulance, FDNY engines and army trucks with their lights going, barricades, abandoned cars, rubble, paper and ash falling, dust in the canyon, burning facades with shattered windows, and smoke plumes leaning on the wind. Behind the towers are the other modelled Lower Manhattan landmarks, thousands of instanced filler buildings placed from real coordinates, the Hudson with its boats, Jersey City, Brooklyn and Midtown. The sun follows the real July 1st path, over a smoggy sky with self-shadowed clouds, low haze and a sodium glow at night. The sci-fi ship has triplanar hull panels. When it falls, it breaks into rigid parts with gravity, drag and bounce, plus instanced debris, billboard smoke, fire and a shock ring of dust up the street.
 - The fourth floor is rotting: brass plates and peepholes on every door, 4D chained shut from the outside, a leak over 4C with stains, peeling paper and a live drip, dead and flickering tubes, an EXIT sign on emergency power, a switchback stairwell that sinks into darkness, a grimy trash room and an empty 4A with one chair.
 - The furniture is low poly but never boxy. It uses Shaker doors, lathe-turned legs and knobs, bar pulls, castors, eased cabinet boards with shelf lips and a cornice, a draped quilt, and a woodgrain CRT TV with a VCR and rabbit ears.
 - The paintings are real public-domain works with the faces smeared out (see Credits). They hang in swept, mitred moulding frames on matte, varnish-aged canvas, with weave, craquelure and impasto in the normal map.
