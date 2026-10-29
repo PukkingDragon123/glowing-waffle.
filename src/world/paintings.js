@@ -113,7 +113,7 @@ function surfaceHeight(ctx, w, h, age, seed) {
 
 const LINES = {
   charpentier: ['Their faces are gone.', 'The dog is fine. Only them.', 'I hung this. They had faces when I hung it.'],
-  pitcher: ['Her face is smeared. Like Mochi.', 'It looks wet. It isn\'t.'],
+  pitcher: ['Her face is smeared away.', 'It looks wet. It isn\'t.'],
   madamex: ['She was turned away. Now there\'s nothing to turn.', 'I keep checking.'],
   thinker: ['He\'s looking at the floor. With what?', 'He had glasses. I remember the glasses.'],
   aristotle: ['Even the statue.', 'Both of them. Even the stone one.'],
