@@ -134,7 +134,7 @@ export function skinMaterial(u) {
         varying vec4 vZA; varying vec4 vZB; varying vec3 vRest; varying float vBellyW;
         uniform vec3 uSkin; uniform vec3 uSkinPale; uniform float uPale; uniform float uVeins; uniform float uBlackVeins; uniform float uBelly; uniform float uHideHead;
         uniform float uBloodHands; uniform float uBloodMouth; uniform float uBloodShirt; uniform float uSplit; uniform float uGlow; uniform float uNailDark; uniform float uBruise; uniform float uSweat;
-        uniform vec4 uScA[8]; uniform vec4 uScB[8]; uniform sampler2D uFace; uniform float uTime; uniform float uDirt; uniform float uHem; uniform float uDebug;
+        uniform vec4 uScA[8]; uniform vec4 uScB[8]; uniform sampler2D uFace; uniform float uTime; uniform float uDirt; uniform float uHem; uniform float uDebug; uniform float uGreen;
         ${NOISE_GLSL}
         float gSkinW; float gBloodW; float gSplitW;`)
       .replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>
@@ -160,11 +160,13 @@ export function skinMaterial(u) {
             fc = mix(fc, fc * mix(vec3(1.0), uSkinPale / uSkin, 0.8), uPale);
             skin = mix(skin, fc, front);
           }
+          // day 7: green coming up under the skin, like light through a leaf
+          skin = mix(skin, vec3(dot(skin, vec3(0.3, 0.59, 0.11))) * vec3(0.48, 1.12, 0.78), uGreen);
           // veins: blue under thin skin, black and spreading on late days
           float region = smoothstep(0.85, 1.3, p.y) * smoothstep(0.2, 0.7, vBellyW) + step(abs(p.x), 0.4) * smoothstep(0.85, 1.12, abs(p.x) * 4.0) * smoothstep(1.25, 0.8, p.y) + smoothstep(1.43, 1.5, p.y) * step(p.y, 1.56);
           region = clamp(region + uBlackVeins * 0.6, 0.0, 1.0);
           float vf = veinField(p * vec3(14.0, 7.0, 14.0)) * 0.8 + veinField(p * 31.0) * 0.5;
-          vec3 veinCol = mix(vec3(0.32, 0.3, 0.52), vec3(0.03, 0.02, 0.04), uBlackVeins);
+          vec3 veinCol = mix(mix(vec3(0.32, 0.3, 0.52), vec3(0.03, 0.02, 0.04), uBlackVeins), vec3(0.08, 0.24, 0.12), uGreen);
           skin = mix(skin, veinCol, clamp(vf * region * (uVeins * 0.7 + uBlackVeins), 0.0, 0.85));
           // bruising around the belly
           skin = mix(skin, mix(vec3(0.42, 0.26, 0.45), vec3(0.6, 0.55, 0.25), bf3(p * 6.0)), uBruise * smoothstep(0.3, 0.9, vBellyW) * smoothstep(0.35, 0.7, bf3(p * 5.0 + 3.0)) * 0.7);
@@ -261,7 +263,7 @@ export class Body {
     this.u = {
       uSkin: { value: new THREE.Color(0.86, 0.64, 0.53) }, uSkinPale: { value: new THREE.Color(0.8, 0.79, 0.74) }, uPale: { value: 0 }, uVeins: { value: 0 }, uBlackVeins: { value: 0 },
       uBelly: { value: 0 }, uHideHead: { value: 1 }, uBloodHands: { value: 0 }, uBloodMouth: { value: 0 }, uBloodShirt: { value: 0 }, uSplit: { value: 0 }, uGlow: { value: 0 },
-      uNailDark: { value: 0 }, uBruise: { value: 0 }, uSweat: { value: 0 }, uDirt: { value: 0.3 }, uHem: { value: 0.86 },
+      uNailDark: { value: 0 }, uBruise: { value: 0 }, uSweat: { value: 0 }, uDirt: { value: 0.3 }, uHem: { value: 0.86 }, uGreen: { value: 0 },
       uBumps: { value: [0, 1, 2, 3].map(() => new THREE.Vector4(0, 0, 0, 0)) }, uArmBump: { value: new THREE.Vector4(0, 0, 0, 0) },
       uScA: { value: Array.from({ length: 8 }, () => new THREE.Vector4(0, 0, 0, 0)) }, uScB: { value: Array.from({ length: 8 }, () => new THREE.Vector4(0, 0, 0, 0)) },
       uFace: { value: faceTexture() }, uTime: G.uniforms.uTime, uBreathe: { value: 0 }, uDebug: { value: 0 },

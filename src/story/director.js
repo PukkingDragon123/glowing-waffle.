@@ -31,7 +31,7 @@ const RADIO = [null,
   "Good morning. It's seven o'clock. It's July first. It's July first. Officials say there is nothing over the harbor. Stay inside. Keep your lights off.",
   "July first. July first. The lights over the harbor are weather balloons. The lights over the harbor are looking for you.",
   "Subject zero four one nine. Good morning. Appetite critical. Please continue your routine.",
-  "Gestation complete in fourteen hours. Good morning, subject.",
+  "This is a federal emergency statement. Alex Bengrim, of apartment four B, Harborview Towers, is contaminated. A danger to the public. A disgrace. Do not approach. Report all sightings.",
 ];
 
 export class Director {
@@ -142,6 +142,7 @@ export class Director {
       if (bedPerch) { cat.perch = bedPerch; cat.pos.copy(bedPerch.pos); cat.h = bedPerch.h ?? 0.55; }
       cat.setBehavior('sleep', { spot: { perch: 'bed' } });
     }
+    G.peace && G.peace.startDay(day);
     this.wakeInBed();
     writeSave({ day, story: G.story });
     await G.tasks.wait(fromDeath ? 2.5 : 1.6);
@@ -180,7 +181,7 @@ export class Director {
       if (!this.running) return;
       sfx('radioTune', { pos, vol: 0.4 });
       const line = RADIO[this.day];
-      const h = G.audio && G.audio.speak(line, { voice: this.day >= 6 ? 'machine' : 'man', phone: true, pos, vol: 0.55, distort: 3 });
+      const h = G.audio && G.audio.speak(line, { voice: this.day === 6 ? 'machine' : 'man', phone: true, pos, vol: 0.55, distort: 3 });
       G.hud.say(line, { who: 'radio', cls: this.day >= 5 ? 'strange' : 'voice', dur: h && h.dur ? h.dur + 1 : 9 });
     }, 2500));
   }
@@ -218,7 +219,7 @@ export class Director {
     if (!G.story.catFled) list.push({ id: 'cat', text: 'Feed Mochi' });
     if (d <= 6) list.push({ id: 'work', text: 'Work: take calls (0/' + (G.os.apps.support ? G.os.apps.support.todays.length : 3) + ')' });
     if (d === 2) list.push({ id: 'trash', text: 'Take out the trash (chute, end of the hall)' });
-    if (d === 7) { list.length = 0; list.push({ id: 'window', text: 'Go to the window' }); }
+    if (d === 7) { list.length = 0; list.push({ id: 'mirror', text: 'Look in the mirror' }); }
     this.setTasks(list);
     this.updateWorkTask();
   }
@@ -281,6 +282,7 @@ export class Director {
       if (d >= 6) { sx += 0.05 + Math.sin(t * 0.3) * 0.04; tw += Math.sin(t * 0.11) * 0.08; }
       if (d >= 7) { sx += 0.15; cy += Math.sin(t * 0.25) * 0.15; tw += Math.sin(t * 0.19) * 0.25; }
     }
+    if (G.peace && G.peace.calm) sx = cy = tw = 0;   // day 7, after the mirror: the world holds still
     const u = G.uniforms.uBend.value;
     u.x = damp(u.x, sx, 1.2, dt); u.y = damp(u.y, cy, 1.2, dt); u.z = damp(u.z, tw, 1.2, dt);
   }

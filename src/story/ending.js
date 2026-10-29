@@ -1,6 +1,8 @@
 // The end. You wake in a biomechanical chamber on a slab. You scream, you fall,
 // you die on the floor with your eyes open. Something leaves you and crawls
-// away. A voice: SUBJECT STATUS: COMPLETE. Nothing is explained.
+// away. A voice: SUBJECT STATUS: COMPLETE. Nothing is explained. (It is their
+// lab: the government's. It is where the window, the men at the door and a
+// hung-up phone all lead.)
 import * as THREE from 'three';
 import { G } from '../core/globals.js';
 import { M } from '../gfx/materials.js';
@@ -64,7 +66,7 @@ export class Ending {
     this.monTex = new THREE.CanvasTexture(this.monCv); this.monTex.colorSpace = THREE.SRGBColorSpace;
     const mon = add(new THREE.PlaneGeometry(0.9, 0.45), new THREE.MeshBasicMaterial({ map: this.monTex, toneMapped: false }), -1.6, 2.1, -5.12);
     add(new THREE.BoxGeometry(1.0, 0.55, 0.08), bio, -1.6, 2.1, -5.18);
-    this.setMonitor('SUBJECT 0419\nGESTATION 100%');
+    this.setMonitor('U.S. CUSTODY\nSUBJECT 0419\nGESTATION 100%');
     // what comes out
     this.thing = makeThing(); this.thing.visible = false; g.add(this.thing);
     this.cord = new THREE.Mesh(new THREE.BufferGeometry(), flesh); g.add(this.cord);
@@ -190,6 +192,7 @@ export class Ending {
         const h = G.audio && G.audio.speak('Subject status. Complete.', { voice: 'machine', mech: true, vol: 0.9, reverb: 0.6 });
         this.setMonitor('SUBJECT STATUS:\nCOMPLETE');
       }
+      if (bt > 15.3 && !this.voice2) { this.voice2 = true; G.audio && G.audio.speak('Notify Washington.', { voice: 'machine', mech: true, vol: 0.8, reverb: 0.6 }); }
       if (bt > 15.5 && !this.lightsOff) {
         this.lightsOff = true;
         sfx('breaker', { vol: 0.8 });

@@ -55,12 +55,13 @@ export class Mirror {
     if (!inBath || dist > 4.5 || toM.dot(n) > 0) { this.seen = Math.max(0, this.seen - dt); return; }
     if (lookDot > 0.8 && dist < 1.8) this.seen += dt; else this.seen = Math.max(0, this.seen - dt * 0.3);
     const day = G.story.day;
-    this.u.uWarp.value = day >= 5 ? 1 + (day - 5) * 0.8 : 0;
+    // truth (day 7, set by the story): no lag, no warp, no worse version of you. Just you.
+    this.u.uWarp.value = day >= 5 && !this.truth ? 1 + (day - 5) * 0.8 : 0;
     // day 5+: when you look away, it keeps the last look
-    this.frozen = day >= 5 && lookDot < 0.55;
+    this.frozen = day >= 5 && lookDot < 0.55 && !this.truth;
     if (this.frozen) return;
     this.render(cam, n);
-    const lag = day >= 4 ? Math.min(RING - 1, 8 + (day - 4) * 4) : 0;
+    const lag = day >= 4 && !this.truth ? Math.min(RING - 1, 8 + (day - 4) * 4) : 0;
     this.shown = (this.head - lag + RING * 4) % RING;
     this.u.tMap.value = this.ring[this.shown].texture;
   }
@@ -97,7 +98,7 @@ export class Mirror {
     const bu = G.body.u, day = G.story.day;
     const saved = { hide: bu.uHideHead.value, split: bu.uSplit.value, bv: bu.uBlackVeins.value, glow: bu.uGlow.value, belly: bu.uBelly.value };
     bu.uHideHead.value = 0;
-    if (day >= 6) { bu.uSplit.value = 0.45; bu.uBlackVeins.value = 1; bu.uGlow.value = 0.6; bu.uBelly.value = Math.min(1.4, saved.belly + 0.35); }
+    if (day >= 6 && !this.truth) { bu.uSplit.value = 0.45; bu.uBlackVeins.value = 1; bu.uGlow.value = 0.6; bu.uBelly.value = Math.min(1.4, saved.belly + 0.35); }
     m.visible = false;
     this.head = (this.head + 1) % RING;
     const r = G.engine.renderer;

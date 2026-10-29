@@ -646,6 +646,36 @@ function radioMusic() {
 }
 function microwaveHum() { const lp = new Biquad('lp', 900, 1); return normalize(makeLoop(render(3, (i, t) => Math.sin(TAU * 120 * t) * 0.35 + Math.sin(TAU * 60 * t) * 0.2 + lp.p(white()) * 0.12), 0.2), 0.35); }
 function kettleWhistle() { let ph = 0; const bp = new Biquad('bp', 2200, 4); return normalize(makeLoop(render(3, (i, t) => { ph += TAU * (2150 + 60 * Math.sin(TAU * 5 * t) + 30 * white()) / SR; return Math.sin(ph) * 0.6 + bp.p(white()) * 0.4; }), 0.2), 0.4); }
+// ---------------------------------------------------------------- day 7
+// a handheld radio: key-up chirp, a burst of squelch, the roger beep
+function radioChirp() {
+  const out = silence(0.75), bp = new Biquad('bp', 1900, 0.9);
+  mixInto(out, tone(0.06, [1450], () => 1), 0, 0.25);
+  mixInto(out, render(0.45, (i, t) => bp.p(white()) * (0.6 + 0.4 * Math.sin(TAU * 31 * t)) * Math.min(1, t * 60, (0.45 - t) * 30)), 0.06, 0.7);
+  mixInto(out, tone(0.09, [2100, 2400], () => 1), 0.55, 0.2);
+  return normalize(fadeEdges(out), 0.6);
+}
+// a ram through a door: the hit, the frame splitting, the door hitting the wall
+function doorBreak() {
+  const out = silence(1.6);
+  mixInto(out, thump(0.5, 70, 32, 0.14, 1.2), 0, 1);
+  mixInto(out, knock(0.5, 1.6), 0, 0.9);
+  mixInto(out, crackle(0.35, 3000, { f: 1400, q: 0.8, decay: 0.004, env: (t) => Math.exp(-t / 0.08) }), 0.01, 0.9);
+  mixInto(out, latch(), 0.02, 0.8);
+  mixInto(out, thump(0.4, 90, 45, 0.08), 0.42, 0.6);
+  mixInto(out, knock(0.9, 0.8), 0.42, 0.5);
+  return normalize(fadeEdges(out), 1);
+}
+// a helicopter somewhere over the river
+function heliFar() {
+  const lp = new Biquad('lp', 260, 0.8), bp = new Biquad('bp', 900, 0.6);
+  return normalize(makeLoop(render(4, (i, t) => { const blade = Math.pow(0.5 + 0.5 * Math.sin(TAU * 11.5 * t), 3); return lp.p(white()) * (0.4 + blade * 1.4) + bp.p(white()) * 0.05 * blade; }), 0.2), 0.45);
+}
+// the only major chord in the game
+function warmChord() {
+  const dur = 7, fs = [[196, 1], [246.94, 0.7], [293.66, 0.6], [392, 0.35], [493.88, 0.18]];
+  return normalize(render(dur, (i, t) => { let s = 0; for (const [f, a] of fs) s += Math.sin(TAU * f * t + Math.sin(TAU * 0.3 * t) * 0.4) * a; return s * Math.min(1, t / 2.5, (dur - t) / 2.5) * 0.25; }), 0.5);
+}
 function fireBell() { return normalize(makeLoop(render(2, (i, t) => { const tr = (t * 18) % 1; return (Math.sin(TAU * 1650 * t) * 0.6 + Math.sin(TAU * 3300 * t) * 0.25) * Math.exp(-tr * 6); }), 0.05), 0.5); }
 
 export const GEN = {
@@ -675,6 +705,7 @@ export const GEN = {
   elevatorDing: () => [elevatorDing()], vending: () => [vending()], canDrop: () => [canDrop()], coin: () => [coin()], pickup, place, pocket: () => [rustle(0.2, 1600)], pageTurn: () => [pageTurn()],
   pain, radioTune: () => [radioTune()], alarmBeep: () => [alarmBeep()], sting2: () => [stinger()],
   fanHum: () => [fanHum()], radioMusic: () => [radioMusic()], microwaveHum: () => [microwaveHum()], kettleWhistle: () => [kettleWhistle()], fireBell: () => [fireBell()],
+  radioChirp: () => [radioChirp()], doorBreak: () => [doorBreak()], heliFar: () => [heliFar()], warmChord: () => [warmChord()],
 };
 // sounds that loop when started with loop()
-export const LOOPS = new Set(['water', 'sizzle', 'brew', 'fridgeHum', 'dialTone', 'crtWhine', 'pcHum', 'lineStatic', 'purr', 'catEat', 'catLap', 'droneLow', 'droneVoid', 'droneLab', 'wind', 'cityDay', 'static', 'hum60', 'fluoro', 'tvBabble', 'alienNear', 'shipHum', 'tapeHiss', 'vending', 'breath', 'breathHeavy', 'fanHum', 'radioMusic', 'microwaveHum', 'kettleWhistle', 'fireBell']);
+export const LOOPS = new Set(['water', 'sizzle', 'brew', 'fridgeHum', 'dialTone', 'crtWhine', 'pcHum', 'lineStatic', 'purr', 'catEat', 'catLap', 'droneLow', 'droneVoid', 'droneLab', 'wind', 'cityDay', 'static', 'hum60', 'fluoro', 'tvBabble', 'alienNear', 'shipHum', 'tapeHiss', 'vending', 'breath', 'breathHeavy', 'fanHum', 'radioMusic', 'microwaveHum', 'kettleWhistle', 'fireBell', 'heliFar']);

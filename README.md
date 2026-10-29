@@ -35,7 +35,7 @@ At the computer the mouse and keyboard drive Glass 98. The four apps are Blueber
 4. Blood in the sink. Trembling hands. The mirror is late.
 5. Mochi gets out. The hallway has no ends and every door is 4B.
 6. The hunger. Mochi. Resist, or don't. She will run either way if you don't.
-7. It was never a window.
+7. It was never a window. Your name is on the radio. Look in the mirror. Hide from the flashlights. Answer the phone.
 
 At night something hunts by light. Turn the lamps off, switch off the monitor, stay away from the glass, crouch in the dark. The elevator works. There is only one floor.
 
@@ -60,7 +60,7 @@ npm i --no-save esbuild
 node tools/build.mjs      # writes dist/bengrim.html and dist/bengrim.artifact.html
 ```
 
-`tools/shot.mjs`, `tools/views.mjs` and `tools/distcheck.mjs` are headless Playwright helpers for screenshots and smoke tests. Add `?capture` to the URL to keep the drawing buffer. `window.BENGRIM` exposes `day(n)`, `tp(x, z, yaw, pitch)` and `fast(frames)` for debugging.
+`tools/shot.mjs`, `tools/views.mjs` and `tools/distcheck.mjs` are headless Playwright helpers for screenshots and smoke tests. Add `?capture` to the URL to keep the drawing buffer. `window.BENGRIM` exposes `day(n)`, `tp(x, z, yaw, pitch)`, `fast(frames)` and `peace(phase)` for debugging. `?day=7&autostart&nointro&peace=morning|mirror|hide|search|call|elevator|roof|meet` jumps into the last day's ending at that beat.
 
 `tools/paintings.py` rebuilds `src/world/paintings.data.js`. It downloads the paintings, smears the faces and embeds them as JPEG data URIs. It needs Pillow and numpy.
 
