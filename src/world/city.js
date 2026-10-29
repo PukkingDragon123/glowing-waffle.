@@ -110,8 +110,8 @@ function boxGeo(w, h, d) { const g = new THREE.BoxGeometry(w, h, d); g.translate
 function tagBox(g, w, h, d) { const n = g.attributes.position.count, a = new Float32Array(n * 3); for (let i = 0; i < n; i++) a.set([w, h, d], i * 3); g.setAttribute('aBox', new THREE.BufferAttribute(a, 3)); return g; }
 
 export class Landmarks {
-  constructor(scene) {
-    this.scene = scene;
+  constructor(scene, glows = null) {
+    this.scene = scene; this.glows = glows;
     this.mats = []; this.solids = [];
     this.towers = [];
     this.lights = [];
@@ -298,7 +298,12 @@ export class Landmarks {
     this.lights.push({ pos: pos.clone().add(V(0, 290, 0)), col: 0xfff0d8, size: 30, blink: 0 });
   }
 
+  // beacons and floodlit crowns: one instanced glow draw when the sky shares its Glows, sprites otherwise
   buildLights() {
+    if (this.glows) {
+      for (const l of this.lights) { l.c = new THREE.Color(l.col).multiplyScalar(1.8); l.gi = this.glows.add(l.pos, l.col, l.size * 0.8, { blink: l.blink ? l.blink / 2 : 0, phase: (l.ph || 0) * (l.blink || 0) / 2, mode: l.blink ? 1 : 0, k: 1.8 }); l.lit = true; }
+      return;
+    }
     const map = radial({ size: 32, inner: 'rgba(255,255,255,1)', outer: 'rgba(255,255,255,0)' });
     for (const l of this.lights) {
       const s = new THREE.Sprite(new THREE.SpriteMaterial({ map, color: l.col, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, fog: false }));
@@ -310,6 +315,12 @@ export class Landmarks {
   // per frame, from the sky's shared state (lighting itself comes through OUT)
   update(t, sh) {
     for (const l of this.lights) {
+      if (l.gi !== undefined) {
+        // a beacon on a falling tower goes out with it
+        const lit = !(l.tower && l.pos.y > l.tower.pos.y + l.tower.mat.uniforms.cut.value);
+        if (lit !== l.lit) { l.lit = lit; this.glows.tint(l.gi, lit ? l.c.r : 0, lit ? l.c.g : 0, lit ? l.c.b : 0); }
+        continue;
+      }
       const on = l.blink ? (Math.sin((t + (l.ph || 0)) * Math.PI * l.blink) > 0.2 ? 1 : 0.05) : 1;
       const cutAway = l.tower && l.pos.y > l.tower.pos.y + l.tower.mat.uniforms.cut.value;
       const o = cutAway ? 0 : on * (0.25 + sh.night * 0.75) * (l.blink ? 1 : sh.night);

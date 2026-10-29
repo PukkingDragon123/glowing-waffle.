@@ -40,7 +40,7 @@ void main(){
   // sun: disc, halo, and the broad glare a dirty sky makes of it
   vec3 sdir = normalize(sunDir);
   float s = max(dot(d, sdir), 0.0);
-  col += sunCol * sunVis * (smoothstep(0.99955, 0.99975, s) * 30.0 + pow(s, 900.0) * 4.0 + pow(s, 60.0) * 0.5 + pow(s, 6.0) * 0.2);
+  col += sunCol * sunVis * (smoothstep(0.99955, 0.99975, s) * 30.0 + pow(s, 900.0) * 4.0 + pow(s, 60.0) * 0.4 + pow(s, 10.0) * 0.07);
   // the city's sodium dome on the horizon, the fires under it
   float east = smoothstep(0.3, -0.8, d.z);
   col += glowCol * exp(-hh * 6.0) * (0.45 + 0.55 * east);
@@ -57,7 +57,7 @@ void main(){
     vec3 cc = mix(cloudDark, cloudLit, lit * (0.75 + 0.25 * fbm3(p * 5.0)));
     cc += sunCol * sunVis * pow(s, 8.0) * (1.0 - cov * 0.8) * 1.4;
     // the burning city lights the bellies of the clouds from below, strongest over Manhattan
-    cc += vec3(0.9, 0.3, 0.08) * burnGlow * east * (0.3 + 0.7 * (1.0 - lit)) * smoothstep(0.6, 0.02, h);
+    cc += vec3(0.5, 0.16, 0.04) * burnGlow * east * (0.3 + 0.7 * (1.0 - lit)) * smoothstep(0.6, 0.02, h);
     // energy discharges inside the cloud deck
     cc += vec3(0.7, 0.9, 1.0) * flash * smoothstep(0.4, 0.8, fbm3(p * 0.9 + 21.0)) * 2.5;
     col = mix(col, cc, cov * smoothstep(0.0, 0.1, h) * 0.97);
@@ -151,6 +151,45 @@ void main(){
   gl_FragColor = vec4(outFog(col, p), 1.0);
 }`;
 
+// camera-facing quads in one draw: fire glows (additive) or smoke columns (blended, fogged)
+const BB_VS = /* glsl */`
+attribute vec3 iPos; attribute vec2 iSize; attribute vec4 iCol;
+varying vec2 vUv; varying vec4 vCol; varying vec3 vW;
+void main(){ vUv = position.xy * 2.0; vCol = iCol; vW = iPos; vec4 mv = viewMatrix * vec4(iPos, 1.0); mv.xy += position.xy * iSize; gl_Position = projectionMatrix * mv; }`;
+const BB_FS = /* glsl */`
+${OUT_GLSL}
+uniform float smoky;
+varying vec2 vUv; varying vec4 vCol; varying vec3 vW;
+void main(){
+  float r = length(vUv);
+  if (smoky > 0.5) {
+    float n = vn2(vUv * 2.5 + vW.xz * 0.01 + vec2(oTime * 0.05, 0.0));
+    float a = smoothstep(1.0, 0.15, r + (n - 0.5) * 0.6) * vCol.a;
+    if (a < 0.004) discard;
+    gl_FragColor = vec4(outFog(vCol.rgb * (0.7 + 0.6 * n), vW), a);
+  } else {
+    float a = pow(max(1.0 - r, 0.0), 1.6) * vCol.a;
+    if (a < 0.004) discard;
+    gl_FragColor = vec4(vCol.rgb * a, 1.0);
+  }
+}`;
+class Billboards {
+  constructor(scene, n, smoky) {
+    const g = new THREE.InstancedBufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array([-0.5, -0.5, 0, 0.5, -0.5, 0, 0.5, 0.5, 0, -0.5, 0.5, 0]), 3));
+    g.setIndex([0, 1, 2, 0, 2, 3]);
+    const at = (k) => { const a = new THREE.InstancedBufferAttribute(new Float32Array(Math.max(1, n) * k), k); a.setUsage(THREE.DynamicDrawUsage); return a; };
+    this.p = at(3); this.s = at(2); this.c = at(4);
+    g.setAttribute('iPos', this.p); g.setAttribute('iSize', this.s); g.setAttribute('iCol', this.c);
+    g.instanceCount = n;
+    const m = new THREE.ShaderMaterial({ vertexShader: BB_VS, fragmentShader: BB_FS, uniforms: { ...OUT, smoky: { value: smoky ? 1 : 0 } }, transparent: true, depthWrite: false, blending: smoky ? THREE.NormalBlending : THREE.AdditiveBlending });
+    this.mesh = new THREE.Mesh(g, m); this.mesh.frustumCulled = false; this.mesh.renderOrder = smoky ? 3 : 2;
+    scene.add(this.mesh);
+  }
+  set(i, x, y, z, sx, sy, r, g, b, a) { this.p.setXYZ(i, x, y, z); this.s.setXY(i, sx, sy); this.c.setXYZW(i, r, g, b, a); }
+  flush(any) { this.mesh.visible = any; if (any) this.p.needsUpdate = this.s.needsUpdate = this.c.needsUpdate = true; }
+}
+
 function moonTexture(red) {
   const { c, ctx } = makeCanvas(128, 128);
   const g = ctx.createRadialGradient(64, 64, 10, 64, 64, 62);
@@ -174,7 +213,7 @@ function moonTexture(red) {
 const C = (r, g, b) => new THREE.Color(r, g, b);
 // the outdoor palette (linear). Day is hot, hazy and smog-stained; night is sodium and soot.
 const PAL = {
-  dayZen: C(0.045, 0.08, 0.19), dayHor: C(0.3, 0.28, 0.24), daySmog: C(0.25, 0.18, 0.1),
+  dayZen: C(0.042, 0.078, 0.19), dayHor: C(0.27, 0.25, 0.21), daySmog: C(0.25, 0.18, 0.1),
   goldZen: C(0.08, 0.07, 0.11), goldHor: C(0.5, 0.3, 0.16),
   twiZen: C(0.018, 0.018, 0.04), twiHor: C(0.12, 0.07, 0.07),
   nightZen: C(0.003, 0.004, 0.009), nightHor: C(0.03, 0.021, 0.014), nightSmog: C(0.05, 0.028, 0.012),
@@ -230,7 +269,7 @@ export class Sky {
   }
 
   buildCity() {
-    this.landmarks = new Landmarks(this.scene);
+    this.landmarks = new Landmarks(this.scene, this.glows);
     this.skyline = new Skyline(this.scene, this.landmarks, this.glows);
     this.city = this.skyline.mesh; this.bldMat = this.skyline.mat; this.tanks = this.skyline.roofMesh;
     this.buildings = this.skyline.buildings;
@@ -269,21 +308,15 @@ export class Sky {
   }
 
   buildFX() {
-    // fire glows + smoke columns (sprites) over burning buildings
-    const fireMap = radial({ size: 64, inner: 'rgba(255,170,60,1)', outer: 'rgba(255,60,0,0)' });
-    const smokeMap = radial({ size: 64, inner: 'rgba(40,34,30,0.9)', outer: 'rgba(40,34,30,0)' });
+    // fire glows + smoke columns over burning buildings, one instanced draw each
     this.fires = []; this.smokes = [];
     const burning = this.buildings.filter((b) => b.burn > 0.5 && b.z < -1000 && b.z > -2600 && b.x > -1600).slice(0, 60);
     for (const b of burning) {
-      const f = new THREE.Sprite(new THREE.SpriteMaterial({ map: fireMap, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0 }));
-      f.position.set(b.x, b.y + b.h * 0.6, b.z + b.d / 2 + 5); f.scale.set(b.w * 2.2, b.h * 0.9, 1);
-      this.scene.add(f); this.fires.push({ s: f, b, ph: Math.random() * 10 });
-      for (let k = 0; k < 3; k++) {
-        const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: smokeMap, depthWrite: false, transparent: true, opacity: 0 }));
-        s.position.set(b.x, b.y + b.h + 40 + k * 90, b.z); s.scale.set(140 + k * 60, 140 + k * 60, 1);
-        this.scene.add(s); this.smokes.push({ s, b, k, ph: Math.random() * 10 });
-      }
+      this.fires.push({ b, ph: Math.random() * 10 });
+      for (let k = 0; k < 3; k++) this.smokes.push({ b, k, ph: Math.random() * 10 });
     }
+    this.fireBB = new Billboards(this.scene, this.fires.length, false);
+    this.smokeBB = new Billboards(this.scene, this.smokes.length, true);
     // alien lights: little bright motes drifting in formations
     const moteMap = radial({ size: 32, inner: 'rgba(190,255,230,1)', outer: 'rgba(80,255,180,0)' });
     this.motes = [];
@@ -447,18 +480,18 @@ export class Sky {
     this.moon2.s.material.rotation = Math.sin(t * 0.05) * 0.1;
     this.moon2.s.visible = this.moon2.halo.visible = p.moon2 > 0.01;
     // fires & smoke (hidden outright when out, so they cost no draws)
-    for (const f of this.fires) {
-      const on = p.burn * f.b.burn;
-      f.s.material.opacity = on * (0.6 + 0.4 * Math.sin(t * 7 + f.ph) * Math.sin(t * 3.1 + f.ph)) * (0.4 + night * 0.6);
-      f.s.visible = on > 0.01;
-    }
-    for (const s of this.smokes) {
-      const on = p.smoke * s.b.burn;
-      s.s.material.opacity = on * 0.55; s.s.visible = on > 0.01;
-      s.s.position.y = s.b.y + s.b.h + 40 + s.k * 90 + ((t * 6 + s.ph * 20) % 90);
-      s.s.position.x = s.b.x + Math.sin(t * 0.1 + s.ph) * 30 + s.k * 25;
-      s.s.material.color.setRGB(0.5 + 0.5 * (1 - night), 0.45 + 0.4 * (1 - night), 0.4 + 0.4 * (1 - night));
-    }
+    this.fires.forEach((f, i) => {
+      const b = f.b, o = p.burn * b.burn * (0.6 + 0.4 * Math.sin(t * 7 + f.ph) * Math.sin(t * 3.1 + f.ph)) * (0.4 + night * 0.6);
+      this.fireBB.set(i, b.x, b.y + b.h * 0.6, b.z + b.d / 2 + 5, b.w * 2.2, b.h * 0.9, 1.0, 0.4, 0.05, o);
+    });
+    this.fireBB.flush(p.burn > 0.01);
+    // dark oily smoke, drifting north on the wind, lit a little from below at night
+    const sc = C(0.032, 0.028, 0.024).lerp(C(0.05, 0.022, 0.01), night * p.burn);
+    this.smokes.forEach((s, i) => {
+      const b = s.b, k = s.k, rise = (t * 6 + s.ph * 20) % 90, sz = 140 + k * 60 + rise * 0.6;
+      this.smokeBB.set(i, b.x + Math.sin(t * 0.1 + s.ph) * 30 - k * 25 - rise * 0.4, b.y + b.h + 40 + k * 90 + rise, b.z, sz, sz, sc.r, sc.g, sc.b, p.smoke * b.burn * 0.5 * Math.min(1, rise / 15, (90 - rise) / 20));
+    });
+    this.smokeBB.flush(p.smoke > 0.01);
     for (const m of this.motes) {
       m.a += m.sp * dt;
       m.s.position.set(Math.cos(m.a) * m.r * 0.6, m.y + Math.sin(t * 0.7 + m.r) * 20, m.z + Math.sin(m.a) * 300);

@@ -93,7 +93,7 @@ export class Waterfront {
     for (const [a, b] of [[-470, X0], [X1, 560]]) k.box((a + b) / 2, -14.4, -19.5, b - a, 0.55, 4.5, CONC, { pat: 2 });
     // tree pits along the lamp strip, a few on our side too
     this.treeSpots = [];
-    for (let x = X0 + 14; x < X1; x += 32) { k.box(x, SW - 0.04, -18.4, 1.5, 0.06, 1.5, 0x2a2018, { pat: 4 }); this.treeSpots.push([x, SW - 0.02, -18.4]); }
+    for (let x = X0 + 30; x < X1; x += 32) { k.box(x, SW - 0.04, -18.4, 1.5, 0.06, 1.5, 0x2a2018, { pat: 4 }); this.treeSpots.push([x, SW - 0.02, -18.4]); }
     for (const x of [-46, -30, 34, 50, 66]) { k.box(x, SW - 0.04, -3.9, 1.4, 0.06, 1.4, 0x2a2018, { pat: 4 }); this.treeSpots.push([x, SW - 0.02, -3.9]); }
     for (const x of [-38, 40, 120, 184]) { k.box(x, SW, -24.5, 1.6, 0.55, 1.6, 0x6a665e); k.add(new THREE.IcosahedronGeometry(0.75, 1), 0x34482a, { x, y: SW + 0.85, z: -24.5, sy: 0.6, pat: 6 }); }  // planters with clipped shrubs
   }
@@ -130,7 +130,7 @@ export class Waterfront {
 
   // ----------------------------------------------------------- street furniture
   furniture() {
-    const k = this.kit, rng = this.rng;
+    const k = this.kit;
     // benches facing the river, a trash can by every other one
     for (let x = X0 + 14; x < X1 - 4; x += 16) {
       const z = -31.3;
@@ -153,7 +153,6 @@ export class Waterfront {
     // a no-parking sign and a ped-crossing sign
     k.cyl(18, SW, -5.0, 0.03, 0.03, 2.6, 5, 0x6a6c6e); k.box(18, SW + 2.2, -5.0, 0.05, 0.45, 0.45, 0xd8c020, { rx: Math.PI / 4 });
     k.cyl(22, SW, -17.4, 0.03, 0.03, 2.6, 5, 0x6a6c6e); k.box(22, SW + 2.2, -17.4, 0.05, 0.45, 0.45, 0xd8c020, { rx: Math.PI / 4 });
-    void rng;
   }
 
   // ----------------------------------------------------------- bulkhead and water's edge
@@ -184,7 +183,7 @@ export class Waterfront {
   // ----------------------------------------------------------- the neighbours
   // pat 10 + facade style: windows come from world position in the shader
   neighbours() {
-    const k = this.kit, rng = this.rng;
+    const k = this.kit;
     // a six-storey brick tenement on the pier to the north: shop, fire escapes, cornice, tank
     {
       const x0 = -48, x1 = -72, z0 = -40, z1 = -76, h = 21.5, cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
@@ -243,7 +242,6 @@ export class Waterfront {
       k.box(cx, SW + 0.5, cz, w - 1.2, 2.6, d - 1.2, 0xe8f0e0, { glow: 0.22 });
       this.signSpots = [[V(cx, SW + 3.5, cz + d / 2 + 0.85), 0], [V(cx - w / 2 - 0.85, SW + 3.5, cz), -Math.PI / 2]];
     }
-    void rng;
   }
   tank(x, y, z, r) {
     const k = this.kit;
@@ -286,7 +284,7 @@ void main(){
   // ----------------------------------------------------------- trees
   buildTrees() {
     const k = new Kit(), rng = this.rng;
-    k.cyl(0, 0.03, 0, 2.0, 2.0, 0.01, 12, 0x1a1712);
+    k.cyl(0, 0.05, 0, 1.5, 1.5, 0.01, 12, 0x3a342c);
     k.cyl(0, 0, 0, 0.1, 0.15, 3.2, 6, 0x3a3028);
     k.cyl(0.3, 2.2, 0.1, 0.04, 0.07, 1.6, 5, 0x3a3028, { rz: -0.5 });
     k.cyl(-0.3, 2.4, -0.1, 0.04, 0.06, 1.4, 5, 0x3a3028, { rz: 0.6 });
@@ -302,8 +300,8 @@ void main(){
     const spots = this.treeSpots;
     const mesh = new THREE.InstancedMesh(geo, solidMaterial(), spots.length);
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), c = new THREE.Color();
-    spots.forEach(([x, y, z, planter], i) => {
-      const s = (planter ? 0.75 : 1) * rng.range(0.85, 1.2);
+    spots.forEach(([x, y, z], i) => {
+      const s = rng.range(0.85, 1.2);
       m.compose(V(x, y, z), q.setFromAxisAngle(V(0, 1, 0), rng.range(0, 6.28)), V(s, s * rng.range(0.9, 1.15), s));
       mesh.setMatrixAt(i, m);
       mesh.setColorAt(i, c.setHSL(rng.range(0.22, 0.3), rng.range(0.25, 0.45), rng.range(0.42, 0.6)));

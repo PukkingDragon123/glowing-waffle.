@@ -7,7 +7,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/BufferGeometryUtils.js';
 
-const V3 = () => new THREE.Vector3();
 const C = (r = 0, g = 0, b = 0) => new THREE.Color(r, g, b);
 // shared uniform objects: materials reference these, so one write updates all
 export const OUT = {

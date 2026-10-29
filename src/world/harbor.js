@@ -117,7 +117,7 @@ export class Harbor {
     this.wakeB = Array.from({ length: MAX_WAKES }, () => new THREE.Vector4());
   }
   update(dt, t) {
-    const q = new THREE.Quaternion(), up = V(0, 1, 0), lp = V();
+    const lp = V();
     this.boats.forEach((b, i) => {
       const s = b.route(t);
       if (s.d) b.dir.lerp(s.d, Math.min(1, dt * 1.5)).normalize();
@@ -129,11 +129,9 @@ export class Harbor {
       b.m.rotation.set(Math.sin(t * 0.7 + i * 2) * 0.012, yaw, Math.sin(t * 0.55 + i) * 0.01, 'YXZ');
       b.m.updateMatrixWorld();
       for (const l of b.lights) { lp.copy(l.p).applyMatrix4(b.m.matrixWorld); this.glows.move(l.i, lp.x, lp.y, lp.z); }
-      const len = b.spec.L;
       this.wakeA[i].set(b.pos.x + b.dir.x * (b.spec.off || 0), b.pos.y + b.dir.y * (b.spec.off || 0), b.dir.x, b.dir.y);
-      this.wakeB[i].set(b.v, len, b.spec.W, 0);
+      this.wakeB[i].set(b.v, b.spec.L, b.spec.W, 0);
     });
-    void q; void up;
   }
 }
 function bez(a, b, c, d, t) {
