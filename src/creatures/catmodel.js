@@ -1,13 +1,16 @@
-// Mochi: SDF-sculpted cat with a skeleton, fur shells, tabby coat, slit-pupil
-// eyes with eyeshine, whiskers, and a procedural pose/gait system.
+// Mochi: a faceted low-poly cat with true feline anatomy (catmesh.js), skinned
+// to a skeleton, painted as a brown mackerel tabby facet by facet, with glossy
+// slit-pupil eyes, eyelids that roll shut, eyeshine, whiskers, tongue and fangs,
+// and a procedural pose/gait system.
 import * as THREE from 'three';
 import { G } from '../core/globals.js';
-import { meshPrims, sph, cap, ell } from '../gfx/sdf.js';
+import { buildCatGeometry, EYE, EAR, HEAD, headPt } from './catmesh.js';
 import { clamp, damp, lerp, smoothstep, snoise1, TAU } from '../core/util.js';
 import { makeCanvas, toTexture } from '../gfx/textures.js';
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
 const _q = new THREE.Quaternion(), _m = new THREE.Matrix4();
+const glv = (a) => `vec3(${a.map((x) => x.toFixed(5)).join(', ')})`;
 
 function boneTable() {
   const T = [];
@@ -54,234 +57,165 @@ function eyeTexture() {
   return toTexture(c, { nearest: false, repeat: false });
 }
 
-// Hair-shaft model in rest space: where strands grow, which way they lie, how
-// long they are. Shared by all shells so strands stay coherent.
-const FUR_COMMON = /* glsl */`
+const NOISE = /* glsl */`
 float ch(vec3 p) { return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
-vec3 ch3(vec3 p) { return fract(sin(vec3(dot(p, vec3(127.1, 311.7, 74.7)), dot(p, vec3(269.5, 183.3, 246.1)), dot(p, vec3(113.5, 271.9, 124.6)))) * 43758.5453); }
 float cn(vec3 p) { vec3 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
   return mix(mix(mix(ch(i), ch(i + vec3(1,0,0)), f.x), mix(ch(i + vec3(0,1,0)), ch(i + vec3(1,1,0)), f.x), f.y),
-             mix(mix(ch(i + vec3(0,0,1)), ch(i + vec3(1,0,1)), f.x), mix(ch(i + vec3(0,1,1)), ch(i + vec3(1,1,1)), f.x), f.y), f.z); }
-// direction the coat lies (rest space): back toward the tail and down the flanks,
-// straight down the legs, out along the tail, back over the skull
-vec3 combDir(vec3 p, vec3 n) {
-  vec3 d = vec3(0.0, -0.45, 1.0);
-  if (p.z > 0.17) d = vec3(0.0, 0.05, 1.0);
-  else if (p.y < 0.15) d = vec3(0.0, -1.0, 0.15);
-  if (p.z < -0.17 && p.y > 0.25) d = vec3(sign(p.x) * 0.5, 0.25, 1.0);
-  if (p.z < -0.2 && p.y < 0.29) d = vec3(sign(p.x) * 1.0, -0.4, 0.4);   // cheek fur fans outward
-  d = normalize(d);
-  return normalize(d - n * dot(d, n));
-}`;
+             mix(mix(ch(i + vec3(0,0,1)), ch(i + vec3(1,0,1)), f.x), mix(ch(i + vec3(0,1,1)), ch(i + vec3(1,1,1)), f.x), f.y), f.z); }`;
 
+// Brown mackerel tabby painted in rest space: every facet keeps its own tone,
+// stripes are crisp antialiased bars across the facets.
 const COAT = /* glsl */`
-// brown mackerel tabby with agouti banding along each hair shaft:
-// grey-buff root, warm light band, dark tip. Stripe hairs are dark to the root.
-vec3 coat(vec3 p, float h, float rnd) {
-  float n = cn(p * 18.0) * 0.6 + cn(p * 55.0) * 0.4;
-  float band;
-  if (p.z > 0.17) band = fract(p.z * 19.0 + n * 0.35);
-  else if (p.y < 0.14) band = fract(p.y * 30.0 + n * 0.45);
-  else band = fract(p.z * 27.0 + sin(p.y * 35.0 + p.x * 20.0) * 0.35 + n * 1.1 + cn(p * 31.0) * 0.4);
-  if (p.y > 0.24 && p.z < -0.17) band = fract(abs(p.x) * 55.0 + p.z * 25.0 + n * 0.8);
-  float stripes = smoothstep(0.55, 0.64, band) * (1.0 - smoothstep(0.84, 0.95, band));
-  stripes *= smoothstep(0.25, 0.6, cn(p * 11.0 + 4.0) + 0.25) * (0.75 + 0.25 * cn(p * 70.0));
-  float spine = smoothstep(0.035, 0.0, abs(p.x)) * step(0.215, p.y) * step(p.z, 0.17);
-  float tail = step(0.43, p.z);                                   // black tail tip
-  float dk = clamp(stripes * 0.78 + spine * 0.6 + tail, 0.0, 1.0);
-  vec3 root = vec3(0.3, 0.25, 0.2), lite = vec3(0.72, 0.5, 0.29), tip = vec3(0.09, 0.06, 0.04);
-  // per-hair variation of where the light band sits
-  float b0 = 0.2 + rnd * 0.2, b1 = 0.5 + rnd * 0.25;
-  vec3 agouti = h < b0 ? mix(root, lite, h / b0) : h < b1 ? lite : mix(lite, tip, smoothstep(b1, 1.0, h) * 0.9 + 0.1);
-  vec3 eum = mix(vec3(0.16, 0.12, 0.09), vec3(0.05, 0.04, 0.03), h);
-  vec3 col = mix(agouti, eum, dk);
-  // white bib, belly, mittens and muzzle
-  float wm = smoothstep(0.165, 0.12, p.y) * step(p.z, 0.02) * smoothstep(0.055, 0.02, abs(p.x))
-           + smoothstep(0.035, 0.02, p.y)
-           + step(p.z, -0.212) * smoothstep(0.292, 0.274, p.y) * smoothstep(0.032, 0.016, abs(p.x));
-  col = mix(col, vec3(0.9, 0.88, 0.83) * mix(0.92, 1.03, rnd), clamp(wm, 0.0, 1.0));
-  // belly is paler and buff
-  col = mix(col, col * vec3(1.25, 1.12, 0.95), smoothstep(0.17, 0.13, p.y) * (1.0 - clamp(wm, 0.0, 1.0)) * 0.6);
-  return col * (0.9 + rnd * 0.2);
+float bar(float x, float w) { float d = abs(fract(x) - 0.5), aa = fwidth(x) * 1.1 + 0.02; return 1.0 - smoothstep(w - aa, w + aa, d); }
+float line(float d, float w) { float aa = fwidth(d) * 0.75 + 1e-5; return 1.0 - smoothstep(w - aa, w + aa, abs(d)); }
+vec3 coat(vec3 p, float part, float mat, float rnd, float lid) {
+  vec3 ground = vec3(0.4, 0.28, 0.165), dark = vec3(0.085, 0.06, 0.042), cream = vec3(0.78, 0.69, 0.55);
+  float n1 = cn(p * 55.0), n2 = cn(p * 21.0 + 7.0), ax = abs(p.x);
+  float dk = 0.0, pale = 0.0;
+  if (abs(part - 1.0) < 0.5 || abs(part - 6.0) < 0.5) { p = (p - HPIV) / HK; p.yz = vec2(p.y * HC + p.z * HS, -p.y * HS + p.z * HC); p += HPIV; ax = abs(p.x); }   // head patterns in skull space
+  if (mat > 0.5) {
+    if (mat < 1.5) {                       // nose leather: brick pink, dark nostrils
+      vec3 c = vec3(0.6, 0.31, 0.28) * (0.9 + 0.2 * rnd);
+      return mix(c, vec3(0.06, 0.03, 0.03), smoothstep(0.0024, 0.0012, length(vec2(ax - 0.0036, p.y - 0.2838))));
+    }
+    if (mat < 2.5) {                       // inner ear: thin pink skin, pale furnishings at the base and edges
+      vec3 q = vec3(ax, p.y, p.z) - EAR_C;
+      float h = dot(q, EAR_U) / EAR_H, w = dot(q, EAR_X) / (EAR_W * max(0.05, 1.0 - h));
+      vec3 skin = mix(vec3(0.74, 0.53, 0.48), vec3(0.42, 0.29, 0.25), smoothstep(0.35, 0.0, h)) * (0.92 + 0.12 * rnd);
+      // pale furnishings: long hairs streaming up from the base along the inner edge
+      float tuft = bar(w * 2.2 + h * 0.6, 0.18) * smoothstep(0.55, 0.15, h) * smoothstep(-0.1, -0.5, w);
+      return mix(skin, cream, max(tuft, smoothstep(0.75, 0.95, abs(w))) * 0.85);
+    }
+    if (mat < 3.5) return vec3(0.1, 0.06, 0.06) * (0.85 + 0.3 * rnd);   // pads
+    if (mat < 4.5) return mix(vec3(0.3, 0.09, 0.1), vec3(0.06, 0.015, 0.02), smoothstep(-0.245, -0.225, p.z));   // mouth
+    // eyelids: pale rim of fur, dark lid margin against the eye
+    return mix(mix(cream, ground, 0.55) * (0.95 + 0.1 * rnd), vec3(0.05, 0.035, 0.03), smoothstep(0.8, 0.9, lid));
+  }
+  if (part < 0.5) {                        // torso: mackerel stripes fall from the spine, broken toward the belly
+    float x = p.z * 44.0 + sin(p.y * 52.0 + p.z * 16.0) * 0.35 + (n1 - 0.5) * 0.7;
+    dk = bar(x, 0.15) * smoothstep(0.135, 0.175, p.y) * smoothstep(0.3, 0.55, n2 + 0.15) * (0.75 + 0.25 * n1);
+    dk = max(dk, smoothstep(0.0125, 0.007, ax) * smoothstep(0.234, 0.244, p.y) * step(p.z, 0.175));   // dorsal line
+    if (p.z < -0.105) dk = max(dk, bar((p.y + p.z * 0.75) * 40.0 + 0.3, 0.14) * smoothstep(0.235, 0.2, p.y) * smoothstep(0.01, 0.022, ax));   // necklaces
+    pale = smoothstep(0.158, 0.128, p.y) * 0.85 + smoothstep(-0.1, -0.13, p.z) * smoothstep(0.22, 0.175, p.y) * smoothstep(0.03, 0.016, ax) * 0.8;
+  } else if (part < 1.5) {                 // head: the M, lines back from the eyes, pale muzzle
+    if (p.y > 0.312 && p.z < -0.17) {
+      float fr = smoothstep(-0.215, -0.235, p.z);             // front of the forehead: strokes splay into the M
+      dk = max(line(ax - 0.0032 - fr * (0.323 - p.y) * 0.25, 0.0014), line(ax - 0.0108 - fr * (0.333 - p.y) * 0.55, 0.0015));
+      dk = max(dk, line(ax - 0.0182 + fr * 0.002, 0.0013) * smoothstep(-0.2, -0.215, p.z));
+      dk *= smoothstep(0.318, 0.323, p.y);   // the M stops above the brow
+    }
+    if (ax > 0.029 && p.z < -0.19) {
+      dk = max(dk, line(p.y - 0.3045 - (p.z + 0.226) * 0.28, 0.0014) * smoothstep(-0.228, -0.222, p.z));
+      dk = max(dk, line(p.y - 0.2905 - (p.z + 0.226) * 0.55, 0.0013) * smoothstep(-0.236, -0.226, p.z));
+    }
+    if (p.z > -0.19) dk = max(dk, bar(ax * 95.0, 0.16) * smoothstep(0.3, 0.315, p.y));   // stripes run back over the crown
+    pale = smoothstep(-0.244, -0.25, p.z) * smoothstep(0.2905, 0.2865, p.y);                                    // muzzle, whisker pads
+    pale += smoothstep(0.283, 0.279, p.y) * smoothstep(-0.222, -0.236, p.z) * 0.45;                              // lower cheeks
+    pale += smoothstep(0.0045, 0.0025, length(vec2(ax - 0.0262, p.y - 0.2885))) * 0.5;                           // under the eye
+    if (p.y < 0.2744 - ax * 0.1 && p.z < -0.246 && ax < 0.0085) return vec3(0.12, 0.08, 0.07);   // upper lip margin
+  } else if (part < 2.5 || part > 6.5) {   // forelegs: bars outside, paler inside, cream mittens
+    dk = bar(p.y * 40.0 + n1 * 0.45, 0.15) * smoothstep(0.035, 0.07, p.y) * smoothstep(0.19, 0.13, p.y) * smoothstep(0.036, 0.05, ax) * 0.85;
+    pale = smoothstep(0.042, 0.032, ax) * 0.5 + smoothstep(0.034, 0.02, p.y);
+  } else if (part < 3.5) {                 // hind legs: broken stripes on the thigh, bars below, dark heel
+    dk = bar(p.y * 38.0 + p.z * 10.0 + n1 * 0.5, 0.15) * smoothstep(0.04, 0.07, p.y) * smoothstep(0.042, 0.056, ax) * smoothstep(0.22, 0.17, p.y) * 0.85;
+    float heel = mix(0.146, 0.162, clamp((p.y - 0.012) / 0.066, 0.0, 1.0));   // the dark line down the back of the hock
+    dk = max(dk, smoothstep(heel - 0.002, heel + 0.002, p.z) * step(p.y, 0.083) * step(0.012, p.y));
+    pale = smoothstep(0.044, 0.034, ax) * 0.45 + smoothstep(0.03, 0.018, p.y);
+  } else if (part < 4.5) {                 // tail: rings, black tip
+    dk = max(bar(p.z * 30.0 + n1 * 0.25, 0.2) * smoothstep(0.17, 0.2, p.z), step(0.425, p.z));
+    pale = smoothstep(0.214, 0.206, p.y) * 0.4 * step(p.z, 0.3);
+  } else if (part < 5.5) {                 // ear backs: dark, a pale thumbprint
+    vec3 q = vec3(ax, p.y, p.z) - EAR_C;
+    float h = dot(q, EAR_U) / EAR_H;
+    dk = 0.45 + 0.5 * smoothstep(0.55, 0.85, h);
+    pale = smoothstep(0.14, 0.06, length(vec2(dot(q, EAR_X) / EAR_W, h - 0.38))) * 0.35;
+  } else {                                 // lower jaw: white chin, dark lip line
+    pale = smoothstep(-0.236, -0.246, p.z) + smoothstep(0.012, 0.004, ax) * smoothstep(0.2665, 0.2645, p.y) * 0.8;   // white chin and throat
+    if (p.y > 0.2716 + (p.z + 0.2548) * 0.08 && ax < 0.011) return vec3(0.1, 0.07, 0.06);
+  }
+  vec3 col = mix(ground * (0.85 + 0.3 * n2), dark, clamp(dk, 0.0, 1.0));
+  col = mix(col, cream, clamp(pale, 0.0, 1.0) * (1.0 - 0.6 * clamp(dk, 0.0, 1.0)));
+  col *= 0.92 + 0.16 * rnd;                // each facet its own tone
+  col *= 0.9 + 0.2 * cn(p * 260.0);        // agouti ticking
+  return col;
 }`;
 
-function furMaterial(u, shell, N) {
-  const k = shell / N;
-  const m = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9, metalness: 0, envMapIntensity: 0.2 });
+function coatMaterial(u) {
+  const m = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.85, metalness: 0, flatShading: true, envMapIntensity: 0.3 });
+  const E = EYE, A = EAR;
   m.onBeforeCompile = (sh) => {
-    for (const n of ['uFurLen', 'uPuff', 'uWet', 'uBlood', 'uVel', 'uBreathe', 'uTwitch', 'uPurr', 'uDirt', 'uJaw']) sh.uniforms[n] = u[n];
+    for (const n of ['uPuff', 'uWet', 'uBlood', 'uBreathe', 'uTwitch', 'uPurr', 'uDirt', 'uLid', 'uScap']) sh.uniforms[n] = u[n];
     sh.uniforms.uTime = G.uniforms.uTime;
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', `#include <common>
-        attribute vec3 aRest; attribute vec4 aZoneA; uniform float uFurLen; uniform float uPuff; uniform float uTime;
-        uniform vec3 uVel; uniform float uBreathe; uniform vec4 uTwitch; uniform float uPurr; uniform float uJaw;
-        varying vec3 vRest; varying float vFurMask; varying vec3 vFurT; varying float vEar;
-        ${FUR_COMMON}`)
+        attribute vec4 aSn; attribute vec4 aInfo; attribute float aLid;
+        uniform float uPuff, uTime, uBreathe, uPurr, uLid; uniform vec4 uTwitch; uniform vec2 uScap;
+        varying vec3 vRest; varying vec4 vInfo; varying float vLid;`)
       .replace('#include <begin_vertex>', `#include <begin_vertex>
-        vRest = aRest;
-        vec3 nR = normalize(normal);
-        float furScale = aZoneA.x * 1.0 + aZoneA.y * 0.45 + aZoneA.z * 0.0 + aZoneA.w * 1.4;
-        // longer ruff on the chest and britches, short dense fur on face and paws
-        furScale *= 1.0 + 0.35 * smoothstep(0.19, 0.12, aRest.y) * step(aRest.z, -0.04) + 0.25 * smoothstep(0.1, 0.16, aRest.z) * step(aRest.y, 0.2);
-        float puff = 1.0 + uPuff * (0.6 + aZoneA.w * 1.1);
-        float eyeD = min(length(aRest - vec3(-0.021, 0.303, -0.236)), length(aRest - vec3(0.021, 0.303, -0.236)));
-        furScale *= smoothstep(0.0105, 0.019, eyeD);
-        furScale *= mix(1.0, 0.4, smoothstep(-0.2, -0.235, aRest.z) * step(0.265, aRest.y));
-        furScale *= smoothstep(0.0, 0.006, length(aRest - vec3(0.0, 0.287, -0.252)) - 0.006);
-        float mouthD = length((aRest - vec3(0.0, 0.2735, -0.252)) * vec3(0.85, 2.0, 0.7));
-        furScale *= 1.0 - smoothstep(0.016, 0.009, mouthD) * clamp(uJaw * 1.5, 0.0, 1.0);
-        vFurMask = furScale;
-        vEar = smoothstep(0.325, 0.345, aRest.y) * step(aRest.z, -0.18);
-        // body under the fur: breathing ribs, purr tremor, skin twitch ripple
-        float torso = smoothstep(0.075, 0.0, abs(aRest.y - 0.19)) * smoothstep(0.17, 0.0, abs(aRest.z + 0.0)) * step(0.13, aRest.y);
-        transformed += nR * (uBreathe * 0.0035 * torso + uPurr * 0.0004 * sin(uTime * 160.0 + aRest.z * 40.0) * torso);
-        float twd = length(aRest - uTwitch.xyz);
-        transformed += nR * 0.0025 * uTwitch.w * sin(twd * 260.0 - uTime * 40.0) * exp(-twd * 30.0) * step(0.2, aRest.y);
-        // hair direction: out of the skin, laid along the comb, sagging with gravity, trailing motion
-        float h = ${k.toFixed(4)};
-        vec3 comb = combDir(aRest, nR);
-        float lay = mix(1.3, 0.2, clamp(uPuff, 0.0, 1.0));
-        vec3 dir = normalize(nR * (1.0 - 0.55 * h * (1.0 - uPuff)) + comb * lay * (0.35 + h));
-        vec3 off = dir * uFurLen * furScale * puff * h;
-        off.y -= h * h * uFurLen * 0.3 * furScale;
-        off -= uVel * h * h * 0.012 * furScale;
-        transformed += off;
-        #ifdef USE_SKINNING
-          vFurT = normalize(normalMatrix * (skinMatrix * vec4(normalize(nR * 0.35 + comb), 0.0)).xyz);
-        #else
-          vFurT = normalize(normalMatrix * normalize(nR * 0.35 + comb));
-        #endif`);
+        vRest = position; vInfo = aInfo; vLid = aLid;
+        // eyelids: the almond rim rolls over the eyeball toward a closing line just below centre
+        if (aLid > 0.0) {
+          const vec3 EC = ${glv(E.c)}, EF = ${glv(E.F)}, EU = ${glv(E.U)}, EL = ${glv(E.L)};
+          const float EZ = ${E.ez.toFixed(3)};
+          float sx = position.x < 0.0 ? -1.0 : 1.0;
+          vec3 q = vec3(abs(position.x), position.y, position.z) - EC;
+          q += EF * dot(q, EF) * (1.0 / EZ - 1.0);                    // roll on the flattened eyeball
+          float c = clamp(1.0 - uLid / 0.88, -0.3, 1.0) * aLid;
+          float b = atan(dot(q, EU), dot(q, EF)), a = mix(b, -0.12, c) - b;
+          q = q * cos(a) + cross(EL, q) * sin(a) + EL * dot(EL, q) * (1.0 - cos(a));
+          q += EF * (dot(q, EF) * (EZ - 1.0) + 0.0012 * max(c, 0.0));
+          transformed = (q + EC) * vec3(sx, 1.0, 1.0);
+        }
+        vec3 nS = aSn.xyz;
+        // breathing ribs and the purr tremor under the coat; a skin twitch ripples where touched
+        float ribs = step(aInfo.y, 0.5) * smoothstep(0.235, 0.15, position.y) * smoothstep(0.11, 0.0, abs(position.z + 0.02));
+        transformed += nS * (uBreathe * 0.0022 + uPurr * 0.0003 * sin(uTime * 160.0 + position.z * 40.0)) * ribs;
+        float twd = length(position - uTwitch.xyz);
+        transformed += nS * 0.0022 * uTwitch.w * sin(twd * 260.0 - uTime * 40.0) * exp(-twd * 30.0) * step(0.2, position.y);
+        // hackles: the coat stands on end, ragged, longest on the back and tail
+        float hr = fract(sin(dot(floor(position * 3000.0), vec3(12.9898, 78.233, 37.719))) * 43758.5453);
+        transformed += nS * uPuff * aInfo.x * 0.0085 * (0.55 + 0.9 * hr);
+        // shoulder blades ride up over the spine
+        transformed.y += abs(aSn.w) * (aSn.w > 0.0 ? uScap.y : uScap.x) * 0.009;`);
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', `#include <common>
-        varying vec3 vRest; varying float vFurMask; varying vec3 vFurT; varying float vEar;
-        uniform float uWet; uniform float uBlood; uniform float uDirt; uniform float uTime; uniform float uJaw;
-        float gHair; float gSpec;
-        ${FUR_COMMON}
+        varying vec3 vRest; varying vec4 vInfo; varying float vLid;
+        uniform float uWet; uniform float uBlood; uniform float uDirt;
+        const vec3 EAR_C = ${glv(A.c)}, EAR_U = ${glv(A.U)}, EAR_X = ${glv(A.X)};
+        const float EAR_H = ${A.H.toFixed(4)}, EAR_W = ${A.W.toFixed(4)};
+        const vec3 HPIV = ${glv(HEAD.pivot)}; const float HK = ${HEAD.k.toFixed(4)}, HC = ${Math.cos(HEAD.tilt).toFixed(5)}, HS = ${Math.sin(HEAD.tilt).toFixed(5)};
+        float gSheen; float gGloss; float gEar;
+        ${NOISE}
         ${COAT}`)
       .replace('#include <lights_physical_pars_fragment>', `#include <lights_physical_pars_fragment>
-        // fur lighting: wrapped diffuse (light scattering through the coat),
-        // two shifted Kajiya-Kay lobes along the hair, back-lit ear translucency
-        void RE_Direct_Fur(const in IncidentLight directLight, const in vec3 geometryPosition, const in vec3 geometryNormal, const in vec3 geometryViewDir, const in vec3 geometryClearcoatNormal, const in PhysicalMaterial material, inout ReflectedLight reflectedLight) {
+        // a little wrap (light scatters into the coat past the terminator), a grazing
+        // sheen facet by facet, gloss on the wet nose, ears glowing when back-lit
+        void RE_Direct_Coat(const in IncidentLight directLight, const in vec3 geometryPosition, const in vec3 geometryNormal, const in vec3 geometryViewDir, const in vec3 geometryClearcoatNormal, const in PhysicalMaterial material, inout ReflectedLight reflectedLight) {
           float nl = dot(geometryNormal, directLight.direction);
-          float wrapD = clamp((nl + 0.45) / 1.45, 0.0, 1.0);
-          reflectedLight.directDiffuse += wrapD * directLight.color * BRDF_Lambert(material.diffuseColor) * mix(0.55, 1.0, gHair);
-          vec3 T = normalize(vFurT);
+          reflectedLight.directDiffuse += clamp((nl + 0.18) / 1.18, 0.0, 1.0) * directLight.color * BRDF_Lambert(material.diffuseColor);
+          float nv = clamp(dot(geometryNormal, geometryViewDir), 0.0, 1.0);
+          reflectedLight.directSpecular += directLight.color * pow(1.0 - nv, 4.0) * clamp(nl + 0.35, 0.0, 1.0) * material.diffuseColor * 0.6 * gSheen;
           vec3 H = normalize(directLight.direction + geometryViewDir);
-          vec3 T1 = normalize(T + geometryNormal * 0.12), T2 = normalize(T - geometryNormal * 0.2);
-          float t1 = dot(T1, H), t2 = dot(T2, H);
-          float s1 = pow(sqrt(max(0.0, 1.0 - t1 * t1)), 90.0), s2 = pow(sqrt(max(0.0, 1.0 - t2 * t2)), 16.0);
-          float vis = smoothstep(-0.2, 0.3, nl);
-          reflectedLight.directSpecular += directLight.color * vis * gSpec * (s1 * 0.07 + s2 * 0.12 * material.diffuseColor * 2.0);
+          reflectedLight.directSpecular += directLight.color * pow(max(dot(geometryNormal, H), 0.0), 40.0) * max(nl, 0.0) * gGloss;
           float back = pow(clamp(dot(geometryViewDir, -directLight.direction), 0.0, 1.0), 3.0);
-          reflectedLight.directDiffuse += directLight.color * back * vEar * vec3(0.9, 0.3, 0.22) * 0.5;
+          reflectedLight.directDiffuse += directLight.color * back * gEar * vec3(0.9, 0.3, 0.22) * 0.45;
         }
         #undef RE_Direct
-        #define RE_Direct RE_Direct_Fur`)
-      .replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>
-        float hS = ${k.toFixed(4)};
-        vec3 cellP = vRest * 600.0;
-        vec3 ci = floor(cellP);
-        float best = 9.0; float bRnd = 0.0;
-        for (int dz = 0; dz <= 1; dz++) for (int dy = 0; dy <= 1; dy++) for (int dx = 0; dx <= 1; dx++) {
-          vec3 cc = ci + vec3(float(dx), float(dy), float(dz)) - vec3(step(fract(cellP.x), 0.5), step(fract(cellP.y), 0.5), step(fract(cellP.z), 0.5));
-          vec3 fp = cc + ch3(cc);
-          float d = length(cellP - fp);
-          if (d < best) { best = d; bRnd = ch(cc + 7.3); }
-        }
-        // clumping: strands gather into tufts toward their tips
-        float clump = cn(vRest * 140.0);
-        float len = 0.55 + 0.45 * bRnd;
-        float rad = mix(0.85, 0.08, pow(hS / len, 0.75)) * mix(1.0, 0.75 + clump * 0.5, hS);
-        ${shell > 0 ? 'if (vFurMask < 0.05 || hS > len || best > rad) discard;' : ''}
-        gHair = clamp(hS / max(len, 0.01), 0.0, 1.0);
-        gSpec = ${shell > 0 ? '1.0' : '0.25'} * (1.0 - uDirt * 0.7);`)
+        #define RE_Direct RE_Direct_Coat`)
       .replace('#include <color_fragment>', `#include <color_fragment>
-        vec3 cc = coat(vRest, ${shell > 0 ? 'gHair' : '0.0'}, bRnd);
-        cc *= mix(0.42, 1.0, smoothstep(0.0, 0.7, gHair));   // self-shadowing deep in the coat
-        ${shell === 0 ? `
-        float noseD = length((vRest - vec3(0.0, 0.287, -0.253)) * vec3(1.0, 1.25, 1.0));
-        vec3 leather = vec3(0.6, 0.33, 0.31) * (0.85 + cn(vRest * 3000.0) * 0.3);
-        leather = mix(leather, vec3(0.08, 0.04, 0.04), smoothstep(0.0028, 0.0015, length(vec2(abs(vRest.x) - 0.0032, vRest.y - 0.2845))));
-        cc = mix(cc, leather, smoothstep(0.0085, 0.006, noseD));
-        cc = mix(cc, vec3(0.22, 0.1, 0.1), smoothstep(0.0012, 0.0, abs(vRest.x)) * step(vRest.y, 0.283) * step(0.274, vRest.y) * step(vRest.z, -0.24));
-        cc = mix(cc, vec3(0.55, 0.3, 0.32), step(vRest.y, 0.008) * 0.8);
-        cc = mix(cc, vec3(0.86, 0.6, 0.58), vEar * smoothstep(0.003, 0.0, abs(vRest.x) - 0.022) * 0.0);` : ''}
-        { float md = length((vRest - vec3(0.0, 0.2735, -0.252)) * vec3(0.85, 2.0 / max(0.3, uJaw * 1.6 + 0.3), 0.7));
-          float mo = smoothstep(0.012, 0.008, md) * clamp(uJaw * 1.5, 0.0, 1.0);
-          vec3 mc = mix(vec3(0.3, 0.08, 0.09), vec3(0.025, 0.006, 0.006), smoothstep(0.0095, 0.006, md));
-          cc = mix(cc, mc, mo); gSpec = mix(gSpec, 1.5, mo); }
+        float part = floor(vInfo.y + 0.5), mat = floor(vInfo.z + 0.5);
+        vec3 cc = coat(vRest, part, mat, vInfo.w, vLid);
+        gSheen = mat < 0.5 ? 1.0 - uWet * 0.6 : 0.15;
+        gGloss = mat == 1.0 ? 0.45 : mat == 4.0 ? 0.3 : 0.015 + uWet * 0.25;
+        gEar = mat == 2.0 ? 1.0 : part == 5.0 ? 0.4 : 0.0;
         cc = mix(cc, vec3(0.32, 0.015, 0.02), uBlood * smoothstep(0.55, 0.8, cn(vRest * 30.0)));
-        cc *= 1.0 - uWet * 0.35;
+        cc *= (1.0 - uWet * 0.35) * (1.0 - uDirt * 0.25 * cn(vRest * 80.0));
         diffuseColor.rgb = cc;`)
-      .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
-        ${shell > N * 0.5 ? `{ float rim = 1.0 - abs(dot(normalize(vNormal), normalize(vViewPosition))); totalEmissiveRadiance += diffuseColor.rgb * pow(rim, 4.0) * 0.05; }` : ''}`)
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
-        roughnessFactor = mix(0.9, 0.45, uWet);`);
+        roughnessFactor = mix(mat == 1.0 ? 0.4 : mat == 4.0 ? 0.45 : 0.85, 0.45, uWet);`);
   };
-  m.customProgramCacheKey = () => 'catfur2_' + shell;
+  m.customProgramCacheKey = () => 'catcoat_lp1';
   return m;
-}
-
-// A cat ear: a pointed, cupped sheet. uv.x runs across (0..1), uv.y base to tip.
-function earGeometry() {
-  const W = 0.052, H = 0.056, D = 0.013, nu = 12, nv = 10;
-  const pos = [], uv = [], idx = [];
-  for (let j = 0; j <= nv; j++) for (let i = 0; i <= nu; i++) {
-    const u = i / nu * 2 - 1, v = j / nv;
-    const taper = Math.pow(1 - v, 0.9);
-    pos.push(u * W * 0.5 * taper, v * H, D * (1 - u * u) * taper - v * v * 0.004);
-    uv.push(i / nu, v);
-  }
-  for (let j = 0; j < nv; j++) for (let i = 0; i < nu; i++) {
-    const a = j * (nu + 1) + i, b = a + 1, c = a + nu + 1, d = c + 1;
-    idx.push(a, c, b, b, c, d);
-  }
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
-  g.setIndex(idx); g.computeVertexNormals();
-  return g;
-}
-
-const _earMats = {};
-function earMaterial(shell, kind) {
-  const key = kind + '_' + shell;
-  if (_earMats[key]) return _earMats[key];
-  const k = kind === 0 ? 0 : shell / (kind === 1 ? 4 : 3);
-  const m = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.8, side: kind === 0 ? THREE.DoubleSide : kind === 1 ? THREE.BackSide : THREE.FrontSide });
-  m.onBeforeCompile = (sh) => {
-    sh.vertexShader = sh.vertexShader
-      .replace('#include <common>', '#include <common>\nvarying vec2 vEarUv;')
-      .replace('#include <begin_vertex>', `#include <begin_vertex>
-        vEarUv = uv;
-        ${kind === 1 ? `transformed -= normal * ${(k * 0.0035).toFixed(5)} * (1.0 - uv.y * 0.6);` : ''}
-        ${kind === 2 ? `transformed += normal * ${(k * 0.007).toFixed(5)} * smoothstep(0.75, 0.1, uv.y); transformed.y += ${(k * 0.004).toFixed(5)};` : ''}`);
-    sh.fragmentShader = sh.fragmentShader
-      .replace('#include <common>', `#include <common>
-        varying vec2 vEarUv;
-        float eh(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }`)
-      .replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>
-        ${kind === 1 ? `if (eh(floor(vEarUv * vec2(70.0, 60.0))) < ${(0.25 + k * 0.6).toFixed(3)}) discard;` : ''}
-        ${kind === 2 ? `{ vec2 c = vEarUv * vec2(40.0, 26.0); if (eh(floor(c)) < 0.55 + ${(k * 0.3).toFixed(3)} || abs(fract(c.x) - 0.5) > 0.22 || vEarUv.y > 0.7 || abs(vEarUv.x - 0.5) > 0.38) discard; }` : ''}`)
-      .replace('#include <color_fragment>', `#include <color_fragment>
-        {
-          vec2 e = vEarUv;
-          float rim = smoothstep(0.38, 0.5, abs(e.x - 0.5)) + smoothstep(0.75, 0.95, e.y);
-          vec3 inner = mix(vec3(0.86, 0.7, 0.64), vec3(0.42, 0.32, 0.25), rim) * (0.92 + 0.12 * eh(floor(e * 50.0)));
-          // fine vessels
-          inner *= 1.0 - 0.12 * smoothstep(0.02, 0.0, abs(fract(e.x * 5.0 + e.y * 2.0) - 0.5) - 0.47) * step(0.1, e.y);
-          vec3 outer = mix(vec3(0.33, 0.25, 0.18), vec3(0.12, 0.09, 0.07), clamp(rim * 1.2, 0.0, 1.0));
-          outer = mix(outer, vec3(0.62, 0.52, 0.4), smoothstep(0.16, 0.08, length((e - vec2(0.5, 0.42)) * vec2(1.0, 1.4))));  // wild spot
-          vec3 col = gl_FrontFacing ? inner : outer;
-          ${kind === 1 ? 'col = outer * (0.85 + 0.3 * ' + k.toFixed(3) + ');' : ''}
-          ${kind === 2 ? 'col = vec3(0.86, 0.82, 0.76);' : ''}
-          diffuseColor.rgb = col;
-        }`)
-      .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
-        ${kind === 0 ? 'if (gl_FrontFacing) totalEmissiveRadiance += diffuseColor.rgb * vec3(0.14, 0.06, 0.05);' : ''}`);
-  };
-  m.customProgramCacheKey = () => 'catear' + key;
-  return (_earMats[key] = m);
 }
 
 export class CatModel {
@@ -296,7 +230,8 @@ export class CatModel {
     this.root.add(this.bones[0]);
     this.root.updateMatrixWorld(true);
     this.skeleton = new THREE.Skeleton(this.bones);
-    this.u = { uFurLen: { value: 0.0125 }, uPuff: { value: 0 }, uWet: { value: 0 }, uBlood: { value: 0 }, uVel: { value: new THREE.Vector3() }, uBreathe: { value: 0 }, uTwitch: { value: new THREE.Vector4(0, 0, 0, 0) }, uPurr: { value: 0 }, uDirt: { value: 0 }, uJaw: { value: 0 } };
+    this.eyeU = { uPupil: { value: 0.25 }, uShine: { value: 0 }, uLid: { value: 1 } };
+    this.u = { uPuff: { value: 0 }, uWet: { value: 0 }, uBlood: { value: 0 }, uVel: { value: new THREE.Vector3() }, uBreathe: { value: 0 }, uTwitch: { value: new THREE.Vector4(0, 0, 0, 0) }, uPurr: { value: 0 }, uDirt: { value: 0 }, uJaw: { value: 0 }, uLid: this.eyeU.uLid, uScap: { value: new THREE.Vector2() } };
     this.build();
     G.scene.add(this.root);
     // pose state (smoothed)
@@ -333,71 +268,17 @@ export class CatModel {
   }
 
   build() {
-    const B = (n) => this.idx(n);
-    const r = this.rest;
-    const a = (v) => [v.x, v.y, v.z];
-    const Z = { fur: 0, short: 1, none: 2, tail: 3 };
-    const P = [];
-    // torso
-    P.push(ell([0, 0.193, -0.085], [0.056, 0.084, 0.086], { bone: B('chest'), zone: Z.fur, k: 0.045 }));      // ribcage, deep
-    P.push(ell([0, 0.14, -0.112], [0.032, 0.03, 0.04], { bone: B('chest'), zone: Z.fur, k: 0.035 }));       // sternum / keel
-    for (const sx of [-1, 1]) P.push(ell([sx * 0.03, 0.247, -0.098], [0.02, 0.026, 0.042], { bone: B('chest'), zone: Z.fur, k: 0.025 })); // shoulder blades
-    P.push(ell([0, 0.2, 0.01], [0.052, 0.058, 0.096], { bone: B('spine1'), zone: Z.fur, k: 0.05 }));        // waist, tucked
-    P.push(ell([0, 0.158, 0.075], [0.04, 0.03, 0.055], { bone: B('spine1'), zone: Z.fur, k: 0.04 }));       // primordial pouch
-    P.push(ell([0, 0.212, -0.03], [0.05, 0.056, 0.06], { bone: B('spine2'), zone: Z.fur, k: 0.05 }));
-    P.push(ell([0, 0.205, 0.108], [0.058, 0.066, 0.07], { bone: B('hips'), zone: Z.fur, k: 0.045 }));       // pelvis
-    P.push(ell([0, 0.222, 0.14], [0.05, 0.04, 0.045], { bone: B('hips'), zone: Z.fur, k: 0.035 }));         // rump
-    // neck + head
-    P.push(cap([0, 0.235, -0.135], [0, 0.275, -0.185], 0.044, 0.039, { bone: B('neck'), zone: Z.fur, k: 0.035 }));
-    P.push(ell([0, 0.304, -0.199], [0.047, 0.042, 0.048], { bone: B('head'), zone: Z.fur, k: 0.02 }));   // cranium
-    P.push(ell([0, 0.313, -0.222], [0.034, 0.011, 0.016], { bone: B('head'), zone: Z.fur, k: 0.012 }));  // brow ridge
-    P.push(ell([0, 0.286, -0.209], [0.06, 0.035, 0.04], { bone: B('head'), zone: Z.fur, k: 0.02 }));   // zygomatic cheeks
-    P.push(cap([0, 0.304, -0.232], [0, 0.291, -0.249], 0.012, 0.007, { bone: B('head'), zone: Z.short, k: 0.008 })); // nose bridge
-    for (const s of [-1, 1]) P.push(ell([s * 0.009, 0.279, -0.24], [0.012, 0.01, 0.011], { bone: B('head'), zone: Z.short, k: 0.008 })); // whisker pads
-    P.push(ell([0, 0.28, -0.239], [0.019, 0.015, 0.017], { bone: B('head'), zone: Z.short, k: 0.012 })); // muzzle
-    P.push(ell([0, 0.27, -0.226], [0.016, 0.01, 0.018], { bone: B('jaw'), zone: Z.short, k: 0.01 })); // chin
-    P.push(sph([0, 0.287, -0.252], 0.0065, { bone: B('head'), zone: Z.none, k: 0.006 })); // nose
-    for (const [S, s] of [['L', -1], ['R', 1]]) {
-      P.push(ell([s * 0.03, 0.332, -0.198], [0.017, 0.009, 0.01], { bone: B('ear.' + S), zone: Z.fur, k: 0.012 })); // ear base
-      // front legs
-      const sh = r['fsh.' + S], el = r['felb.' + S], wr = r['fwr.' + S], pw = r['fpaw.' + S];
-      P.push(ell([sh.x, sh.y - 0.01, sh.z + 0.005], [0.024, 0.045, 0.03], { bone: B('fsh.' + S), zone: Z.fur, k: 0.025 }));
-      P.push(cap(a(sh), a(el), 0.027, 0.02, { bone: B('fsh.' + S), zone: Z.fur, k: 0.015 }));
-      P.push(sph([el.x, el.y, el.z + 0.012], 0.014, { bone: B('fsh.' + S), zone: Z.fur, k: 0.008 }));  // elbow
-      P.push(cap(a(el), a(wr), 0.0175, 0.013, { bone: B('felb.' + S), zone: Z.fur, k: 0.01 }));
-      P.push(cap(a(wr), a(pw), 0.012, 0.012, { bone: B('fwr.' + S), zone: Z.short, k: 0.008 }));
-      P.push(ell([pw.x, pw.y + 0.002, pw.z - 0.006], [0.015, 0.011, 0.019], { bone: B('fpaw.' + S), zone: Z.short, k: 0.008 }));
-      // hind legs
-      const hh = r['hhip.' + S], kn = r['hkn.' + S], hk = r['hhock.' + S], hp = r['hpaw.' + S];
-      P.push(ell([hh.x * 1.02, hh.y - 0.035, hh.z - 0.008], [0.032, 0.066, 0.054], { bone: B('hhip.' + S), zone: Z.fur, k: 0.03, rot: [0.35, 0, 0] })); // haunch
-      P.push(cap(a(hh), a(kn), 0.033, 0.023, { bone: B('hhip.' + S), zone: Z.fur, k: 0.022 }));
-      P.push(cap(a(kn), a(hk), 0.017, 0.011, { bone: B('hkn.' + S), zone: Z.fur, k: 0.01 }));
-      P.push(sph([hk.x, hk.y, hk.z + 0.006], 0.0115, { bone: B('hkn.' + S), zone: Z.short, k: 0.006 }));      // heel (hock)
-      P.push(cap(a(hk), a(hp), 0.0095, 0.0105, { bone: B('hhock.' + S), zone: Z.short, k: 0.006 }));
-      P.push(ell([hp.x, hp.y + 0.002, hp.z - 0.008], [0.015, 0.011, 0.02], { bone: B('hpaw.' + S), zone: Z.short, k: 0.008 }));
-    }
-    // tail
-    for (let i = 1; i <= 7; i++) {
-      const p0 = r['tail' + i], p1 = i < 7 ? r['tail' + (i + 1)] : p0.clone().add(V(0, 0.004, 0.04));
-      const rad = 0.017 - i * 0.0012;
-      P.push(cap(a(p0), a(p1), rad, rad - 0.0012, { bone: B('tail' + i), zone: Z.tail, k: 0.012 }));
-    }
-    const geo = meshPrims(P, { cell: 0.0045, weightK: 0.008, pad: 0.012 });
-    this.geo = geo;
-    const N = 24;
-    this.shells = [];
-    for (let i = 0; i <= N; i++) {
-      const mesh = new THREE.SkinnedMesh(geo, furMaterial(this.u, i, N));
-      mesh.bind(this.skeleton);
-      mesh.frustumCulled = false;
-      mesh.castShadow = i === 0; mesh.receiveShadow = true;
-      mesh.renderOrder = i;
-      this.root.add(mesh);
-      this.shells.push(mesh);
-    }
-    // eyes
+    const hd = this.rest.head, jw = this.rest.jaw;
+    // a point on the (scaled) head, relative to the head or jaw bone
+    const local = (b, x, y, z) => { const p = headPt([x, y, z]); return V(p[0] - b.x, p[1] - b.y, p[2] - b.z); };
+    // one faceted, skinned shell
+    const geo = this.geo = buildCatGeometry(this.rest, (n) => this.idx(n));
+    const body = this.body = new THREE.SkinnedMesh(geo, coatMaterial(this.u));
+    body.bind(this.skeleton);
+    body.frustumCulled = false; body.castShadow = true; body.receiveShadow = true;
+    this.root.add(body);
+    // eyes: glossy corneas over a fibrous iris; the slit pupil dilates, the eye shines in the dark
     const eyeTex = eyeTexture();
-    this.eyeU = { uPupil: { value: 0.25 }, uShine: { value: 0 }, uLid: { value: 1 } };
     const eyeMat = new THREE.MeshPhysicalMaterial({ map: eyeTex, roughness: 0.35, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.02, envMapIntensity: 1.5, emissive: 0x000000 });
     eyeMat.onBeforeCompile = (sh) => {
       Object.assign(sh.uniforms, this.eyeU);
@@ -406,48 +287,28 @@ export class CatModel {
         .replace('#include <map_fragment>', `#include <map_fragment>
           vec2 e = vMapUv - 0.5;
           float pq = pow(e.x / max(uPupil * 0.5, 0.01), 2.0) + pow(e.y / 0.47, 2.0);
-          float pupil = smoothstep(1.08, 0.92, pq);
-          diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.006, 0.005, 0.004), pupil);
-          // sclera barely shows; a dark rim where the lid meets the eye
-          float lidEdge = uLid * 0.5 + 0.02;
-          float lid = smoothstep(lidEdge - 0.015, lidEdge + 0.015, abs(e.y) + (1.0 - uLid) * 0.5);
-          diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.05, 0.04, 0.035), lid);
-          diffuseColor.rgb *= 1.0 - 0.55 * smoothstep(lidEdge - 0.12, lidEdge, abs(e.y)) * (1.0 - lid);`)
+          diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.006, 0.005, 0.004), smoothstep(1.08, 0.92, pq));
+          // the upper lid shades the top of the eye
+          diffuseColor.rgb *= mix(1.0, 0.5, smoothstep(0.08, 0.4, e.y + (1.0 - uLid) * 0.3));`)
         .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
-          totalEmissiveRadiance += vec3(0.55, 0.85, 0.35) * uShine * (1.0 - step(uLid * 0.5 + 0.02, abs(vMapUv.y - 0.5))) * (0.4 + 0.6 * smoothstep(1.2, 0.8, pow((vMapUv.x - 0.5) / max(uPupil * 0.5, 0.01), 2.0) + pow((vMapUv.y - 0.5) / 0.47, 2.0)));`);
+          totalEmissiveRadiance += vec3(0.55, 0.85, 0.35) * uShine * smoothstep(0.1, 0.35, uLid) * (0.4 + 0.6 * smoothstep(1.2, 0.8, pow((vMapUv.x - 0.5) / max(uPupil * 0.5, 0.01), 2.0) + pow((vMapUv.y - 0.5) / 0.47, 2.0)));`);
     };
-    eyeMat.customProgramCacheKey = () => 'cateye2';
+    eyeMat.customProgramCacheKey = () => 'cateye_lp1';
     this.eyes = [];
     for (const s of [-1, 1]) {
-      const g = new THREE.SphereGeometry(0.0118, 20, 14);
+      const r = EYE.r, g = new THREE.SphereGeometry(r, 20, 14);
       // the cornea bulges in front of the iris
-      { const pp = g.attributes.position; for (let i = 0; i < pp.count; i++) { const z = pp.getZ(i); if (z < -0.004) pp.setZ(i, z - 0.0018 * smoothstep(0.004, 0.0118, -z)); } g.computeVertexNormals(); }
+      { const pp = g.attributes.position; for (let i = 0; i < pp.count; i++) { const z = pp.getZ(i); if (z < -0.004) pp.setZ(i, z - 0.0018 * smoothstep(0.004, r, -z)); } g.scale(1, 1, EYE.ez); g.computeVertexNormals(); }
       // map uv so the iris faces forward (-z)
       const uv = g.attributes.uv, pos = g.attributes.position;
-      for (let i = 0; i < uv.count; i++) uv.setXY(i, 0.5 + pos.getX(i) / 0.0118 * 0.5, 0.5 + pos.getY(i) / 0.0118 * 0.5);
+      for (let i = 0; i < uv.count; i++) uv.setXY(i, 0.5 + pos.getX(i) / r * 0.5, 0.5 + pos.getY(i) / r * 0.5);
       const eye = new THREE.Mesh(g, eyeMat);
-      const headPos = this.rest.head;
-      eye.position.set(s * 0.021, 0.302 - headPos.y, -0.2355 - headPos.z);
-      eye.rotation.y = s * 0.25;
+      eye.position.set(s * EYE.c[0] - hd.x, EYE.c[1] - hd.y, EYE.c[2] - hd.z);
+      eye.rotation.set(EYE.pitch, -s * EYE.yaw, 0, 'YXZ');
+      eye.userData.base = eye.position.clone();
+      eye.userData.back = V(-s * EYE.F[0], -EYE.F[1], -EYE.F[2]);
       this.by.head.add(eye);
       this.eyes.push(eye);
-    }
-    // ears: thin curved cartilage cups, pink inside with pale furnishings,
-    // tabby on the back with a dark rim and a pale 'wild spot'
-    this.earMeshes = [];
-    for (const s of [-1, 1]) {
-      const S = s < 0 ? 'L' : 'R';
-      const geo = earGeometry();
-      const ear = new THREE.Group();
-      const eb = this.rest['ear.' + S];
-      ear.position.set(s * 0.002, -0.009, -0.003);
-      ear.rotation.set(-0.12, -s * 0.38, -s * 0.32, 'YXZ');
-      this.by['ear.' + S].add(ear);
-      ear.add(new THREE.Mesh(geo, earMaterial(0, 0)));
-      for (let i = 1; i <= 4; i++) { const m = new THREE.Mesh(geo, earMaterial(i, 1)); m.renderOrder = 30 + i; ear.add(m); }
-      for (let i = 1; i <= 3; i++) { const m = new THREE.Mesh(geo, earMaterial(i, 2)); m.renderOrder = 40 + i; ear.add(m); }
-      ear.children[0].castShadow = true;
-      this.earMeshes.push(ear);
     }
     // whiskers: four rows on each muzzle pad, plus brow and cheek whiskers.
     // Each one is a curved, tapering polyline rooted in its pad.
@@ -456,12 +317,12 @@ export class CatModel {
     const wmatDark = new THREE.LineBasicMaterial({ color: 0x302820, transparent: true, opacity: 0.5, depthWrite: false });
     for (const s of [-1, 1]) {
       const pad = new THREE.Group();
-      pad.position.set(s * 0.011, 0.281 - this.rest.head.y, -0.243 - this.rest.head.z);
+      pad.position.copy(local(hd, s * 0.0165, 0.2808, -0.2515));
       this.by.head.add(pad); this.whiskerPads.push(pad);
       const pts = [], dark = [];
       for (let row = 0; row < 4; row++) for (let j = 0; j < 3; j++) {
         const L = 0.055 + (3 - row) * 0.006 + j * 0.008 + Math.random() * 0.006;
-        const root = V(s * j * 0.0025, -row * 0.0022, j * 0.002);
+        const root = V(s * j * 0.0025, -row * 0.0019, j * 0.002);
         const dirv = V(s * 1, 0.25 - row * 0.2 + (Math.random() - 0.5) * 0.1, 0.35 + j * 0.15).normalize();
         let prev = root.clone();
         for (let q = 1; q <= 6; q++) {
@@ -478,29 +339,29 @@ export class CatModel {
       // brow + cheek whiskers
       const bw = [];
       const brow = (o, d, L) => { let prev = o.clone(); for (let q = 1; q <= 4; q++) { const t = q / 4; const p = o.clone().addScaledVector(d, L * t); p.y -= t * t * L * 0.15; bw.push(prev.x, prev.y, prev.z, p.x, p.y, p.z); prev = p; } };
-      for (let i = 0; i < 3; i++) brow(V(s * (0.014 + i * 0.004), 0.318 - this.rest.head.y, -0.232 + i * 0.003 - this.rest.head.z), V(s * 0.5, 0.8, 0.3).normalize(), 0.03 + i * 0.004);
-      for (let i = 0; i < 2; i++) brow(V(s * 0.04, 0.29 - i * 0.004 - this.rest.head.y, -0.205 - this.rest.head.z), V(s * 1, 0.1, 0.4).normalize(), 0.035);
+      for (let i = 0; i < 3; i++) brow(local(hd, s * (0.013 + i * 0.0045), 0.3218, -0.2402 + i * 0.0025), V(s * 0.5, 0.8, 0.3).normalize(), 0.03 + i * 0.004);
+      for (let i = 0; i < 2; i++) brow(local(hd, s * 0.0385, 0.2895 - i * 0.004, -0.222), V(s * 1, 0.1, 0.4).normalize(), 0.035);
       const bg = new THREE.BufferGeometry(); bg.setAttribute('position', new THREE.Float32BufferAttribute(bw, 3));
       this.by.head.add(new THREE.LineSegments(bg, wmat));
     }
     // tongue: rough pink papillae, hinged in the lower jaw
-    const tg = new THREE.SphereGeometry(1, 12, 8);
-    tg.scale(0.0085, 0.0022, 0.016);
+    const tg = new THREE.SphereGeometry(1, 8, 6);
+    tg.scale(0.0082 * HEAD.k, 0.0022 * HEAD.k, 0.016 * HEAD.k);
     tg.translate(0, 0, -0.013);
-    const tMat = new THREE.MeshStandardMaterial({ color: 0xd8707a, roughness: 0.55 });
+    const tMat = new THREE.MeshStandardMaterial({ color: 0xd8707a, roughness: 0.55, flatShading: true });
     tMat.onBeforeCompile = (sh) => { sh.fragmentShader = sh.fragmentShader.replace('#include <color_fragment>', '#include <color_fragment>\n diffuseColor.rgb *= 0.85 + 0.3 * fract(sin(dot(floor(gl_FragCoord.xy * 0.7), vec2(12.9, 78.2))) * 43758.5);'); };
     this.tongue = new THREE.Mesh(tg, tMat);
-    this.tongue.position.set(0, 0.272 - this.rest.jaw.y, -0.225 - this.rest.jaw.z);
+    this.tongue.position.copy(local(jw, 0, 0.2716, -0.229));
     this.tongue.scale.setScalar(0.001);
     this.by.jaw.add(this.tongue);
     // mouth interior (dark) so an open mouth reads as a mouth
     const mouth = new THREE.Mesh(new THREE.SphereGeometry(1, 10, 6), new THREE.MeshStandardMaterial({ color: 0x3a1214, roughness: 0.6 }));
-    mouth.scale.set(0.011, 0.006, 0.016); mouth.position.set(0, 0.276 - this.rest.head.y, -0.228 - this.rest.head.z);
+    mouth.scale.set(0.0115, 0.0045, 0.017).multiplyScalar(HEAD.k); mouth.position.copy(local(hd, 0, 0.2735, -0.232));
     this.by.head.add(mouth);
     // teeth: fangs visible on a hiss
     const fangG = new THREE.ConeGeometry(0.0015, 0.006, 6); fangG.rotateX(Math.PI);
     const fangM = new THREE.MeshStandardMaterial({ color: 0xf4f0e6, roughness: 0.3 });
-    for (const s of [-1, 1]) { const f = new THREE.Mesh(fangG, fangM); f.position.set(s * 0.006, 0.2765 - this.rest.head.y, -0.2505 - this.rest.head.z); this.by.head.add(f); const f2 = new THREE.Mesh(fangG, fangM); f2.rotation.x = Math.PI; f2.position.set(s * 0.0055, 0.2705 - this.rest.jaw.y, -0.248 - this.rest.jaw.z); this.by.jaw.add(f2); }
+    for (const s of [-1, 1]) { const f = new THREE.Mesh(fangG, fangM); f.position.copy(local(hd, s * 0.0066, 0.2786, -0.2505)); this.by.head.add(f); const f2 = new THREE.Mesh(fangG, fangM); f2.rotation.x = Math.PI; f2.scale.y = 0.85; f2.position.copy(local(jw, s * 0.0056, 0.2742, -0.2488)); this.by.jaw.add(f2); }
     // invisible raycast proxy
     this.proxy = new THREE.Mesh(new THREE.CapsuleGeometry(0.09, 0.3, 4, 8), new THREE.MeshBasicMaterial({ visible: false }));
     this.proxy.rotation.x = Math.PI / 2;
@@ -569,8 +430,9 @@ export class CatModel {
     // side bend while turning
     ry(B.spine1, P.sideBend * 0.4); ry(B.spine2, P.sideBend * 0.4); ry(B.chest, P.sideBend * 0.3);
     rz(B.hips, P.roll);
-    // neck/head
-    const headPitch = P.headPitch - pitch - sit * 0.6 + P.eat * 0.8 + crouch * 0.2 - P.neckUp * 0.4;
+    // neck/head. A positive rotation about x lifts the nose; headPitch and eat
+    // are "nose down" (eating, sleeping, looking down at something), so they enter negated.
+    const headPitch = -P.headPitch - pitch - sit * 0.6 - P.eat * 0.8 + crouch * 0.2 - P.neckUp * 0.4;
     rx(B.neck, headPitch * 0.4 - P.eat * 0.3 + P.neckUp * 0.3); ry(B.neck, P.headYaw * 0.45);
     // yawn / lip lick / head shake overlays
     let yawnK = 0, lickK = 0, shake = 0;
@@ -580,7 +442,7 @@ export class CatModel {
     const sniff = P.sniff > 0.05 ? Math.sin(time * 38) * Math.max(0, Math.sin(time * 5)) * 0.02 * P.sniff : 0;
     // head is stabilised against the stride bob
     const stab = gait !== 'gallop' ? -bob * moving * 3 : 0;
-    rx(B.head, headPitch * 0.6 + P.groom * Math.sin(time * 9) * 0.15 - yawnK * 0.45 + sniff + stab); ry(B.head, P.headYaw * 0.55); rz(B.head, P.headTilt + shake);
+    rx(B.head, headPitch * 0.6 + P.groom * Math.sin(time * 9) * 0.15 + yawnK * 0.45 + sniff + stab); ry(B.head, P.headYaw * 0.55); rz(B.head, P.headTilt + shake);
     rx(B.jaw, -(P.jaw * 0.5 + yawnK * 0.75 + lickK * 0.12));
     this.u.uJaw.value = P.jaw * 0.8 + yawnK + lickK * 0.25;
     // tongue: lapping while drinking, licking while grooming, curled in a yawn
@@ -624,11 +486,13 @@ export class CatModel {
     const phaseOff = gait === 'trot' ? { fL: 0, hR: 0, fR: 0.5, hL: 0.5 } : gait === 'gallop' ? { hL: 0, hR: 0.08, fL: 0.5, fR: 0.58 } : { hL: 0, fL: 0.25, hR: 0.5, fR: 0.75 };
     const duty = gait === 'gallop' ? 0.4 : gait === 'trot' ? 0.5 : 0.62;
     const stride = (gait === 'gallop' ? 0.16 : gait === 'trot' ? 0.1 : 0.07) * moving;
+    // shoulder blades stand above the spine when stalking, stretching, loafing, and on each supporting foreleg
+    const scap = { L: crouch * 0.8 + P.stretch * 0.6 + loaf * 0.35, R: crouch * 0.8 + P.stretch * 0.6 + loaf * 0.35 };
     for (const [S, s, fh] of legs) {
       const key = fh + S;
       const pp = ((ph / TAU + phaseOff[key]) % 1 + 1) % 1;
       let off = 0, lift = 0;
-      if (pp < duty) off = lerp(0.5, -0.5, pp / duty);
+      if (pp < duty) { off = lerp(0.5, -0.5, pp / duty); if (fh === 'f') scap[S] += Math.sin(Math.PI * pp / duty) * 0.7 * moving; }
       else { const q = (pp - duty) / (1 - duty); off = lerp(-0.5, 0.5, smoothstep(0, 1, q)); lift = Math.sin(Math.PI * q) * (gait === 'gallop' ? 0.05 : 0.03); }
       const front = fh === 'f';
       const base = front ? V(s * (0.046 + P.legSpread * 0.03), 0.012, -0.118) : V(s * (0.05 + P.legSpread * 0.03), 0.012, 0.136);
@@ -636,7 +500,7 @@ export class CatModel {
       paw.z -= off * stride; paw.y += lift * moving;
       // pose adjustments
       if (front) {
-        paw.z -= P.stretch * 0.14 + loaf * 0.02; paw.y += P.groom * (S === 'R' ? 0.13 : 0);
+        paw.z -= P.stretch * 0.14 + loaf * 0.02 - sit * 0.06; paw.y += P.groom * (S === 'R' ? 0.13 : 0);   // sitting: forelegs straight under the chest
         if (P.groom && S === 'R') paw.z -= 0.05;
         if (P.knead > 0.01) { const kp = Math.sin(time * 5.5 + (S === 'L' ? 0 : Math.PI)); paw.y += Math.max(0, kp) * 0.025 * P.knead; paw.z -= Math.max(0, kp) * 0.012 * P.knead; }
         if (P.held > 0) { paw.y += P.held * 0.05; paw.z += P.held * 0.02 + Math.sin(time * (ctx.struggle ? 14 : 2) + s) * (ctx.struggle ? 0.03 : 0.005); }
@@ -647,6 +511,7 @@ export class CatModel {
       if (loaf > 0.4) paw.y = Math.max(paw.y, 0.012);
       this.legIK(S, s, front, paw, P);
     }
+    this.u.uScap.value.set(clamp(scap.L * (1 - P.held), 0, 1), clamp(scap.R * (1 - P.held), 0, 1));
     // eyes
     this.blinkT -= dt;
     if (this.blinkT <= 0) { this.blink = 1; this.blinkT = 2 + Math.random() * 5; }
@@ -656,6 +521,9 @@ export class CatModel {
     let yk = this.yawnT >= 0 ? 0.7 : 0;
     this.eyeU.uLid.value = clamp(P.lid * (1 - this.blink * (this.blink > 0.5 ? 1 : this.blink * 2)) * (1 - slowK * 0.92) * (1 - yk), 0.05, 1);
     this.eyeU.uPupil.value = P.pupil;
+    // as the lids close the eyeball settles back so it never shows through them
+    const shut = clamp(1 - this.eyeU.uLid.value / 0.88, 0, 1);
+    for (const e of this.eyes) e.position.copy(e.userData.base).addScaledVector(e.userData.back, shut * 0.003);
     this.proxy.position.set(0, 0.19 - loaf * 0.08 - sit * 0.03, 0.02);
   }
 
@@ -668,7 +536,9 @@ export class CatModel {
     const lowLen = r[n(low)].distanceTo(r[(front ? 'fpaw.' : 'hpaw.') + S]);
     const pawW = this.root.localToWorld(pawLocal.clone());
     const rootQ = this.root.getWorldQuaternion(new THREE.Quaternion());
-    const lowDir = (front ? V(0, -0.95, -0.3) : V(0, -0.96, -0.25)).normalize().applyQuaternion(rootQ);
+    // standing, the pastern/metatarsus is near vertical; sitting and loafing it lies along the floor
+    const flat = front ? clamp(P.loaf * 0.8 - P.held, 0, 1) : clamp(Math.max(P.sit * 0.95, P.loaf * 0.85, P.crouch * 0.35) - P.held, 0, 1);
+    const lowDir = (front ? V(0, -0.95, -0.3) : V(0, -0.96, -0.25)).normalize().lerp(V(0, -0.22, -1).normalize(), flat).normalize().applyQuaternion(rootQ);
     const target = pawW.clone().addScaledVector(lowDir, -lowLen);
     const S0 = up.getWorldPosition(V());
     const a = r[n(up)].distanceTo(r[n(mid)]), b = r[n(mid)].distanceTo(r[n(low)]);
@@ -692,6 +562,10 @@ export class CatModel {
     const restLow = r[(front ? 'fpaw.' : 'hpaw.') + S].clone().sub(r[n(low)]).normalize().applyQuaternion(rootQ);
     aim(low, restLow, side, pawW.clone().sub(W).normalize(), side);
     low.updateMatrixWorld(true);
+    // digitigrade: the toes stay flat on the ground whatever the leg above does
+    const pw = B[(front ? 'fpaw.' : 'hpaw.') + S];
+    pw.quaternion.copy(low.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(rootQ));
+    pw.updateMatrixWorld(true);
   }
 
   setVisible(v) { this.root.visible = v; }
@@ -701,7 +575,7 @@ function aim(bone, restPrim, restSec, prim, sec) {
   const qT = basis(prim, sec), qR = basis(restPrim, restSec);
   const parentQ = bone.parent.getWorldQuaternion(new THREE.Quaternion());
   // bone rest world rotation = (parents' rest) which, with identity locals, equals the cat root rotation
-  const root = bone; let p = bone; while (p.parent && p.parent.isBone) p = p.parent;
+  let p = bone; while (p.parent && p.parent.isBone) p = p.parent;
   const rootQ = p.parent ? p.parent.getWorldQuaternion(new THREE.Quaternion()) : new THREE.Quaternion();
   const worldQ = qT.multiply(qR.invert()).multiply(rootQ);
   bone.quaternion.copy(parentQ.invert().multiply(worldQ));
