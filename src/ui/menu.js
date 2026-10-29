@@ -40,10 +40,14 @@ export class Menu {
     this.fireGlow = new THREE.PointLight(0xff8a40, 0, 13, 1.3); this.fireGlow.position.set(7.4, 1.0, -2.6);
     G.scene.add(this.spill, this.spill.target, this.fireGlow);
     if (document.fonts && document.fonts.load) document.fonts.load('64px Alagard').then(() => { this.fontReady = true; this.draw(); }).catch(() => {});
+    // the backdrop is Mochi running from the hands (menuChase.js); ?window brings back the glass
+    this.useChase = !!G.chase && !new URLSearchParams(location.search).has('window');
+    this.ui = this.buildUI();
     G.menu = this;
   }
 
   async open({ intro = true } = {}) {
+    if (this.useChase) return this.openChase({ intro });
     G.state = 'menu';
     if (G.director) G.director.running = false;
     G.hud.objective([]); G.hud.crosshair(false);
@@ -78,6 +82,7 @@ export class Menu {
     this.draw();
   }
   close() {
+    this.closeChase();
     this.plane.visible = false;
     this.spill.intensity = 0; this.fireGlow.intensity = 0; this.spill.shadow.autoUpdate = false; G.sky.windowBoost = 1; G.sky.hemiBoost = 1;
     G.body.showInMenu = false;
@@ -88,6 +93,67 @@ export class Menu {
     if (this.amb) { this.amb.stop(1); this.amb = null; }
     if (this.siren) { this.siren.stop(1); this.siren = null; }
     if (this.hum) { this.hum.stop(1); this.hum = null; }
+  }
+
+  // ------------------------------------------------------------- the chase
+  // the options are plain HTML words over the scene: clicks, taps, Tab/arrows and Enter
+  buildUI() {
+    const ui = document.createElement('div'); ui.id = 'menu-ui';
+    for (const [id, label] of [['new', 'new game'], ['load', 'load game'], ['settings', 'settings']]) {
+      const b = document.createElement('button'); b.type = 'button'; b.dataset.id = id; b.textContent = label; ui.appendChild(b);
+    }
+    ui.addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) this.pick(b.dataset.id); });
+    ui.addEventListener('pointerover', (e) => { const b = e.target.closest('button'); if (b && e.pointerType === 'mouse' && !b.classList.contains('off')) sfx('click', { vol: 0.06, rate: 2 }); });
+    document.body.appendChild(ui);
+    return ui;
+  }
+  openChase({ intro }) {
+    G.state = 'menu';
+    if (G.director) G.director.running = false;
+    G.hud.objective([]); G.hud.crosshair(false); G.hud.setPrompt(null);
+    document.getElementById('pause').hidden = true;
+    G.alien && G.alien.reset();
+    const c = G.player.ctrl;
+    c.override = null; c.enabled = false; c.lookEnabled = false;
+    if (document.exitPointerLock && document.pointerLockElement) document.exitPointerLock();
+    // the chase takes the screen; the world and the sky wait behind it
+    const ch = this.chase = G.chase;
+    ch.start(intro);
+    G.view = ch; G.engine.background = null;
+    G.engine.renderer.domElement.style.cursor = 'default';
+    this.busy = false; this.uiT = intro ? 2.4 : 0.4;
+    for (const b of this.ui.children) b.classList.toggle('off', b.dataset.id === 'load' && !hasSave());
+    G.fx.fadeTo(0, 0.6);
+    this.amb = G.audio && G.audio.loop('wind', { vol: 0.2 });
+  }
+  updateChase(dt) {
+    this.chase.update(dt);
+    if (this.uiT > 0 && (this.uiT -= dt) <= 0) this.ui.classList.add('on');
+    // up and down through the words with the keys too
+    const inp = G.input, bs = [...this.ui.children];
+    if (this.ui.classList.contains('on') && !this.busy && !G.pause.open) {
+      const i = bs.indexOf(document.activeElement);
+      if (inp.anyPressed('ArrowDown', 'KeyS')) bs[(i + 1) % bs.length].focus();
+      if (inp.anyPressed('ArrowUp', 'KeyW')) bs[(i + bs.length - 1 + (i < 0 ? 1 : 0)) % bs.length].focus();
+    }
+  }
+  pick(id) {
+    if (this.busy || G.state !== 'menu' || G.pause.open) return;
+    if (id === 'load' && !hasSave()) { sfx('error', { vol: 0.25 }); return; }
+    sfx('click', { vol: 0.25, bus: 'ui' });
+    if (id === 'settings') { G.pause.openSettings(true); return; }
+    // every hand at once, then black
+    this.busy = true; this.ui.classList.remove('on');
+    this.chase.burst();
+    this.choose(id);
+  }
+  closeChase() {
+    if (!this.chase) return;
+    if (G.view === this.chase) G.view = null;
+    G.engine.background = G.sky;
+    this.chase.stop();
+    this.ui.classList.remove('on'); this.uiT = 0;
+    if (this.ui.contains(document.activeElement)) document.activeElement.blur();
   }
 
   // Mochi on the sill, watching the sky
@@ -136,6 +202,7 @@ export class Menu {
 
   // ------------------------------------------------------------- per frame
   update(dt) {
+    if (this.useChase) return this.updateChase(dt);
     this.t += dt;
     const cam = G.camera, inp = G.input;
     const nx = (inp.mx / window.innerWidth - 0.5) * 2, ny = (inp.my / window.innerHeight - 0.5) * 2;

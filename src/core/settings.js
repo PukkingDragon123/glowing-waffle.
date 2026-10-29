@@ -21,8 +21,15 @@ export const DEFAULTS = {
 };
 
 export const OPTIONS = {
-  resolution: [480, 720, 900, 1080],
+  resolution: [480, 540, 720, 900, 1080],
 };
+
+// phones and tablets: a coarse pointer. They start lighter: a lower internal
+// resolution (lower still on a phone) and softer, cheaper ambient occlusion.
+const mq = (q) => typeof matchMedia !== 'undefined' && matchMedia(q).matches;
+export const COARSE = mq('(pointer: coarse)');
+const PHONE = COARSE && Math.min(screen.width, screen.height) < 600;
+if (COARSE) Object.assign(DEFAULTS, { resolution: PHONE ? 540 : 720, ao: 4 });
 
 export class Settings {
   constructor() {

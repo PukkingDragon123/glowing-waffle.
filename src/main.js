@@ -30,6 +30,7 @@ import { Mirror } from './gfx/mirror.js';
 import { Menu } from './ui/menu.js';
 import { Pause } from './ui/pause.js';
 import { Loader } from './ui/loader.js';
+import { Touch } from './ui/touch.js';
 import { FX } from './gfx/fx.js';
 import { nextFrame, Tasks } from './core/util.js';
 
@@ -45,6 +46,7 @@ async function boot() {
   G.camera = G.engine.camera;
   G.scene.add(G.camera);
   G.input = new Input(canvas);
+  G.touch = new Touch(canvas);
   G.physics = new Physics();
   G.tasks = new Tasks();
   G.audio = new AudioEngine();
@@ -54,6 +56,9 @@ async function boot() {
   // the loader runs on the real renderer while everything else is built
   G.state = 'loading';
   const loader = new Loader();
+  // the CC0 models and painted textures start downloading at once, in parallel
+  loader.begin('fetch');
+  const assets = loadAssets((f, detail) => loader.sub(f, detail));
   await loader.warm();
   let last = performance.now();
   function frame(now) {
@@ -63,33 +68,32 @@ async function boot() {
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
-  const step = () => new Promise((r) => setTimeout(r, 16));
-  // the CC0 models and painted textures download while the cat runs
-  const assets = loadAssets();
-  await step();
+  // each stage yields so the line moves and she keeps running
+  const step = (k) => loader.begin(k);
+  await loader.yield();
   initMaterials();
   await assets;
+  await step('apartment');
   applySurfaces();
-  await step();
   G.world = new World();
   G.particles = new Particles();
   G.decals = new Decals();
   G.apartment = new Apartment().build();
-  await step();
+  await step('building');
   G.building = new Building().build();
   hookItemEvents();
-  await step();
+  await step('body');
   G.player = new Player();
   G.player.body = G.body = new Body();
   G.player.ctrl.teleport(6.0, 0.05, 4.5, 0.6, -0.05);
-  await step();
+  await step('sky');
   G.sky = new Sky();
   for (const w of Object.values(G.apartment.windows)) {
     const f = w.frame.group.position;
     G.sky.addWindowLight(new THREE.Vector3(f.x, 1.6, f.z + 0.25), new THREE.Vector3(0, -0.55, 1), 1);
   }
   G.sky.apply(G.sky.preset(+(params.get('day') || 1), +(params.get('t') || 0.12)), true);
-  await step();
+  await step('nav');
   G.nav = new NavGrid(-8.6, -0.4, 20.6, 10.0, 0.1);
   G.nav.bake(G.physics.statics);
   const D = G.apartment.doors;
@@ -101,7 +105,7 @@ async function boot() {
   G.nav.addDoor(BD['4A'], new THREE.Vector3(-3.55, 0, 7.76), new THREE.Vector3(-2.8, 0, 7.76));
   G.nav.addDoor(BD['4C'], new THREE.Vector3(12.35, 0, 7.76), new THREE.Vector3(13.1, 0, 7.76));
   G.nav.addDoor(BD.trash, new THREE.Vector3(-6.46, 0, 8.4), new THREE.Vector3(-6.46, 0, 9.15));
-  await step();
+  await step('cast');
   G.cat = new Cat(G.nav);
   G.desk = new Desk(G.apartment);
   G.cloth = hangCloth();
@@ -114,10 +118,13 @@ async function boot() {
   G.pause = new Pause();
   hookSounds();
   matteAll(G.scene);
-  await step();
-  // compile the world's shaders without blocking the loader
-  try { await G.engine.renderer.compileAsync(G.scene, G.camera); } catch (e) { G.engine.renderer.compile(G.scene, G.camera); }
+  // shaders for the world and the sky, compiled for the target they really
+  // draw into; textures uploaded a slice per frame
+  await step('shaders');
+  await loader.shaders([[G.scene, G.camera], [G.sky.scene, G.sky.cam]]);
   loader.finish();
+  // the sounds are synthesised now, while she waits, so the click starts at once
+  const audioReady = G.audio.init().catch((e) => console.warn('audio', e));
 
   canvas.addEventListener('click', () => { if (G.state === 'play') G.input.lock(); });
   on('unlock', () => {
@@ -126,13 +133,16 @@ async function boot() {
     G.pause.show();
   });
   window.BENGRIM = makeDebugApi();
-  // one click: sound needs a gesture
+  // one click, key or tap: sound needs a gesture (a touch only counts once it lifts)
   const boot = document.getElementById('boot');
-  const go = async () => {
-    window.removeEventListener('pointerdown', go); window.removeEventListener('keydown', go);
-    try { await G.audio.init(); } catch (e) { console.warn('audio', e); }
+  const go = async (e) => {
+    if (e && e.type === 'pointerdown' && e.pointerType !== 'mouse') return;
+    for (const t of ['pointerdown', 'pointerup', 'keydown']) window.removeEventListener(t, go);
+    G.audio.resume(); G.touch.fullscreen();
+    await audioReady;
     G.audio.play && G.audio.play('tapeHiss', { vol: 0.15 });
-    await G.fx.fadeTo(1, 2.5);
+    // the menu grows straight out of the loading scene; a debug day fades through black
+    if (!G.menu.useChase || params.has('day')) await G.fx.fadeTo(1, 2.5);
     boot.classList.add('out');
     loader.dispose();
     G.engine.background = G.sky;
@@ -145,8 +155,7 @@ async function boot() {
     } else G.menu.open({ intro: !params.has('nointro') });
     setTimeout(() => (boot.hidden = true), 1300);
   };
-  window.addEventListener('pointerdown', go);
-  window.addEventListener('keydown', go);
+  for (const t of ['pointerdown', 'pointerup', 'keydown']) window.addEventListener(t, go);
   if (params.has('autostart')) go();
 }
 
@@ -198,7 +207,7 @@ function tick(dt) {
   }
   G.hud.update(dt);
   G.audio.update(dt);
-  if (!G.noRender) G.engine.render(G.scene, G.camera, G.time);
+  if (!G.noRender) G.engine.render(G.view ? G.view.scene : G.scene, G.view ? G.view.cam : G.camera, G.time);   // G.view: the menu's own scene
   G.input.endFrame();
 }
 

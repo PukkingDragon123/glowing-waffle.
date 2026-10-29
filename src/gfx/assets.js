@@ -47,22 +47,26 @@ export async function loadAssets(onProgress = () => {}) {
     const gl = new GLTFLoader();
     const tl = new THREE.TextureLoader();
     const jobs = [];
-    let done = 0;
-    const total = Object.keys(man.models).length + Object.keys(man.textures).length * 2;
-    const tick = () => onProgress(++done / total);
+    // progress by bytes: models know their size, textures count as an average jpeg
+    const TEX = 60000, got = {};
+    const total = Object.values(man.models).reduce((a, m) => a + (m.bytes || 200000), 0) + Object.keys(man.textures).length * 2 * TEX;
+    const mb = (b) => (b / 1048576).toFixed(1);
+    const report = (k, b) => { got[k] = b; let sum = 0; for (const v of Object.values(got)) sum += v; onProgress(Math.min(1, sum / total), `${mb(sum)} / ${mb(total)} MB`); };
+    const tick = (k, b = TEX) => report(k, b);
     for (const [name, m] of Object.entries(man.models)) {
-      jobs.push(gl.loadAsync(base() + m.file).then((g) => { ASSETS.models[name] = prepModel(g.scene); tick(); }).catch((e) => console.warn('model', name, e)));
+      const size = m.bytes || 200000;
+      jobs.push(gl.loadAsync(base() + m.file, (e) => report(name, Math.min(size, e.loaded || 0) * 0.9)).then((g) => { ASSETS.models[name] = prepModel(g.scene); tick(name, size); }).catch((e) => console.warn('model', name, e)));
     }
     for (const [name, t] of Object.entries(man.textures)) {
       const entry = { size: t.size || [2, 2] };
       ASSETS.tex[name] = entry;
       for (const k of ['diff', 'nor']) {
-        if (!t[k]) { tick(); continue; }
+        if (!t[k]) { tick(name + k); continue; }
         jobs.push(tl.loadAsync(base() + t[k]).then((tx) => {
           tx.wrapS = tx.wrapT = THREE.RepeatWrapping;
           tx.colorSpace = k === 'diff' ? THREE.SRGBColorSpace : THREE.NoColorSpace;
           tx.anisotropy = 8;
-          entry[k] = tx; tick();
+          entry[k] = tx; tick(name + k);
         }).catch((e) => console.warn('tex', name, e)));
       }
     }
