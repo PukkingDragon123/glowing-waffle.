@@ -47,8 +47,20 @@ WANTED = {
     'sleeve1': ('Thai vinyl record cover', 300),
     'sleeve2': ('Thai music cassette cover 1980s', 300),
     'sleeve3': ('mor lam khaen performance', 300),
-    # the calendar photo strip
-    'calendarPhoto': ('Wat Arun Bangkok', 600),
+    # photo windows on packaging and the calendar (labels.js PHOTO_SLOTS)
+    'photo-calendar-1997-07': ('Wat Arun Bangkok sunset', 600),
+    'photo-catfood-box': ('ginger tabby cat eating', 500),
+    'photo-catfood-pouch': ('tabby cat face close-up', 300),
+    'photo-catfood-can': ('cat eating from bowl', 200),
+    'photo-milk-cows': ('Holstein cows pasture Thailand', 400),
+    'photo-juice-oranges': ('tangerine fruit cut half', 300),
+    'photo-noodles-tomyum': ('tom yum goong bowl', 500),
+    'photo-cream-crackers': ('cream crackers biscuits', 400),
+    'photo-sardines': ('sardines tomato sauce', 300),
+    'photo-pickled-mustard': ('pickled mustard greens', 200),
+    'photo-namprikpao-founder': ('portrait elderly Thai woman', 200),
+    'photo-wafer': ('chocolate wafer bar', 200),
+    'photo-novel-cover': ('rice paddy sugar palm Thailand', 500),
 }
 
 
