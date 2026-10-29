@@ -87,7 +87,7 @@ const SURFACES = {
   ceilingHall: ['plasterWorn', 0xe8e0d0, 0.1, 1.5],
   brick: ['brick', 0xffffff, 0.8, 1],
   cabinet: ['cabinetWood', 0xe8d0b0, 0.6, 0.6],
-  curtain: ['linen', 0xc8905c, 0.6, 0.5],
+  curtain: ['linen', 0xe2b680, 0.6, 0.5],
 };
 
 // swap the procedural maps for painted ones; must run before anything is built,

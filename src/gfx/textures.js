@@ -296,24 +296,29 @@ export function fabric({ seed = 8, base = [104, 92, 60], alt = [80, 70, 44], pla
   });
 }
 
-export function patchwork({ seed = 9, size = 128, worldSize = 1 } = {}) {
-  return cached('patch' + seed, () => {
+export function patchwork({ seed = 9, size = 256, worldSize = 1 } = {}) {
+  return cached('patch' + seed + size, () => {
     const rng = new RNG(seed);
-    const pal = [[150, 48, 40], [60, 70, 110], [170, 150, 90], [70, 100, 70], [180, 170, 150], [110, 60, 80], [90, 80, 60]];
+    // faded calico, gingham and solids; a cream sashing and running stitches
+    const pal = [[164, 62, 52], [70, 86, 128], [184, 160, 100], [84, 116, 82], [196, 184, 160], [122, 70, 92], [104, 92, 70], [196, 120, 84]];
     const cells = [];
-    for (let i = 0; i < 64; i++) cells.push({ c: rng.pick(pal), pat: rng.int(0, 3) });
+    for (let i = 0; i < 64; i++) cells.push({ c: rng.pick(pal), d: rng.pick(pal), pat: rng.int(0, 4) });
+    const C = size / 8;
     const p = paint(size, size, (x, y, o) => {
-      const cx = Math.floor(x / 16), cy = Math.floor(y / 16);
+      const cx = Math.floor(x / C), cy = Math.floor(y / C);
       const cell = cells[(cy * 8 + cx) % 64];
-      const lx = x % 16, ly = y % 16;
-      let k = 1;
-      if (cell.pat === 1 && ((lx + ly) % 6 < 2)) k = 0.7;
-      if (cell.pat === 2 && ((lx - 8) ** 2 + (ly - 8) ** 2) % 20 < 6) k = 1.25;
-      if (cell.pat === 3 && (lx % 4 === 0 || ly % 4 === 0)) k = 0.8;
-      if (lx === 0 || ly === 0) k = 0.5;
+      const lx = (x % C) / C, ly = (y % C) / C;
+      let c = cell.c, k = 1, h = 0.6;
+      if (cell.pat === 1 && (Math.floor(lx * 8) + Math.floor(ly * 8)) % 2) c = cell.d;                          // gingham
+      if (cell.pat === 2 && ((lx * 6 + (Math.floor(ly * 6) % 2) * 0.5) % 1 - 0.5) ** 2 + ((ly * 6) % 1 - 0.5) ** 2 < 0.06) c = [236, 226, 200]; // calico dots
+      if (cell.pat === 3 && (lx > 0.25 && lx < 0.75) !== (ly > 0.25 && ly < 0.75)) c = cell.d;                  // four-patch
+      if (cell.pat === 4 && Math.abs(lx - ly) < 0.12) c = cell.d;                                                  // diagonal strip
+      const edge = Math.min(lx, ly, 1 - lx, 1 - ly);
+      if (edge < 0.06) { c = [214, 202, 178]; h = 0.75; }                                                          // sashing
+      if (Math.abs(edge - 0.1) < 0.012 && (Math.floor((lx + ly) * C * 0.5) % 3)) { k = 0.72; h = 0.3; }        // stitches
       const n = tf(x / size * 32, y / size * 32, 32, 32, 2, seed);
-      k *= 0.85 + n * 0.25;
-      o[0] = cell.c[0] * k; o[1] = cell.c[1] * k; o[2] = cell.c[2] * k; o[4] = lx === 0 || ly === 0 ? 0.2 : 0.6;
+      k *= 0.86 + n * 0.22 + ((x + y) % 2 ? 0.03 : 0);
+      o[0] = c[0] * k; o[1] = c[1] * k; o[2] = c[2] * k; o[4] = h;
     }, { height: true });
     return bundle(p, { normal: 2, rough: () => 1, worldSize });
   });
@@ -345,11 +350,11 @@ export function laminate({ seed = 11, base = [200, 192, 170], size = 128, worldS
   });
 }
 
-export function enamel({ seed = 12, base = [226, 222, 206], size = 64, worldSize = 1, dirt = 0.3 } = {}) {
+export function enamel({ seed = 12, base = [226, 222, 206], size = 128, worldSize = 1, dirt = 0.3 } = {}) {
   return cached('enam' + seed + base + dirt, () => {
     const p = paint(size, size, (x, y, o) => {
-      const n = tf(x / size * 6, y / size * 6, 6, 6, 4, seed);
-      const k = 1 - dirt * smoothstep(0.55, 0.9, n) - (y > size * 0.85 ? 0.08 * dirt : 0);
+      const n = tf(x / size * 10, y / size * 10, 10, 10, 4, seed);
+      const k = 1 - dirt * 0.4 * smoothstep(0.62, 0.95, n) - (y > size * 0.88 ? 0.06 * dirt : 0);
       o[0] = base[0] * k; o[1] = base[1] * k; o[2] = base[2] * k; o[4] = n;
     }, { height: true });
     return bundle(p, { normal: 0.2, rough: (v) => 0.25 + v * 0.3, worldSize });

@@ -8,20 +8,21 @@ const V = (x, y, z) => new THREE.Vector3(x, y, z);
 
 export class Cloth {
   // a: rod start, b: rod end (world), drop: hanging length
-  constructor({ a, b, drop, mat, nx = 14, ny = 16, gather = 0.82, window = null, rings = true }) {
+  constructor({ a, b, drop, mat, nx = 14, ny = 16, gather = 0.82, window = null, rings = true, pleat = 0.02 }) {
     this.nx = nx; this.ny = ny; this.window = window;
     const w = a.distanceTo(b);
-    this.rest = { x: (w * gather) / (nx - 1), y: drop / (ny - 1) };
+    const n = new THREE.Vector3().subVectors(b, a).cross(V(0, 1, 0)).normalize();
+    // pinch pleats along the heading, opening out a little toward the hem
+    const fold = (i, j) => (i % 2 ? -1 : 1) * pleat * (1 + 0.5 * j / (ny - 1)) * (i === 0 || i === nx - 1 ? 0.5 : 1);
+    const step = (w * gather) / (nx - 1);
+    this.rest = { x: Math.hypot(step, pleat * 2), y: drop / (ny - 1) };
     this.p = []; this.o = []; this.pin = [];
     for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) {
       const t = i / (nx - 1);
-      const top = a.clone().lerp(b, t * gather + (1 - gather) * 0.5 * 0);
-      const q = top.clone(); q.y -= j * this.rest.y;
-      // gentle folds so it doesn't start as a flat sheet
-      const n = new THREE.Vector3().subVectors(b, a).cross(V(0, 1, 0)).normalize();
-      q.addScaledVector(n, Math.sin(i * 1.3) * 0.02);
+      const top = a.clone().lerp(b, t * gather).addScaledVector(n, fold(i, 0));
+      const q = a.clone().lerp(b, t * gather).addScaledVector(n, fold(i, j)); q.y -= j * this.rest.y;
       this.p.push(q.clone()); this.o.push(q.clone());
-      this.pin.push(j === 0 ? top.clone() : null);
+      this.pin.push(j === 0 ? top : null);
     }
     const geo = this.geo = new THREE.PlaneGeometry(1, 1, nx - 1, ny - 1);
     const uv = geo.attributes.uv;
@@ -70,6 +71,8 @@ export class Cloth {
       // keep above the floor
       for (const p of this.p) if (p.y < 0.01) p.y = 0.01;
     }
+    // daylight shows through the window curtains
+    if (this.window && G.sky && G.sky.p) this.mesh.material.emissiveIntensity = (1 - G.sky.p.night) * 0.6;
     this.sync();
   }
   sync() {
@@ -102,6 +105,7 @@ function M_ring() { return _ring || (_ring = new THREE.MeshStandardMaterial({ co
 export function hangCloth() {
   const ap = G.apartment, list = [];
   const cur = M.curtainCloth || (M.curtainCloth = M.curtain.clone()); cur.side = THREE.DoubleSide;
+  cur.emissive.set(0x6a4a2a); cur.emissiveMap = cur.map; cur.emissiveIntensity = 0;
   const sh = M.showerCloth || (M.showerCloth = M.showerCurtain.clone()); sh.side = THREE.DoubleSide;
   const rodM = M.chrome;
   const curtain = (key, x0, x1, z) => {
@@ -110,8 +114,8 @@ export function hangCloth() {
     rod.rotation.z = Math.PI / 2; rod.position.set((x0 + x1) / 2, 2.345, z); G.world.root.add(rod);
     for (const ex of [x0 - 0.5, x1 + 0.5]) { const f = new THREE.Mesh(new THREE.SphereGeometry(0.018, 8, 6), rodM); f.position.set(ex, 2.345, z); G.world.root.add(f); }
     // two panels per window, drawn back to the sides of the frame
-    list.push(new Cloth({ a: V(x0 - 0.42, 2.32, z), b: V(x0 + 0.1, 2.32, z), drop: 1.62, mat: cur, window: w, nx: 9, ny: 14, gather: 1 }));
-    list.push(new Cloth({ a: V(x1 + 0.42, 2.32, z), b: V(x1 - 0.1, 2.32, z), drop: 1.62, mat: cur, window: w, nx: 9, ny: 14, gather: 1 }));
+    list.push(new Cloth({ a: V(x0 - 0.42, 2.32, z), b: V(x0 + 0.1, 2.32, z), drop: 1.62, mat: cur, window: w, nx: 13, ny: 16, gather: 1, pleat: 0.03 }));
+    list.push(new Cloth({ a: V(x1 + 0.42, 2.32, z), b: V(x1 - 0.1, 2.32, z), drop: 1.62, mat: cur, window: w, nx: 13, ny: 16, gather: 1, pleat: 0.03 }));
   };
   curtain('living1', 4.7, 5.9, 0.1);
   curtain('menu', 7.1, 8.3, 0.1);
