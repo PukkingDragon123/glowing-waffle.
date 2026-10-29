@@ -1,4 +1,4 @@
-// Mochi's behaviour: needs (hunger, energy, affection), emotions (fear, trust,
+// Khanom's behaviour: needs (hunger, energy, affection), emotions (fear, trust,
 // annoyance), perception of the player (distance, speed, how wrong they look),
 // utility-based behaviour selection, pathfinding, perching, hiding, petting,
 // being carried, struggling and scratching.
@@ -19,7 +19,7 @@ class CatInter extends Interactable {
   actions() {
     const c = this.cat;
     if (c.held || !c.present) return [];
-    return [{ key: 'E', label: 'Pet Mochi (hold)' }, { key: 'LMB', label: 'Pick up Mochi' }];
+    return [{ key: 'E', label: 'Pet Khanom (hold)' }, { key: 'LMB', label: 'Pick up Khanom' }];
   }
   use() { /* petting handled continuously while E is held */ }
   canGrab() { return !this.cat.held; }
@@ -31,7 +31,7 @@ export class Cat {
   constructor(nav) {
     this.model = new CatModel();
     this.nav = nav;
-    this.pos = V(2.6, 0, 3.2);
+    this.pos = V(5.0, 0, 4.35);
     this.yaw = 0.8;
     this.h = 0;                  // height above floor (perches)
     this.vel = V();
@@ -58,20 +58,20 @@ export class Cat {
 
   spots() {
     this.perches = [
-      { name: 'couch', pos: V(6.05, 0.47, 1.3), from: V(5.35, 0, 1.3) },
-      { name: 'bed', pos: V(1.4, 0.48, 2.25), from: V(1.4, 0, 3.15) },
-      { name: 'sill', pos: V(5.3, 0.87, 0.07), from: V(5.3, 0, 0.55), window: 'living1' },
-      { name: 'sill2', pos: V(7.7, 0.87, 0.07), from: V(7.7, 0, 0.55), window: 'menu' },
-      { name: 'counter', pos: V(9.95, 0.94, 3.95), from: V(9.3, 0, 4.0) },
+      { name: 'bed', pos: V(4.8, 0.55, 2.7), from: V(4.8, 0, 3.3) },
+      { name: 'sill', pos: V(6.85, 0.92, 0.04), from: V(6.85, 0, 0.6), window: 'window' },
+      { name: 'sill2', pos: V(7.25, 0.92, 0.04), from: V(7.25, 0, 0.6), window: 'window' },
+      { name: 'table', pos: V(6.3, 0.74, 2.3), from: V(5.72, 0, 2.3) },
+      { name: 'stool', pos: V(5.6, 0.44, 3.95), from: V(5.6, 0, 3.45) },
     ];
     this.hides = [
-      { name: 'underBed', pos: V(1.3, 0, 2.2), entry: V(1.3, 0, 3.15) },
-      { name: 'underDesk', pos: V(3.75, 0, 5.45), entry: V(4.35, 0, 5.3) },
-      { name: 'closet', pos: V(2.9, 0, 7.0), entry: V(3.1, 0, 6.9) },
-      { name: 'underTable', pos: V(8.0, 0, 5.5), entry: V(8.0, 0, 5.5) },
-      { name: 'behindTub', pos: V(0.9, 0, 5.9), entry: V(1.0, 0, 5.8) },
+      { name: 'underBed', pos: V(4.6, 0, 2.25), entry: V(4.6, 0, 3.25) },
+      { name: 'underDesk', pos: V(3.75, 0, 5.45), entry: V(4.3, 0, 5.2) },
+      { name: 'underTable', pos: V(6.3, 0, 2.3), entry: V(5.72, 0, 2.3) },
+      { name: 'bathCorner', pos: V(7.3, 0, 5.5), entry: V(6.95, 0, 6.3) },
+      { name: 'behindBoxes', pos: V(4.32, 0, 4.86), entry: V(4.6, 0, 4.9) },
     ];
-    this.sleepSpots = [{ name: 'catBed', pos: V(2.7, 0.04, 3.2) }, { perch: 'couch' }, { perch: 'bed' }];
+    this.sleepSpots = [{ name: 'catBed', pos: V(5.0, 0.04, 4.35) }, { perch: 'stool' }, { perch: 'bed' }];
   }
 
   get playerPos() { return G.player.ctrl.body.position; }
@@ -186,8 +186,7 @@ export class Cat {
     const p = this.playerPos;
     let best = this.hides[0], bv = -1;
     for (const h of this.hides) {
-      if (h.name === 'closet' && G.apartment.doors.closet.angle < 0.6) continue;
-      if (h.name === 'behindTub' && G.apartment.doors.bath.angle < 0.6) continue;
+      if (h.name === 'bathCorner' && G.apartment.doors.bath.angle < 0.6) continue;
       const v = Math.hypot(h.pos.x - p.x, h.pos.z - p.z) + (h.name === 'underBed' ? 1.5 : 0) + Math.random() * 0.5;
       if (v > bv) { bv = v; best = h; }
     }
@@ -290,7 +289,7 @@ export class Cat {
     G.fx && G.fx.pulse('red', 0.55, 0.6);
     G.player.ctrl.shake = 1.2;
     this.trust = Math.max(0, this.trust - 0.04);
-    G.hud.inner(pick(['Ow! She scratched me...', "Mochi! That's blood...", 'She got me. It stings.', "Why is she so scared of me?"]));
+    G.hud.inner(pick(['Ow! She scratched me...', "Khanom! That's blood...", 'She got me. It stings.', "Why is she so scared of me?"]));
     emit('catScratch', { side });
   }
 
@@ -333,7 +332,7 @@ export class Cat {
     if (this.eatLoop) this.eatLoop.set({ pos: this.headPos() });
   }
 
-  // Mochi's face won't resolve. Since the light, the picture smears and wraps
+  // Khanom's face won't resolve. Since the light, the picture smears and wraps
   // around itself wherever her face should be.
   faceSmear(dt) {
     const fx = G.engine.fx.faceSpot;
@@ -368,9 +367,9 @@ export class Cat {
     const k = 'face' + day;
     if (this.noticed === k || G.director?.cutscene) return;
     this.noticed = k;
-    const L = [null, ['Mochi...? Why can\'t I see your face?', "It's my eyes. It's just the light. It'll pass."],
+    const L = [null, ['Khanom...? Why can\'t I see your face?', "It's my eyes. It's just the light. It'll pass."],
       ['Her face is still... smeared. Like a chewed-up tape.'], ["I keep blinking. Her face won't come back."],
-      ["I don't remember what she looks like. I've had her six years."], ['Is that even Mochi under there?'],
+      ["I don't remember what she looks like. I've had her six years."], ['Is that even Khanom under there?'],
       ["Good. I don't want to see her face. I don't want to see her look at me."], ['...']][day] || [];
     L.forEach((t, i) => setTimeout(() => G.hud.inner(t), 600 + i * 3800));
     G.audio && G.audio.play('tinnitus', { vol: 0.2 });

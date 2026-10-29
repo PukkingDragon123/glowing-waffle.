@@ -6,8 +6,10 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/GLTFLoader.js';
 import { patchWorld } from '../core/engine.js';
 import { M } from './materials.js';
+import { IMAGE_OVERRIDES, downsample } from './textures.js';
 
 export const ASSETS = { ok: false, manifest: null, models: {}, tex: {} };
+const PIXEL_PROP = 128;
 const base = () => (typeof window !== 'undefined' && window.BENGRIM_ASSETS) || 'assets/';
 
 function prepModel(scene) {
@@ -19,8 +21,9 @@ function prepModel(scene) {
       if (seen.has(m)) continue;
       seen.add(m);
       m.roughness = 1; m.metalness = 0; m.envMapIntensity = 0;
-      if (m.map) m.map.anisotropy = 4;
-      if (m.normalMap) m.normalScale.multiplyScalar(0.7);
+      // pixel art: the props' paintings come down to a few hundred texels
+      if (m.map) m.map = downsample(m.map, PIXEL_PROP);
+      if (m.normalMap) { m.normalMap = downsample(m.normalMap, PIXEL_PROP); m.normalScale.multiplyScalar(0.7); }
       m.userData.matte = true;
       // bend and breathe with the rest of the apartment
       patchWorld(m, { snap: true, warp: true, breath: false });
@@ -32,7 +35,24 @@ function prepModel(scene) {
   return scene;
 }
 
+// real photographs (posters, signs, packaging, paintings), see tools/images.py
+async function loadImages() {
+  try {
+    const res = await fetch(base() + 'images/manifest.json');
+    if (!res.ok) return;
+    const man = await res.json();
+    await Promise.all(Object.entries(man.images || {}).map(([key, e]) => new Promise((done) => {
+      const img = new Image();
+      img.onload = () => { IMAGE_OVERRIDES[key] = { img, ...e }; done(); };
+      img.onerror = () => done();
+      img.src = base() + 'images/' + e.file;
+    })));
+    ASSETS.images = man.images;
+  } catch (e) { /* no photos: the drawn versions stay */ }
+}
+
 export async function loadAssets(onProgress = () => {}) {
+  await loadImages();
   try {
     const res = await fetch(base() + 'manifest.json');
     if (!res.ok) throw new Error('manifest ' + res.status);
@@ -97,9 +117,11 @@ export function applySurfaces() {
   for (const [mat, [tex, tint, ns, scale]] of Object.entries(SURFACES)) {
     const m = M[mat], t = ASSETS.tex[tex];
     if (!m || !t || !t.diff) continue;
-    m.map = t.diff;
+    // ~64 texels a metre: hand-painted pixel art, not photographs
+    const px = Math.min(256, Math.max(64, 2 ** Math.round(Math.log2(t.size[0] * scale * 64))));
+    m.map = downsample(t.diff, px);
     m.color.set(tint);
-    if (t.nor && ns > 0) { m.normalMap = t.nor; m.normalScale = new THREE.Vector2(ns, ns); } else m.normalMap = null;
+    if (t.nor && ns > 0) { m.normalMap = downsample(t.nor, px); m.normalScale = new THREE.Vector2(ns, ns); } else m.normalMap = null;
     m.roughnessMap = null; m.roughness = 1; m.metalness = 0;
     m.userData.ws = t.size[0] * scale;
     m.needsUpdate = true;

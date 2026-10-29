@@ -59,7 +59,7 @@ export class Alien {
     // standing in front of the glass, lit by the beam
     const p = G.player.ctrl.body.position;
     const z = G.world.zoneAt(p);
-    if (z && (z.name === 'main' || z.name === 'bed') && p.z < 2.6 && Math.abs(p.x - this.beamX) < 1.4 && !G.player.ctrl.crouched) v += 0.9;
+    if (z && (z.name === 'main' || z.name === 'balcony') && p.z < 2.6 && Math.abs(p.x - this.beamX) < 1.4 && !G.player.ctrl.crouched) v += 0.9;
     return v;
   }
 
@@ -151,7 +151,7 @@ export class Alien {
     if (want && !st.on) {
       st.on = true; st.alert = 0; st.t = 0;
       // appear at the far end of the hallway, away from the player
-      st.pos.set(p.x > 6 ? -5.6 : 18.6, 0, 8.77);
+      st.pos.set(p.x > 6 ? -7.5 : 19.5, 0, 7.95);
       this.stalker.visible = true;
       this.nearLoop = G.audio && G.audio.loop('alienNear', { pos: st.pos, vol: 0.4 });
     }
@@ -169,12 +169,12 @@ export class Alien {
     const dist = this.stDist();
     const sense = (lit > 0.25 ? 0.6 : 0.1) + (moving ? (G.player.ctrl.crouched ? 0.1 : 0.4) : 0) + (dist < 4 ? 0.3 : 0);
     st.alert = clamp(st.alert + (sense - 0.35) * dt * 0.6, 0, 1);
-    const target = st.alert > 0.3 ? V(p.x, 0, p.z) : (st.goal || V(st.pos.x + Math.sin(st.t * 0.2) * 3, 0, 8.77));
+    const target = st.alert > 0.3 ? V(p.x, 0, p.z) : (st.goal || V(st.pos.x + Math.sin(st.t * 0.2) * 3, 0, 7.95));
     const dir = target.clone().sub(st.pos); dir.y = 0;
     const L = dir.length();
     const speed = st.alert > 0.6 ? 1.6 : 0.55;
     if (L > 0.1) st.pos.addScaledVector(dir.normalize(), Math.min(L, speed * dt));
-    st.pos.z = clamp(st.pos.z, 8.1, 9.4);
+    st.pos.z = clamp(st.pos.z, 7.35, 8.55);
     this.stalker.position.copy(st.pos);
     this.stalker.rotation.y = Math.atan2(p.x - st.pos.x, p.z - st.pos.z);
     // its walk: long, slow, wrong

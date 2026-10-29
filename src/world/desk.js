@@ -56,7 +56,7 @@ export class Desk {
     const root = this.root = new THREE.Group();
     G.world.root.add(root);
     const os = this.os = G.os = new OS();
-    os.register('support', { title: 'Blueberry Support', icon: 'support', w: 600, h: 440, max: true, create: (o) => new SupportApp(o) });
+    os.register('support', { title: 'SPF Hotline', icon: 'support', w: 600, h: 440, max: true, create: (o) => new SupportApp(o) });
     os.register('browser', { title: 'Internet Voyager', icon: 'browser', w: 600, h: 440, max: true, create: (o) => new BrowserApp(o) });
     os.register('mail', { title: 'Inbox', icon: 'inbox', w: 560, h: 400, max: false, create: (o) => new MailApp(o) });
     os.register('computer', { title: 'My Computer', icon: 'computer', w: 520, h: 360, max: false, create: (o) => new MyComputerApp(o) });
@@ -376,7 +376,7 @@ class Phone {
     if (this.state === 'ringing') {
       this.ringT += dt;
       this.nextBell -= dt;
-      if (this.nextBell <= 0) { sfx('bell', { pos: this.cradle(), vol: 0.9, ref: 1.2, occlude: true }); emit('noise', { pos: this.cradle(), loud: 0.6, kind: 'phone' }); this.nextBell = 4; }
+      if (this.nextBell <= 0) { sfx('thaiPhoneRing', { pos: this.cradle(), vol: 0.9, ref: 1.2, occlude: true }); emit('noise', { pos: this.cradle(), loud: 0.6, kind: 'phone' }); this.nextBell = 5; }
       if (!this.callInfo.work && this.ringT > 24) this.state = 'idle';
     }
     // handset pose: cradle, jiggle while ringing, at the ear when off-hook

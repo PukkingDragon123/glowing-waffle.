@@ -24,6 +24,7 @@ import { hangCloth } from './world/cloth.js';
 import { AudioEngine } from './audio/audio.js';
 import { Director } from './story/director.js';
 import { Ending } from './story/ending.js';
+import { Visitors } from './story/visitors.js';
 import { Alien } from './creatures/alien.js';
 import { Mirror } from './gfx/mirror.js';
 import { Menu } from './ui/menu.js';
@@ -63,6 +64,8 @@ async function boot() {
   }
   requestAnimationFrame(frame);
   const step = () => new Promise((r) => setTimeout(r, 16));
+  // the Thai faces must be in before a single sign or label is painted
+  await loadFonts();
   // the CC0 models and painted textures download while the cat runs
   const assets = loadAssets();
   await step();
@@ -80,7 +83,7 @@ async function boot() {
   await step();
   G.player = new Player();
   G.player.body = G.body = new Body();
-  G.player.ctrl.teleport(6.0, 0.05, 4.5, 0.6, -0.05);
+  G.player.ctrl.teleport(5.7, 0.05, 3.6, 0.6, -0.05);
   await step();
   G.sky = new Sky();
   for (const w of Object.values(G.apartment.windows)) {
@@ -89,17 +92,18 @@ async function boot() {
   }
   G.sky.apply(G.sky.preset(+(params.get('day') || 1), +(params.get('t') || 0.12)), true);
   await step();
-  G.nav = new NavGrid(-8.6, -0.4, 20.6, 10.0, 0.1);
+  G.nav = new NavGrid(-11.6, -1.6, 24.5, 10.5, 0.1);
   G.nav.bake(G.physics.statics);
+  const V3 = (x, z) => new THREE.Vector3(x, 0, z);
   const D = G.apartment.doors;
-  G.nav.addDoor(D.bedroom, new THREE.Vector3(3.46, 0, 2.6), new THREE.Vector3(3.46, 0, 3.35));
-  G.nav.addDoor(D.bath, new THREE.Vector3(3.46, 0, 3.95), new THREE.Vector3(3.46, 0, 4.65));
-  G.nav.addDoor(D.closet, new THREE.Vector3(3.46, 0, 6.6), new THREE.Vector3(3.46, 0, 7.25));
-  G.nav.addDoor(D.front, new THREE.Vector3(7.25, 0, 7.75), new THREE.Vector3(8.05, 0, 7.75));
+  G.nav.addDoor(D.bath, V3(6.56, 5.95), V3(6.56, 6.65));
+  G.nav.addDoor(D.front, V3(5.25, 7.0), V3(6.1, 7.0));
+  G.nav.addDoor(G.apartment.balconyDoorProxy, V3(3.95, -0.12), V3(4.8, -0.12));
   const BD = G.building.doors;
-  G.nav.addDoor(BD['4A'], new THREE.Vector3(-3.55, 0, 7.76), new THREE.Vector3(-2.8, 0, 7.76));
-  G.nav.addDoor(BD['4C'], new THREE.Vector3(12.35, 0, 7.76), new THREE.Vector3(13.1, 0, 7.76));
-  G.nav.addDoor(BD.trash, new THREE.Vector3(-6.46, 0, 8.4), new THREE.Vector3(-6.46, 0, 9.15));
+  G.nav.addDoor(BD['1406'], V3(0.9, 7.0), V3(1.75, 7.0));
+  G.nav.addDoor(BD['1408'], V3(9.6, 7.0), V3(10.45, 7.0));
+  G.nav.addDoor(BD.trash, V3(-9.56, 7.5), V3(-9.56, 8.35));
+  G.nav.addDoor(BD.stair, V3(21.06, 7.5), V3(21.06, 8.35));
   await step();
   G.cat = new Cat(G.nav);
   G.desk = new Desk(G.apartment);
@@ -107,6 +111,7 @@ async function boot() {
   G.mirror = new Mirror(G.apartment.mirrorSpot);
   G.alien = new Alien();
   G.ending = new Ending();
+  G.visitors = new Visitors();
   G.director = new Director();
   G.menu = new Menu();
   G.pause = new Pause();
@@ -123,7 +128,7 @@ async function boot() {
     if (G.desk.seated) { G.desk.stand(); return; }
     G.pause.show();
   });
-  window.BENGRIM = makeDebugApi();
+  window.BENGRIM = window.TOMYUM = makeDebugApi();
   // one click: sound needs a gesture
   const boot = document.getElementById('boot');
   const go = async () => {
@@ -145,6 +150,15 @@ async function boot() {
   window.addEventListener('pointerdown', go);
   window.addEventListener('keydown', go);
   if (params.has('autostart')) go();
+}
+
+// Kanit for signs and the HUD, Sarabun for small print, Itim for handwriting.
+// Google serves Thai as its own unicode-range subset, so ask with Thai text.
+async function loadFonts() {
+  if (!document.fonts || !document.fonts.load) return;
+  const faces = ['300 32px Kanit', '400 32px Kanit', '600 32px Kanit', '800 32px Kanit', '400 32px Sarabun', '700 32px Sarabun', '400 32px Itim', '700 32px "Chakra Petch"'];
+  const all = Promise.all(faces.map((f) => document.fonts.load(f, 'กขฃคต ๑๒๓ Abc').catch(() => null)));
+  await Promise.race([all, new Promise((r) => setTimeout(r, 4500))]);
 }
 
 // footsteps by floor surface, impacts by material

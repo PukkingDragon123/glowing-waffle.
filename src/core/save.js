@@ -1,6 +1,6 @@
 // Save slot: written every morning (start of day) so LOAD GAME resumes the loop
 // at the last dawn. Storage can be blocked, so all calls are guarded.
-const KEY = 'bengrim_save_v1';
+const KEY = 'tomyum2540_save_v1';
 
 export function writeSave(data) {
   try {

@@ -49,12 +49,15 @@ export class HUD {
     this.promptKey = key;
     if (!actions || !actions.length) { this.prompt.classList.remove('on'); this.cross.classList.remove('hot'); return; }
     this.prompt.innerHTML = '';
-    // just the keys, no words
+    // a key pill and a few words for each thing you can do
     const seen = new Set();
     for (const a of actions) {
       if (!a.key || seen.has(a.key)) continue; seen.add(a.key);
+      const row = document.createElement('span'); row.className = 'act';
       const k = document.createElement('span'); k.className = 'key'; k.textContent = a.key === 'LMB' ? '◐' : a.key === 'RMB' ? '◑' : a.key;
-      this.prompt.appendChild(k);
+      row.appendChild(k);
+      if (a.label && a.key !== 'LMB' && a.key !== 'RMB') { const l = document.createElement('span'); l.className = 'lbl'; l.textContent = a.label; row.appendChild(l); }
+      this.prompt.appendChild(row);
     }
     this.prompt.classList.add('on');
     this.cross.classList.add('hot');
@@ -109,6 +112,22 @@ export class HUD {
     el.innerHTML = '';
     for (const it of items || []) { const d = document.createElement('span'); d.className = 'o' + (it.done ? ' done' : ''); d.textContent = it.text; el.appendChild(d); }
     el.classList.toggle('on', !!(items && items.length));
+  }
+  // top right: the date that never changes, the clock, and the baht falling
+  ticker(d) {
+    const el = this.tk || (this.tk = { root: document.getElementById('ticker') });
+    if (!el.root) return;
+    if (!el.date) { el.date = el.root.querySelector('.date'); el.rate = el.root.querySelector('.rate'); el.arrow = el.root.querySelector('.arrow'); }
+    const show = G.state === 'play' && !d.cutscene;
+    el.root.classList.toggle('on', show);
+    if (!show) return;
+    const thai = (n) => String(n).replace(/[0-9]/g, (c) => '๐๑๒๓๔๕๖๗๘๙'[c]);
+    const date = `พุธ ${thai(2)} ก.ค. ${thai(2540)} · ${d.clockText()}`;
+    if (date !== el.lastDate) { el.lastDate = date; el.date.textContent = date; }
+    const fx = d.fx, base = 24.5;
+    const r = fx.toFixed(2);
+    if (r !== el.lastRate) { el.lastRate = r; el.rate.textContent = r; el.arrow.textContent = fx > base + 0.05 ? '▲ ' + (((fx - base) / base) * 100).toFixed(1) + '%' : ''; }
+    el.root.classList.toggle('crash', d.day >= 5);
   }
   setVisible(v) { document.getElementById('hud').style.display = v ? '' : 'none'; this.hidden = !v; }
   crosshair(v) { this.cross.classList.toggle('hidden', !v); }

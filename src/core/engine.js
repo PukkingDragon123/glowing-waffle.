@@ -39,7 +39,7 @@ const COMPOSITE_FS = /* glsl */`
 uniform sampler2D tScene; uniform sampler2D tBloom; uniform sampler2D tBloom2; uniform sampler2D tPrev; uniform sampler2D tDepth;
 uniform float bloomStrength; uniform float exposure; uniform float saturation; uniform float contrast;
 uniform float ghost; uniform float brightness; uniform vec3 tint; uniform vec3 lift; uniform float time;
-uniform vec2 res; uniform float dither; uniform float flesh; uniform float ink; uniform float paint; uniform vec2 nearFar;
+uniform vec2 res; uniform float dither; uniform float flesh; uniform float ink; uniform float paint; uniform vec2 nearFar; uniform float pixel;
 varying vec2 vUv;
 vec3 aces(vec3 x) { const float a = 2.51, b = 0.03, c = 2.43, d = 0.59, e = 0.14; return clamp((x * (a * x + b)) / (x * (c * x + d) + e), 0.0, 1.0); }
 vec3 toSRGB(vec3 c) { return mix(c * 12.92, 1.055 * pow(max(c, vec3(0.0)), vec3(1.0 / 2.4)) - 0.055, step(0.0031308, c)); }
@@ -70,6 +70,8 @@ vec3 painted(vec2 uv, vec2 px) {
   return r / max(vec3(1e-3), 1.0 - r);
 }
 float lum(vec3 c) { c = c / (1.0 + c); return dot(c, vec3(0.299, 0.587, 0.114)); }
+float bayer2(vec2 a) { a = floor(a); return fract(a.x / 2.0 + a.y * a.y * 0.75); }
+float bayer4(vec2 a) { return bayer2(0.5 * a) * 0.25 + bayer2(a); }
 // ink: depth creases and silhouettes, plus strong colour edges, with a slight
 // hand-drawn wobble and lines that thin out with distance
 float inkLine(vec2 uv, vec2 px) {
@@ -112,8 +114,16 @@ void main() {
   c = mix(c, c * vec3(1.15, 0.75, 0.7), flesh * (0.6 + 0.4 * sin(time * 2.1)));
   vec3 p = texture2D(tPrev, vUv).rgb;
   c = mix(c, max(c, p * 0.97), ghost);
-  // break up banding in the dark gradients
-  c += (hash(gl_FragCoord.xy + fract(time) * 61.0) - 0.5) * dither / 255.0;
+  // pixel art: a limited palette per channel through a 4x4 Bayer dither, so
+  // gradients become hand-placed pixel bands instead of smooth ramps
+  if (pixel > 0.01) {
+    float bay = bayer4(gl_FragCoord.xy) - 0.5;
+    float lv = mix(56.0, 9.0, pixel);
+    c = floor(clamp(c, 0.0, 1.0) * lv + 0.5 + bay * 0.9) / lv;
+  } else {
+    // break up banding in the dark gradients
+    c += (hash(gl_FragCoord.xy + fract(time) * 61.0) - 0.5) * dither / 255.0;
+  }
   gl_FragColor = vec4(clamp(c, 0.0, 1.0), 1.0);
 }`;
 
@@ -270,7 +280,7 @@ export class Engine {
       tScene: { value: null }, tBloom: { value: null }, tBloom2: { value: null }, tPrev: { value: null },
       bloomStrength: { value: 1 }, exposure: { value: 1 }, saturation: { value: 1 }, contrast: { value: 1 },
       ghost: { value: 0 }, brightness: { value: 0 }, tint: { value: new THREE.Vector3(1, 1, 1) }, lift: { value: new THREE.Vector3() },
-      time: { value: 0 }, res: { value: new THREE.Vector2() }, dither: { value: 1 }, flesh: { value: 0 }, ink: { value: 0.7 }, paint: { value: 0.6 },
+      time: { value: 0 }, res: { value: new THREE.Vector2() }, dither: { value: 1 }, flesh: { value: 0 }, ink: { value: 0.7 }, paint: { value: 0.6 }, pixel: { value: 0.5 },
       tDepth: { value: null }, nearFar: { value: new THREE.Vector2(0.03, 900) },
     });
     const fu = {
@@ -309,8 +319,9 @@ export class Engine {
     const bw = Math.max(2, lw >> 2), bh = Math.max(2, lh >> 2);
     this.rtB1 = makeRT(bw, bh); this.rtB2 = makeRT(bw, bh);
     this.rtB3 = makeRT(Math.max(2, bw >> 1), Math.max(2, bh >> 1)); this.rtB4 = makeRT(Math.max(2, bw >> 1), Math.max(2, bh >> 1));
-    this.rtL0 = makeRT(lw, lh, { type: THREE.UnsignedByteType });
-    this.rtL1 = makeRT(lw, lh, { type: THREE.UnsignedByteType });
+    // nearest upscale: every low-res pixel stays a crisp square on screen
+    this.rtL0 = makeRT(lw, lh, { type: THREE.UnsignedByteType, filter: THREE.NearestFilter });
+    this.rtL1 = makeRT(lw, lh, { type: THREE.UnsignedByteType, filter: THREE.NearestFilter });
     this.pp = 0;
     this.camera.aspect = aspect;
     this.camera.updateProjectionMatrix();
@@ -348,7 +359,7 @@ export class Engine {
     const out = this.pp ? this.rtL1 : this.rtL0;
     const prev = this.pp ? this.rtL0 : this.rtL1;
     cu.tScene.value = this.rtScene.texture; cu.tBloom.value = this.rtB1.texture; cu.tBloom2.value = this.rtB4.texture; cu.tPrev.value = prev.texture;
-    cu.ink.value = fx.ink ?? 0.7; cu.paint.value = fx.paint ?? 0.6;
+    cu.ink.value = fx.ink ?? 0.7; cu.paint.value = fx.paint ?? 0.6; cu.pixel.value = fx.pixel ?? 0.5;
     cu.tDepth.value = this.rtScene.depthTexture; cu.nearFar.value.set(camera.near, camera.far);
     cu.bloomStrength.value = fx.bloom; cu.exposure.value = fx.exposure; cu.saturation.value = fx.saturation;
     cu.contrast.value = fx.contrast; cu.ghost.value = fx.ghost; cu.brightness.value = fx.brightness;
