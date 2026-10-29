@@ -351,6 +351,8 @@ class Phone {
     }
   }
   answerPersonal(info) {
+    // a scripted call talks for itself and hangs up when it is done
+    if (info.script) { this.personal = info; this.pickUp(); emit('personalCall', info); info.script(this); return; }
     this.personal = info; this.pickUp();
     let t = 0.6;
     for (const l of info.lines) {

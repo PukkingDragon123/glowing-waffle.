@@ -43,7 +43,8 @@ export class Alien {
     if (this.state === 'sweep') this.exposure += (e.loud || 0.3) * 0.5;
     if (this.st.on) { const d = e.pos.distanceTo(this.st.pos); if (d < 12) { this.st.goal = e.pos.clone(); this.st.alert = Math.min(1, this.st.alert + (e.loud || 0.3) * 0.6); } }
   }
-  active() { const d = G.director; return d && d.running && !d.cutscene && G.story.day >= 3 && d.nightness > 0.55; }
+  // quiet: day 7's last night belongs to the men at the door
+  active() { const d = G.director; return d && d.running && !d.cutscene && !this.quiet && G.story.day >= 3 && d.nightness > 0.55; }
 
   // how visible the apartment is from outside right now
   visibility() {
@@ -146,7 +147,7 @@ export class Alien {
     const p = G.player.ctrl.body.position;
     const z = G.world.zoneAt(p);
     const inHall = z && z.name === 'hall';
-    const want = d && d.running && !d.cutscene && day >= 5 && inHall && (d.nightness > 0.5 || (day === 5 && d.flags.catOut && G.building.loops >= 1));
+    const want = d && d.running && !d.cutscene && !this.quiet && day >= 5 && inHall && (d.nightness > 0.5 || (day === 5 && d.flags.catOut && G.building.loops >= 1));
     const st = this.st;
     if (want && !st.on) {
       st.on = true; st.alert = 0; st.t = 0;

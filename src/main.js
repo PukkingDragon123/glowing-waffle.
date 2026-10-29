@@ -24,6 +24,7 @@ import { hangCloth } from './world/cloth.js';
 import { AudioEngine } from './audio/audio.js';
 import { Director } from './story/director.js';
 import { Ending } from './story/ending.js';
+import { Peace } from './story/peace.js';
 import { Alien } from './creatures/alien.js';
 import { Mirror } from './gfx/mirror.js';
 import { Menu } from './ui/menu.js';
@@ -108,6 +109,7 @@ async function boot() {
   G.alien = new Alien();
   G.ending = new Ending();
   G.director = new Director();
+  G.peace = new Peace();
   G.menu = new Menu();
   G.pause = new Pause();
   hookSounds();
@@ -139,6 +141,7 @@ async function boot() {
       // debug: jump straight into a day
       G.state = 'play'; G.hud.crosshair(true);
       G.director.startDay(+params.get('day'));
+      if (params.has('peace')) G.peace.debug(params.get('peace'));   // day 7's ending: morning|mirror|hide|search|call|elevator|roof|meet
     } else G.menu.open({ intro: !params.has('nointro') });
     setTimeout(() => (boot.hidden = true), 1300);
   };
@@ -173,6 +176,7 @@ function tick(dt) {
     G.cat.update(dt);
     G.desk.update(dt);
     G.director.update(dt);
+    G.peace.update(dt);
     G.mirror.update(dt);
     for (const c of G.cloth) c.step(dt);
   } else if (st === 'menu') {
@@ -209,6 +213,7 @@ function makeDebugApi() {
     sit() { G.desk.sit(); },
     day(n) { G.state = 'play'; G.menu.close(); G.director.startDay(n); },
     hour(h) { G.director.minutes = h * 60; },
+    peace(ph) { return G.peace.debug(ph); },
     key(code, frames = 1) { G.input.pressedSet.add(code); G.input.down.add(code); tick(1 / 30); G.input.down.delete(code); },
   };
 }

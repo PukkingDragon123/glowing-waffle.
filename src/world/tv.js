@@ -1,6 +1,7 @@
 // The living-room CRT: a wood-grain-and-plastic set on rabbit ears with a VCR
 // blinking 12:00 underneath. On: static, the morning news, and from day 3 the
-// Emergency Alert System that never stops.
+// Emergency Alert System that never stops. On the last day, a federal notice
+// with Alex's name on it.
 import * as THREE from 'three';
 import { G } from '../core/globals.js';
 import { M } from '../gfx/materials.js';
@@ -10,6 +11,7 @@ import { knobGeo } from '../gfx/shapes.js';
 
 const sfx = (n, o) => G.audio && G.audio.play(n, o);
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
+const NOTICE = 'Federal notice. Alex Bengrim, apartment four B, Harborview Towers, is contaminated. A disgrace. A danger to the public. Do not approach. Report all sightings.';
 
 export class CrtTV {
   constructor(group) {
@@ -57,10 +59,12 @@ export class CrtTV {
     this.on = !this.on;
     sfx(this.on ? 'crtOn' : 'click', { pos: this.g.getWorldPosition(V()), vol: 0.6 });
     if (this.loop) { this.loop.stop(0.2); this.loop = null; }
+    if (this.voice) { this.voice.stop(0.1); this.voice = null; }
     if (this.on) {
       const day = G.story.day;
       this.loop = G.audio && G.audio.loop(day >= 3 ? 'eas' : day === 1 ? 'tvBabble' : 'static', { pos: this.g.getWorldPosition(V()), vol: day >= 3 ? 0.35 : 0.3 });
-      if (day >= 3 && !this.said) { this.said = true; setTimeout(() => G.hud.inner('It\'s been on every channel since this morning.'), 1500); }
+      if (day >= 7) { this.voice = G.audio && G.audio.speak(NOTICE, { voice: 'man', phone: true, distort: 2, pos: this.g.getWorldPosition(V()), vol: 0.6, delay: 1.2 }); G.peace && G.peace.react('tv'); }
+      else if (day >= 3 && !this.said) { this.said = true; setTimeout(() => G.hud.inner('It\'s been on every channel since this morning.'), 1500); }
     }
     G.world.extraLight = G.world.extraLight || [];
     if (!this.lightHooked) { this.lightHooked = true; G.world.extraLight.push((p) => (this.on ? Math.max(0, 0.45 * (1 - p.distanceTo(this.g.getWorldPosition(V())) / 4)) : 0)); }
@@ -77,7 +81,18 @@ export class CrtTV {
     this.light.intensity = this.on ? 0.6 + Math.random() * 0.3 : 0;
     if (!this.on || G.frame % 2) return;
     const c = this.ctx, W = 160, H = 120, day = G.story.day;
-    if (day >= 3) {
+    if (day >= 7) {
+      // a federal notice, plain type, the name in the middle of the screen
+      c.fillStyle = '#04060a'; c.fillRect(0, 0, W, H);
+      c.fillStyle = '#9a1414'; c.fillRect(0, 8, W, 15);
+      c.fillStyle = '#fff'; c.textAlign = 'center'; c.font = 'bold 10px monospace'; c.fillText('FEDERAL NOTICE', W / 2, 19);
+      c.font = 'bold 15px monospace'; c.fillText('ALEX BENGRIM', W / 2, 46);
+      c.font = 'bold 8px monospace'; c.fillText('APT 4B  HARBORVIEW TOWERS', W / 2, 59);
+      c.fillStyle = '#ffd040'; c.font = 'bold 10px monospace'; c.fillText('CONTAMINATED', W / 2, 76); c.fillText('DO NOT APPROACH', W / 2, 88);
+      c.fillStyle = '#fff'; c.font = 'bold 11px monospace'; c.textAlign = 'left';
+      const msg = '  A DISGRACE. A DANGER TO THE PUBLIC. REPORT ALL SIGHTINGS.  ';
+      c.fillText(msg, W - ((this.t * 40) % (msg.length * 7 + W)), H * 0.92);
+    } else if (day >= 3) {
       // Emergency Alert System: bars, then the crawl
       const bars = ['#c0c0c0', '#c0c000', '#00c0c0', '#00c000', '#c000c0', '#c00000', '#0000c0'];
       bars.forEach((col, i) => { c.fillStyle = col; c.fillRect(i * W / 7, 0, W / 7 + 1, H * 0.62); });
