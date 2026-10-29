@@ -20,6 +20,8 @@ import { OUT, OUT_GLSL, Glows } from './outdoor.js';
 import { Ship } from './ship.js';
 import { Debris } from './debris.js';
 
+import { Neighbours } from './neighbours.js';
+export const LIFT = 120;
 const SKY_VS = `varying vec3 vDir; void main(){ vDir = position; vec4 p = projectionMatrix * modelViewMatrix * vec4(position, 1.0); gl_Position = p.xyww; }`;
 const SKY_FS = /* glsl */`
 uniform vec3 sunDir; uniform vec3 zenith; uniform vec3 horizon; uniform vec3 groundCol; uniform vec3 sunCol;
@@ -411,6 +413,8 @@ export class Sky {
   update(dt, cam) {
     this.time += dt;
     const p = this.p;
+    if (!this.neighbours) this.neighbours = new Neighbours(this.scene);
+    this.neighbours.update(dt, p.night);
     const t = this.time;
     const night = p.night, red = p.red;
     const e = p.sunDir.y;
@@ -590,11 +594,12 @@ export class Sky {
 
   // render as the background pass
   render(renderer, mainCam) {
-    this.cam.position.copy(mainCam.position);
+    // the apartment is ~40 floors up: the outside is seen from LIFT metres higher
+    this.cam.position.copy(mainCam.position); this.cam.position.y += LIFT;
     this.cam.quaternion.copy(mainCam.quaternion);
     this.cam.fov = mainCam.fov; this.cam.aspect = mainCam.aspect;
     this.cam.updateProjectionMatrix();
-    this.dome.position.copy(mainCam.position);
+    this.dome.position.copy(this.cam.position);
     renderer.render(this.scene, this.cam);
   }
 }
