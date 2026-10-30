@@ -7,6 +7,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { assetUrl } from '../core/assets.js';
 import { clamp, damp, lerp, noise1, rng } from '../core/util.js';
+import { buildGarments } from './cloth.js';
 
 // ---------------------------------------------------------------- atlas layout (from the body UVs)
 const ATLAS = 1024, INSET = 5;
@@ -97,19 +98,97 @@ export async function loadHumanTemplate() {
     clips.set(name, new THREE.AnimationClip(name, clip.duration, tracks));
   }
   Object.assign(HT, { ready: true, names, index, parent, restPos, restQuat, restScale, boneInverses, Gq, Gp, geos, clips, info, eyeY: info.eyes[0][1], height: info.height });
+  HT.torso = measureTorso(geos.body_hi);
+  // parent-first bone order
+  HT.order = []; const visit = (i) => { HT.order.push(i); parent.forEach((p, c) => { if (p === i) visit(c); }); }; parent.forEach((p, i) => { if (p < 0) visit(i); });
   return HT;
+}
+
+// Torso cross-sections of the template body: at(y) -> { rx, zf, zb } (model space)
+function measureTorso(g) {
+  const p = g.attributes.position, si = g.attributes.skinIndex, sw = g.attributes.skinWeight;
+  const torsoBones = new Set(['pelvis', 'spine_01', 'spine_02', 'spine_03'].map((n) => HT.index[n]));
+  const bins = new Map();
+  for (let i = 0; i < p.count; i++) {
+    let w = 0; for (let k = 0; k < 4; k++) if (torsoBones.has(si.getComponent(i, k))) w += sw.getComponent(i, k);
+    const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+    if (w < 0.6 || Math.abs(x) > 0.3) continue;
+    const b = Math.round(y / 0.03); const e = bins.get(b) || { rx: 0, zf: -1, zb: 1 };
+    e.rx = Math.max(e.rx, Math.abs(x)); e.zf = Math.max(e.zf, z); e.zb = Math.min(e.zb, z); bins.set(b, e);
+  }
+  const keys = [...bins.keys()].sort((a, b) => a - b);
+  return { at(y) { const b = Math.round(y / 0.03); const k = keys.reduce((best, c) => (Math.abs(c - b) < Math.abs(best - b) ? c : best), keys[0]); return bins.get(k); } };
+}
+
+// ---------------------------------------------------------------- body builds (proportion variants)
+// build: { legs, torso, shoulders, arms, hands, neck, hips, girth, chest, limbs, armGirth, neckGirth, head }
+const BUILD0 = { legs: 1, torso: 1, shoulders: 1, arms: 1, hands: 1, neck: 1, hips: 1, girth: 1, chest: 1, limbs: 1, armGirth: 1, neckGirth: 1, head: 1 };
+const variantCache = new Map();
+function radial(axis, g) { // scale by g perpendicular to axis
+  const a = axis, m = new THREE.Matrix3();
+  m.set(g + (1 - g) * a.x * a.x, (1 - g) * a.x * a.y, (1 - g) * a.x * a.z,
+    (1 - g) * a.y * a.x, g + (1 - g) * a.y * a.y, (1 - g) * a.y * a.z,
+    (1 - g) * a.z * a.x, (1 - g) * a.z * a.y, g + (1 - g) * a.z * a.z);
+  return m;
+}
+export function computeVariant(build = {}) {
+  const B = { ...BUILD0, ...build }, key = JSON.stringify(B);
+  if (variantCache.has(key)) return variantCache.get(key);
+  const n = HT.names.length, P = new Array(n), S = new Array(n), Sinv = new Array(n);
+  for (const i of HT.order) {
+    const name = HT.names[i], p = HT.parent[i];
+    if (p < 0) { P[i] = HT.Gp[i].clone(); continue; }
+    const off = HT.Gp[i].clone().sub(HT.Gp[p]), f = new THREE.Vector3(1, 1, 1);
+    if (name === 'pelvis') f.set(1, B.legs, 1);
+    else if (/^thigh/.test(name)) f.set(B.hips, 1, 1);
+    else if (/^(calf|foot|ball)/.test(name)) f.setScalar(B.legs);
+    else if (/^spine/.test(name) || name === 'neck_01') f.set(1, B.torso, 1);
+    else if (name === 'Head') f.setScalar(B.neck);
+    else if (/^(clavicle|upperarm)/.test(name)) f.set(B.shoulders, 1, 1);
+    else if (/^(lowerarm|hand_)/.test(name)) f.setScalar(B.arms);
+    else if (/(index|middle|ring|pinky|thumb)/.test(name)) f.setScalar(B.hands);
+    P[i] = P[p].clone().add(off.multiply(f));
+  }
+  const child = (i) => HT.parent.indexOf(i) >= 0 ? HT.parent.findIndex((pp, c) => pp === i && !/leaf/.test(HT.names[c])) : -1;
+  for (let i = 0; i < n; i++) {
+    const name = HT.names[i];
+    let g = 1;
+    if (name === 'pelvis') g = B.hips * B.girth; else if (name === 'spine_01' || name === 'spine_02') g = B.girth; else if (name === 'spine_03') g = B.chest;
+    else if (/^(thigh|calf)/.test(name)) g = B.limbs; else if (/^(upperarm|lowerarm)/.test(name)) g = B.armGirth; else if (name === 'neck_01') g = B.neckGirth;
+    if (name === 'Head') { S[i] = new THREE.Matrix3().multiplyScalar(B.head); Sinv[i] = new THREE.Matrix3().multiplyScalar(1 / B.head); continue; }
+    const c = child(i); const axis = c >= 0 ? HT.Gp[c].clone().sub(HT.Gp[i]).normalize() : new THREE.Vector3(0, 1, 0);
+    if (/^(pelvis|spine)/.test(name)) axis.set(0, 1, 0);
+    S[i] = radial(axis, g); Sinv[i] = radial(axis, 1 / g);
+  }
+  const deformPoint = (v, b) => { const i = typeof b === 'string' ? HT.index[b] : b; return v.clone().sub(HT.Gp[i]).applyMatrix3(S[i]).add(P[i]); };
+  const deformGeo = (g) => {
+    const pos = g.attributes.position, nrm = g.attributes.normal, si = g.attributes.skinIndex, sw = g.attributes.skinWeight;
+    const v = new THREE.Vector3(), nn = new THREE.Vector3(), acc = new THREE.Vector3(), accN = new THREE.Vector3(), t = new THREE.Vector3();
+    for (let k = 0; k < pos.count; k++) {
+      v.fromBufferAttribute(pos, k); nn.fromBufferAttribute(nrm, k); acc.set(0, 0, 0); accN.set(0, 0, 0);
+      for (let j = 0; j < 4; j++) { const w = sw.getComponent(k, j); if (w <= 0) continue; const b = si.getComponent(k, j); t.copy(v).sub(HT.Gp[b]).applyMatrix3(S[b]).add(P[b]); acc.addScaledVector(t, w); accN.addScaledVector(nn.clone().applyMatrix3(Sinv[b]), w); }
+      pos.setXYZ(k, acc.x, acc.y, acc.z); accN.normalize(); nrm.setXYZ(k, accN.x, accN.y, accN.z);
+    }
+    pos.needsUpdate = true; nrm.needsUpdate = true; return g;
+  };
+  const V = { build: B, P, S, deformPoint, deformGeo, pelvisK: B.legs };
+  variantCache.set(key, V);
+  return V;
 }
 
 // ---------------------------------------------------------------- looks
 export const LOOKS = {
   sunny: { skin: '#a87452', hair: '#151110', hairStyle: 'short', top: 'shell_top_t', sleeve: 'shell_sleeve_short', bottom: 'shell_bot_shorts', shoes: null,
-    shirt: '#5d6268', shirtPrint: 'karaoke', pants: '#3a4660', plaid: '#7b3a33', feet: 'slipper', slipper: '#26335a', fat: 0.55, belly: 1, face: 'sunny', age: 41 },
+    shirt: '#5d6268', shirtPrint: 'karaoke', pants: '#3a4660', plaid: '#7b3a33', feet: 'slipper', slipper: '#26335a', fat: 0.55, belly: 1, face: 'sunny', age: 41,
+    scale: 0.97, phakhaoma: true, build: { legs: 0.95, torso: 0.97, shoulders: 0.96, arms: 0.97, hips: 1.08, girth: 1.12, chest: 1.04, limbs: 1.06, armGirth: 1.0, neck: 0.95, neckGirth: 1.1, head: 1.05 } },
   soldier: { skin: '#d8b49a', hair: '#2a2018', hairStyle: 'none', top: 'shell_top_l', sleeve: 'shell_sleeve_long', bottom: 'shell_bot_loose', shoes: 'boot',
-    shirt: '#24272b', pants: '#202326', boot: '#141414', gloves: '#161616', vest: '#1c1f22', fat: 0.35, face: 'masked', helmet: true },
+    shirt: '#24272b', pants: '#202326', boot: '#141414', gloves: '#161616', vest: '#1c1f22', fat: 0.35, face: 'masked', helmet: true, sling: true, plateCarrier: true, randomBuild: true },
   general: { skin: '#d49a82', hair: '#a8a49e', hairStyle: 'bald', top: 'shell_top_j', sleeve: 'shell_sleeve_long', bottom: 'shell_bot_loose', shoes: 'boot',
-    shirt: '#4b5437', pants: '#424a30', boot: '#1a120c', fat: 1, belly: 0.25, face: 'general', cap: true, medals: true, age: 62 },
+    shirt: '#4b5437', pants: '#424a30', boot: '#1a120c', fat: 1, belly: 0.25, face: 'general', cap: true, medals: true, age: 62, coat: true, aiguillette: true, epaulettes: true,
+    scale: 0.98, build: { legs: 0.9, torso: 1.0, shoulders: 1.06, hips: 1.15, girth: 1.24, chest: 1.16, limbs: 1.12, armGirth: 1.1, neck: 0.88, neckGirth: 1.32, head: 1.06 } },
   gary: { skin: '#8d88a3', spots: '#6a4d8c', hairStyle: 'none', top: 'shell_top_j', sleeve: 'shell_sleeve_long', bottom: 'shell_bot_loose', shoes: null,
-    shirt: '#c4ad82', knit: true, pants: '#503e30', feet: 'slipper', slipper: '#6e2a36', fat: 0, face: 'none', alien: true, scale: 1.13 },
+    shirt: '#c4ad82', knit: true, pants: '#503e30', feet: 'slipper', slipper: '#6e2a36', fat: 0, face: 'none', alien: true, scale: 1.04, cardiganTails: true, scarf: true,
+    build: { legs: 1.12, torso: 1.06, shoulders: 0.9, arms: 1.16, hands: 1.22, girth: 0.82, chest: 0.84, limbs: 0.8, armGirth: 0.78, neck: 1.25, neckGirth: 0.72, head: 1.0 } },
 };
 
 // ---------------------------------------------------------------- painters
@@ -298,18 +377,18 @@ export function paintFaceSheet(look) {
 
 // ---------------------------------------------------------------- materials
 const BELLY_GLSL = /* glsl */`
-uniform float uBelly; uniform float uFat; uniform float uOutline;
+uniform float uBelly; uniform float uFat; uniform float uOutline; uniform vec3 uBellyC;
 attribute float afat; attribute float alayer; varying float vLayer;
 float smaxf(float a, float b, float k) { float h = max(k - abs(a - b), 0.0) / k; return max(a, b) + h * h * k * 0.25; }
 vec3 bellyPos(vec3 p);
-vec3 bellyDir(vec3 p) { vec3 c = vec3(0.0, 1.03, 0.1); vec3 d = p - c; d.y *= 0.8; return normalize(d + vec3(0.0, 0.0, 1e-4)); }
+vec3 bellyDir(vec3 p) { vec3 c = uBellyC; vec3 d = p - c; d.y *= 0.8; return normalize(d + vec3(0.0, 0.0, 1e-4)); }
 vec3 bellyPos(vec3 p) {
   if (uBelly <= 0.001) return p;
-  vec3 c = vec3(0.0, 1.03, 0.1); vec3 d = p - c; d.y *= 0.8;
+  vec3 c = uBellyC; vec3 d = p - c; d.y *= 0.8;
   float L = length(d); float Rb = 0.185 * uBelly;
   float nl = smaxf(L, Rb, 0.07);
   vec3 q = c + normalize(d + vec3(0.0, 0.0, 1e-4)) * nl; q.y = c.y + (q.y - c.y) / 0.8;
-  float gate = smoothstep(0.75, 0.86, p.y) * (1.0 - smoothstep(1.28, 1.38, p.y));
+  float gate = smoothstep(c.y - 0.28, c.y - 0.17, p.y) * (1.0 - smoothstep(c.y + 0.25, c.y + 0.35, p.y));
   float moved = clamp((nl - L) * 30.0, 0.0, 1.0) * gate;
   q += normalize(d + vec3(0.0, 0.0, 1e-4)) * min(alayer, 1.0) * 0.016 * moved;
   return mix(p, q, gate);
@@ -328,7 +407,7 @@ function injectBody(sh) {
 
 export function bodyMaterial(atlasTex, topTex, botTex, faceTex, look) {
   const m = new THREE.MeshStandardMaterial({ map: atlasTex, roughness: 0.78, metalness: 0, envMapIntensity: 0.55 });
-  m.userData.u = { uTop: { value: topTex }, uBot: { value: botTex }, uBelly: { value: look.belly || 0 }, uFat: { value: look.fat || 0 }, uOutline: { value: 0 }, uFace: { value: faceTex }, uFaceCell: { value: 0 },
+  m.userData.u = { uBellyC: { value: new THREE.Vector3(0, 1.03, 0.1) }, uTop: { value: topTex }, uBot: { value: botTex }, uBelly: { value: look.belly || 0 }, uFat: { value: look.fat || 0 }, uOutline: { value: 0 }, uFace: { value: faceTex }, uFaceCell: { value: 0 },
     uRimColor: { value: new THREE.Color(0.55, 0.65, 0.95) }, uRim: { value: look.alien ? 0.9 : 0.35 }, uGlow: { value: 0 }, uGlowColor: { value: new THREE.Color(0.5, 1, 0.7) }, uHasFace: { value: faceTex ? 1 : 0 } };
   m.onBeforeCompile = (sh) => {
     Object.assign(sh.uniforms, m.userData.u);
@@ -354,7 +433,7 @@ export function bodyMaterial(atlasTex, topTex, botTex, faceTex, look) {
 }
 export function outlineMaterial(look, thickness = 0.0055) {
   const m = new THREE.MeshBasicMaterial({ color: 0x0b0809, side: THREE.BackSide });
-  m.userData.u = { uBelly: { value: look.belly || 0 }, uFat: { value: look.fat || 0 }, uOutline: { value: thickness } };
+  m.userData.u = { uBellyC: { value: new THREE.Vector3(0, 1.03, 0.1) }, uBelly: { value: look.belly || 0 }, uFat: { value: look.fat || 0 }, uOutline: { value: thickness } };
   m.onBeforeCompile = (sh) => { Object.assign(sh.uniforms, m.userData.u); injectBody(sh); };
   return m;
 }
@@ -422,13 +501,24 @@ const tmpV = new THREE.Vector3();
 export class GlbHuman {
   constructor(kind, lookOverrides = {}) {
     const look = this.look = { ...LOOKS[kind], ...lookOverrides };
+    if (look.randomBuild) { const r = rng(look.seed ?? ((Math.random() * 1e9) | 0)); const R = (a, b) => a + (b - a) * r();
+      look.build = { legs: R(0.98, 1.06), torso: R(0.97, 1.04), shoulders: R(1.03, 1.14), arms: R(0.98, 1.04), girth: R(0.95, 1.12), chest: R(1.0, 1.14), limbs: R(1.0, 1.1), armGirth: R(1.0, 1.12), neckGirth: R(1.05, 1.2), head: R(0.96, 1.02), hips: R(0.98, 1.06) };
+      look.scale = R(0.96, 1.05); look.fat = R(0.1, 0.6); }
     this.kind = kind;
     this.root = new THREE.Group(); this.root.name = kind;
-    // bones
-    const bones = HT.names.map((n, i) => { const b = new THREE.Bone(); b.name = n; b.position.copy(HT.restPos[i]); b.quaternion.copy(HT.restQuat[i]); b.scale.copy(HT.restScale[i]); return b; });
-    HT.parent.forEach((p, i) => { if (p >= 0) bones[p].add(bones[i]); else this.root.add(bones[i]); });
+    const V = this.V = computeVariant(look.build);
+    // bones at the variant's rest positions (same rotations, so every clip still fits)
+    const bones = HT.names.map((n, i) => { const b = new THREE.Bone(); b.name = n; b.quaternion.copy(HT.restQuat[i]); b.scale.copy(HT.restScale[i]); return b; });
+    HT.parent.forEach((p, i) => {
+      const b = bones[i];
+      if (p >= 0) { bones[p].add(b); b.position.copy(V.P[i]).sub(V.P[p]).applyQuaternion(HT.Gq[p].clone().invert()).divide(HT.restScale[p]); }
+      else { this.root.add(b); b.position.copy(V.P[i]); }
+    });
     this.bones = bones; this.byName = Object.fromEntries(bones.map((b) => [b.name, b]));
-    this.skeleton = new THREE.Skeleton(bones, HT.boneInverses.map((m) => m.clone()));
+    this.restLocalPos = bones.map((b) => b.position.clone());
+    this.bindW = HT.names.map((_, i) => new THREE.Matrix4().compose(V.P[i], HT.Gq[i], new THREE.Vector3(1, 1, 1)));
+    this.skeleton = new THREE.Skeleton(bones, this.bindW.map((m) => m.clone().invert()));
+    this.torso = HT.torso;
     // textures
     const tex = (cv) => { const t = new THREE.CanvasTexture(cv); t.flipY = false; t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; return t; };
     const atlas = tex(paintAtlas(look, 'body')), top = tex(paintAtlas(look, 'top')), bot = tex(paintAtlas(look, 'bottom'));
@@ -436,14 +526,14 @@ export class GlbHuman {
     if (face) { face.flipY = false; face.colorSpace = THREE.SRGBColorSpace; face.anisotropy = 8; }
     this.material = bodyMaterial(atlas, top, bot, face, look);
     this.outlineMat = outlineMaterial(look);
-    const geo = mergeLook(look);
+    const geo = V.deformGeo(mergeLook(look));
     this.mesh = new THREE.SkinnedMesh(geo, this.material); this.mesh.bind(this.skeleton, new THREE.Matrix4());
     this.mesh.castShadow = this.mesh.receiveShadow = true; this.mesh.frustumCulled = false;
     this.outline = new THREE.SkinnedMesh(geo, this.outlineMat); this.outline.bind(this.skeleton, new THREE.Matrix4()); this.outline.frustumCulled = false;
     this.outline.layers.set(2);
     this.root.add(this.mesh, this.outline);
     if (look.hairStyle === 'short') {
-      const hg = hairCap(look);
+      const hg = V.deformGeo(hairCap(look));
       const hm = new THREE.MeshStandardMaterial({ color: look.hair, roughness: 0.65 });
       this.hair = new THREE.SkinnedMesh(hg, hm); this.hair.bind(this.skeleton, new THREE.Matrix4()); this.hair.frustumCulled = false; this.hair.castShadow = true;
       const ho = new THREE.SkinnedMesh(hg, outlineMaterial({ belly: 0, fat: 0 }, 0.004)); ho.bind(this.skeleton, new THREE.Matrix4()); ho.frustumCulled = false; ho.layers.set(2);
@@ -452,14 +542,22 @@ export class GlbHuman {
     if (look.scale) this.root.scale.setScalar(look.scale);
     this.extras = {};
     this.root.updateMatrixWorld(true);
+    // belly centre follows the build
+    const bc = V.deformPoint(new THREE.Vector3(0, 1.03, 0.1), 'spine_01');
+    this.material.userData.u.uBellyC.value.copy(bc); this.outlineMat.userData.u.uBellyC.value.copy(bc);
     this.anim = new GlbAnimator(this);
+    this.cloth = [];
+    try { this.cloth = buildGarments(this); } catch (e) { console.warn('garments failed', e); }
   }
+  // Template-space point rigidly attached to a bone -> that bone's local space (variant-aware).
+  restLocal(boneName, p) { const i = HT.index[boneName]; return this.V.deformPoint(p, i).applyMatrix4(this.bindW[i].clone().invert()); }
   // Attach a rigid mesh authored in the character's rest model space to a bone.
   attach(boneName, obj) {
     const i = HT.index[boneName], b = this.byName[boneName];
     const inv = HT.Gq[i].clone().invert();
-    obj.position.sub(HT.Gp[i]).applyQuaternion(inv);
+    obj.position.copy(this.V.deformPoint(obj.position, i)).sub(this.V.P[i]).applyQuaternion(inv);
     obj.quaternion.premultiply(inv);
+    if (boneName === 'Head') obj.scale.multiplyScalar(this.V.build.head);
     b.add(obj); return obj;
   }
   bonePos(name, out = new THREE.Vector3()) { return this.byName[name].getWorldPosition(out); }
@@ -469,7 +567,7 @@ export class GlbHuman {
   set glow(v) { this.material.userData.u.uGlow.value = v; }
   get visible() { return this.root.visible; }
   set visible(v) { this.root.visible = v; }
-  update(dt) { this.anim.update(dt); }
+  update(dt) { this.anim.update(dt); for (const c of this.cloth) c.update(dt); }
 }
 
 // ---------------------------------------------------------------- animation
@@ -546,7 +644,10 @@ export class GlbAnimator {
     this.locoW = damp(this.locoW, want ? 1 : 0, 8, dt);
     if (this.loco) { this.loco.setEffectiveWeight(this.locoW); if (!want && this.locoW < 0.01) { this.loco.stop(); this.loco = null; } }
     if (this.current) this.current.setEffectiveWeight(1 - this.locoW * 0.98);
+    const pel = h.byName.pelvis, pi = HT.index.pelvis;
+    pel.position.copy(HT.restPos[pi]);
     this.mixer.update(dt * this.speedMul);
+    if (h.V.pelvisK !== 1) { const k = h.V.pelvisK; pel.position.set(pel.position.x, (pel.position.y - HT.restPos[pi].y) * k + h.restLocalPos[pi].y, pel.position.z); }
     h.root.updateMatrixWorld(true);
     // procedural recipe (IK targets relative to the body)
     const rec = this.recipe;

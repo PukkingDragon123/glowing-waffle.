@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { loadHumanTemplate, GlbHuman } from './glbhuman.js';
 import { buildTemplate, instantiate, templates } from './character.js';
 import { CAT_BUILDERS } from './cat.js';
+import { OldCat } from './oldcat.js';
 import { babySpecs } from './alien.js';
 import { boneDefs } from './human.js';
 import { HumanAnimator } from './animator.js';
@@ -71,8 +72,8 @@ export async function buildCharacters(onProgress = () => {}, only = null) {
   const steps = [
     ['bodies', () => loadHumanTemplate()],
     ['accessories', () => buildAccessories()],
-    ['tofu', () => CAT_BUILDERS.tofu()],
-    ['tofusuit', () => CAT_BUILDERS.tofusuit()],
+    ['tofu', async () => {}],
+    ['tofusuit', async () => {}],
     ['baby', () => { const { J, specs } = babySpecs(); return buildTemplate('baby', { specs, boneDefs: boneDefs(J), material: { sssColor: 0x9d6bff, rim: 1.6 }, extra: { build(c) {
       const H = J.head; c.extras.eyes = [];
       c.extras.alienEyes = makeAlienEyes(c.byName.head, [[0.043, H[1] + 0.094, H[2] + 0.07], [-0.043, H[1] + 0.094, H[2] + 0.07]], [0.03, 0.022, 0.016], 0.25);
@@ -106,6 +107,7 @@ function skinnedHull(th) {
 }
 
 export function spawn(kind, look = {}) {
+  if (kind === 'tofu' || kind === 'tofusuit') return new OldCat(kind);   // the old game's cat
   if (!HUMANS.has(kind)) return new SdfChar(kind);
   const h = new GlbHuman(kind, look);
   if (h.look.helmet) { h.extras.helmet = h.attach('Head', rigidMesh('helmet')); }

@@ -12,7 +12,8 @@ export const OPENINGS = {
 
 // Furniture footprints (center x,z; size w (x) × d (z); yaw). Used for nav-blocking and placement.
 export const FURNITURE = {
-  counter: { x: -2.9, z: -1.5, w: 0.6, d: 1.6, h: 0.9 },     // stove at z=-1.85, sink at z=-1.05
+  counter: { x: -2.9, z: -1.125, w: 0.6, d: 0.85, h: 0.9 },  // sink at z=-1.05
+  stove: { x: -2.9, z: -1.93, w: 0.62, d: 0.55, h: 0.86 },    // old electric stove (CC0), oven door faces +x
   fridgeGhost: { x: -2.92, z: -0.42, w: 0.6, d: 0.62 },        // where the seized fridge stood
   sofa: { x: -2.72, z: 1.25, w: 0.9, d: 1.9, h: 0.85 },
   sideTable: { x: -2.92, z: 0.1, w: 0.45, d: 0.45, h: 0.55 },  // pink radio
@@ -29,7 +30,7 @@ export const FURNITURE = {
 
 // Where Sunny (or anyone) stands to use things: pos [x,0,z], yaw.
 export const SPOTS = {
-  stove: { pos: [-2.25, 0, -1.85], yaw: -Math.PI / 2 },
+  stove: { pos: [-2.2, 0, -1.93], yaw: -Math.PI / 2 },
   sink: { pos: [-2.25, 0, -1.05], yaw: -Math.PI / 2 },
   shelf: { pos: [1.45, 0, -1.45], yaw: Math.PI },
   desk: { pos: [2.12, 0, -0.55], yaw: Math.PI / 2 },          // seated in the chair
@@ -49,7 +50,7 @@ export const SPOTS = {
 export const CAMS = {
   overview: { pos: [0.15, 5.0, 7.6], look: [0.0, 0.85, -0.25], fov: 38 },
   kitchen: { pos: [-0.9, 2.1, -0.4], look: [-2.9, 1.0, -1.45], fov: 42 },
-  stove: { pos: [-1.95, 1.75, -1.85], look: [-2.95, 0.92, -1.85], fov: 40 },
+  stove: { pos: [-1.95, 1.7, -1.93], look: [-2.95, 0.86, -1.93], fov: 40 },
   shelf: { pos: [1.45, 1.25, -0.7], look: [1.45, 1.0, -2.1], fov: 48 },
   desk: { pos: [1.95, 1.32, -0.55], look: [3.1, 1.08, -0.55], fov: 36 },
   sofa: { pos: [-0.4, 1.6, 2.6], look: [-2.6, 0.8, 1.1], fov: 42 },

@@ -7,7 +7,7 @@ export const DEFAULTS = {
   sfx: 0.9,
   voice: 0.8,
   quality: 'high',        // low | medium | high
-  painterly: false,       // optional oil-paint (Kuwahara) filter
+  painterly: true,        // brush-patch (Kuwahara) filter, as in the old game
   outlines: true,         // ink outlines
   dof: true,
   shake: true,            // camera shake
